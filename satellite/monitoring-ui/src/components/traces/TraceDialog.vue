@@ -10,7 +10,7 @@
     @show="load"
   >
     <template #header>
-      <TraceDialogHeader :title="title" :event-id="eventId" />
+      <TraceDialogHeader :title="title" :event-id="eventId" :trace="trace" />
     </template>
     <TraceLoader v-if="!trace && loading" />
     <div v-else-if="error" class="state">

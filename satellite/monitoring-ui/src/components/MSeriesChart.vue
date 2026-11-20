@@ -8,7 +8,12 @@ import { computed } from 'vue'
 import { getLineChartOptions } from '@/lib/apex-charts'
 import { useCssVariables } from '@/composables/useCssVariables'
 import { CHART_HEIGHT, DEFAULT_CHART_COLOR } from '@/constants/charts'
-import { formatChartValue, hasIsolatedPoints, toChartPoints } from '@/utils/charts'
+import {
+  escapeChartLabel,
+  formatChartValue,
+  hasIsolatedPoints,
+  toChartPoints,
+} from '@/utils/charts'
 import MApexChart from '@/components/MApexChart.vue'
 
 interface Props {
@@ -34,7 +39,10 @@ const { values: cssValues, isDark } = useCssVariables(() => ({
 const hasBaseline = computed(() => (props.series.baseline?.length ?? 0) > 0)
 
 const chartSeries = computed(() => {
-  const main = { name: props.series.label, data: toChartPoints(props.series.points) }
+  const main = {
+    name: escapeChartLabel(props.series.label),
+    data: toChartPoints(props.series.points),
+  }
   if (!hasBaseline.value) return [main]
   return [main, { name: 'Compared period', data: toChartPoints(props.series.baseline ?? []) }]
 })

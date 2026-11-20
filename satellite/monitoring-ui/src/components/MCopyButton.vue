@@ -3,6 +3,8 @@
     class="copy-button"
     severity="secondary"
     variant="text"
+    :aria-label="ariaLabel"
+    :title="ariaLabel"
     @click.prevent.stop="copy"
     @mousedown.stop
     @pointerdown.stop
@@ -13,26 +15,32 @@
 
 <script setup lang="ts">
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
-import { ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { Check, Copy } from 'lucide-vue-next'
 import { Button, useToast } from 'primevue'
+import { copyToClipboard } from '@/utils/clipboard'
 
 const toast = useToast()
 
 type Props = {
   text: string
+  label?: string
   iconSize?: number
 }
 
-const props = withDefaults(defineProps<Props>(), { iconSize: 12 })
+const props = withDefaults(defineProps<Props>(), { iconSize: 12, label: 'value' })
 
 const copied = ref(false)
+let resetTimer: ReturnType<typeof setTimeout> | undefined
+
+const ariaLabel = computed(() => (copied.value ? `${props.label} copied` : `Copy ${props.label}`))
 
 async function copy() {
   try {
-    await navigator.clipboard.writeText(props.text)
+    await copyToClipboard(props.text)
     copied.value = true
-    setTimeout(() => {
+    clearTimeout(resetTimer)
+    resetTimer = setTimeout(() => {
       copied.value = false
     }, 2000)
   } catch {
@@ -40,6 +48,8 @@ async function copy() {
     toast.add(simpleErrorToast('Failed to copy to clipboard'))
   }
 }
+
+onBeforeUnmount(() => clearTimeout(resetTimer))
 </script>
 
 <style scoped>

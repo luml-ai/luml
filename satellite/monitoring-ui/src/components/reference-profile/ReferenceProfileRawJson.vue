@@ -1,6 +1,6 @@
 <template>
   <div class="raw-json">
-    <MCode class="code" :code="code" />
+    <MCode class="code" :code="code" copy-label="reference profile JSON" />
     <span class="lines">{{ formatLinesCount(code) }}</span>
   </div>
 </template>

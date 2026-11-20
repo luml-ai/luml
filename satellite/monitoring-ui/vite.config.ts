@@ -22,6 +22,17 @@ export default defineConfig(({ mode }) => ({
     }),
   },
   build: {
+    outDir: fileURLToPath(
+      new URL('../kit/luml_satellite/monitoring/dashboard/static', import.meta.url),
+    ),
+    emptyOutDir: true,
     chunkSizeWarningLimit: 1500,
+    rollupOptions: {
+      output: {
+        inlineDynamicImports: true,
+        entryFileNames: 'assets/app.js',
+        assetFileNames: 'assets/app[extname]',
+      },
+    },
   },
 }))

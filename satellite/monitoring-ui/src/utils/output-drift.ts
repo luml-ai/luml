@@ -3,6 +3,7 @@ import {
   type ClassProbabilityDrift,
   type ClassShift,
   type ConfidenceBlock,
+  type HorizonDrift,
   type OutputDriftResponse,
 } from '@/api/monitoring/interfaces'
 import {
@@ -42,6 +43,15 @@ export function getProbabilityRows(perClass: ClassProbabilityDrift[]): ClassDrif
     detail: `mean p ${formatOptional(item.mean, formatDecimal)}`,
     value: formatPsiLabel(item.psi),
     severity: getPsiSeverity(item.psi),
+  }))
+}
+
+export function getHorizonRows(horizons: HorizonDrift[]): ClassDriftRow[] {
+  return horizons.map((horizon) => ({
+    label: horizon.label,
+    detail: `mean ${formatOptional(horizon.mean, formatDecimal)} · ${formatInteger(horizon.count)} ${horizon.count === 1 ? 'forecast' : 'forecasts'}`,
+    value: formatPsiLabel(horizon.psi),
+    severity: getPsiSeverity(horizon.psi),
   }))
 }
 

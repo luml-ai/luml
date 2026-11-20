@@ -1,6 +1,7 @@
 <template>
   <main class="app" data-testid="monitoring-app">
     <h2 v-if="headerStore.title" class="title">{{ headerStore.title }}</h2>
+    <MWorkerStatus :health="headerStore.workerHealth" />
     <MTabs />
     <MFilters />
     <MTabsContent />
@@ -14,6 +15,7 @@ import { Toast } from 'primevue'
 import MFilters from './components/filters/MFilters.vue'
 import MTabs from './components/MTabs.vue'
 import MTabsContent from './components/MTabsContent.vue'
+import MWorkerStatus from './components/MWorkerStatus.vue'
 import { useHeaderStore } from './store/header'
 
 const headerStore = useHeaderStore()

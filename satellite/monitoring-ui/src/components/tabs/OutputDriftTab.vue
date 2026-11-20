@@ -3,6 +3,7 @@
     <OutputDriftLoader v-if="loading && !data" />
     <MErrorState v-else-if="error" :error="error" @retry="reload" />
     <div v-else-if="data" class="output-drift">
+      <MStaleNotice v-if="data.stale" :computed-at="data.computed_at" />
       <MAlerts
         v-if="data.alerts?.length"
         :alerts="data.alerts"
@@ -12,6 +13,12 @@
       <template v-else>
         <OutputDriftPsiCard :data="data" />
         <OutputDriftCharts :data="data" />
+        <OutputDriftClassList
+          v-if="horizonRows.length"
+          title="Drift by horizon"
+          subtitle="each forecast horizon vs its training baseline"
+          :rows="horizonRows"
+        />
         <OutputDriftConfidence v-if="data.confidence" :confidence="data.confidence" />
         <OutputDriftClassList
           v-if="probabilityRows.length"
@@ -41,12 +48,14 @@ import { computed, useTemplateRef } from 'vue'
 import { api } from '@/api'
 import { useMonitoringData } from '@/composables/useMonitoringData'
 import {
+  getHorizonRows,
   getOutputDriftEmptyState,
   getProbabilityRows,
   getTopChangedRows,
 } from '@/utils/output-drift'
 import MErrorState from '@/components/MErrorState.vue'
 import MEmpty from '@/components/MEmpty.vue'
+import MStaleNotice from '@/components/MStaleNotice.vue'
 import MAlerts from '@/components/MAlerts.vue'
 import AlertDialogHost from '@/components/alerts/AlertDialogHost.vue'
 import OutputDriftLoader from '@/components/output-drift/OutputDriftLoader.vue'
@@ -64,6 +73,8 @@ const emptyState = computed(() => (data.value ? getOutputDriftEmptyState(data.va
 const probabilityRows = computed(() =>
   getProbabilityRows(data.value?.probabilities?.per_class ?? []),
 )
+
+const horizonRows = computed(() => getHorizonRows(data.value?.horizons ?? []))
 
 const topChangedRows = computed(() => getTopChangedRows(data.value?.top_changed ?? []))
 

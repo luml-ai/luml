@@ -10,7 +10,17 @@
       />
     </div>
     <template #footer>
-      <span class="count">{{ formatPredictionsCount(data.count) }}</span>
+      <div class="footer">
+        <span class="count">{{ formatPredictionsCount(data.count) }}</span>
+        <span
+          v-if="data.psi_delta != null"
+          class="delta"
+          :class="`delta--${getDeltaTone(data.psi_delta)}`"
+        >
+          {{ formatSignedDelta(data.psi_delta, formatPsi) }} vs
+          {{ getCompareTargetLabel(filtersStore.compare) }}
+        </span>
+      </div>
     </template>
   </MCard>
 </template>
@@ -20,8 +30,11 @@ import { Tag } from 'primevue'
 import type { OutputDriftResponse } from '@/api/monitoring/interfaces'
 import { STATUS_TAG_TOKENS } from '@/constants/drift'
 import { getSeverityLabel, getSeverityTagSeverity } from '@/utils/alerts'
-import { formatPsiValue } from '@/utils/drift'
+import { formatPsi, formatPsiValue } from '@/utils/drift'
+import { formatSignedDelta, getDeltaTone } from '@/utils/format'
+import { getCompareTargetLabel } from '@/utils/cards'
 import { formatPredictionsCount, getOutputPsiLabel } from '@/utils/output-drift'
+import { useFiltersStore } from '@/store/filters'
 import MCard from '@/components/MCard.vue'
 
 interface Props {
@@ -29,6 +42,8 @@ interface Props {
 }
 
 defineProps<Props>()
+
+const filtersStore = useFiltersStore()
 </script>
 
 <style scoped>
@@ -49,7 +64,21 @@ defineProps<Props>()
   letter-spacing: -0.48px;
 }
 
+.footer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .count {
   color: var(--p-text-muted-color);
+}
+
+.delta--up {
+  color: var(--p-message-error-color);
+}
+
+.delta--down {
+  color: var(--p-message-success-color);
 }
 </style>

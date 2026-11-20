@@ -34,7 +34,7 @@ export const useFiltersStore = defineStore('filters', () => {
   const isCompareActive = computed(() => compare.value !== Compare.OFF)
 
   const dimensions = computed<Dimensions>(() => ({
-    window: isCustomRange.value ? null : selectedWindow.value,
+    window: selectedWindow.value,
     compare: compare.value,
     severity: severity.value,
     granularity: granularity.value,

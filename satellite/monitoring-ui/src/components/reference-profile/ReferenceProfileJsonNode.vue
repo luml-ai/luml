@@ -7,7 +7,7 @@
       <span v-if="label !== null && !branch" class="colon">:</span>
       <span v-if="branch" class="badge">{{ badge }}</span>
       <span v-else class="value" :class="valueKind">{{ leaf }}</span>
-      <MCopyButton v-if="copyable" class="copy" :text="copyText" />
+      <MCopyButton v-if="copyable" class="copy" :text="copyText" :label="label ?? 'JSON value'" />
     </div>
     <div v-if="branch && open" class="children">
       <ReferenceProfileJsonNode

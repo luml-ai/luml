@@ -14,7 +14,7 @@
         <span class="subtitle">{{ subtitle }}</span>
       </div>
     </template>
-    <MCode class="code" :code="code" />
+    <MCode class="code" :code="code" copy-label="reference profile JSON" />
   </Dialog>
 </template>
 

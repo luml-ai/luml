@@ -11,6 +11,7 @@ import { getBaseChartOptions } from '@/lib/apex-charts'
 import { useCssVariables } from '@/composables/useCssVariables'
 import { CHART_HEIGHT } from '@/constants/charts'
 import { formatPercent } from '@/utils/format'
+import { escapeChartLabel } from '@/utils/charts'
 import { getDistributionCategories, getDistributionSeries } from '@/utils/drift'
 
 interface Props {
@@ -66,6 +67,7 @@ const options = computed<ApexOptions>(() => {
       shared: true,
       intersect: false,
       theme: isDark.value ? 'dark' : 'light',
+      x: { formatter: (value: string | number) => escapeChartLabel(String(value)) },
       y: { formatter },
     },
   }

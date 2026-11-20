@@ -3,7 +3,7 @@
     <div class="tree">
       <ReferenceProfileJsonNode :value="document" />
     </div>
-    <MCopyButton class="tree-copy" :text="code" :icon-size="14" />
+    <MCopyButton class="tree-copy" :text="code" label="reference profile JSON" :icon-size="14" />
   </div>
 </template>
 

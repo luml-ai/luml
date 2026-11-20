@@ -10,6 +10,7 @@ import {
   PCA_PROJECTED_COMPONENTS,
   PCA_RANGE_PADDING,
   PCA_RANGE_QUANTILE,
+  PSI_ATTENTION_THRESHOLD,
   PSI_CRITICAL_THRESHOLD,
   PSI_SCALE_MAX,
   PSI_WARNING_THRESHOLD,
@@ -105,10 +106,11 @@ export function getMultivariateEmptyState(
   return null
 }
 
-export function getMultivariateMetrics(
-  multivariate: MultivariatePanel,
-  totalFeatures: number,
-): MultivariateMetric[] {
+export function countPsiAttention(multivariate: MultivariatePanel): number {
+  return multivariate.feature_psi.filter((feature) => feature.psi >= PSI_ATTENTION_THRESHOLD).length
+}
+
+export function getMultivariateMetrics(multivariate: MultivariatePanel): MultivariateMetric[] {
   const projectedVariance = multivariate.explained_variance.slice(0, PCA_PROJECTED_COMPONENTS)
   const explainedVariance = projectedVariance.length
     ? projectedVariance.reduce((sum, value) => sum + value, 0)
@@ -130,7 +132,7 @@ export function getMultivariateMetrics(
     },
     {
       label: 'Per-feature PSI',
-      value: `${multivariate.feature_psi.length} / ${totalFeatures}`,
+      value: `${countPsiAttention(multivariate)} / ${multivariate.feature_psi.length}`,
     },
     {
       label: 'Explained variance',

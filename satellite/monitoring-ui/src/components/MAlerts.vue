@@ -1,5 +1,5 @@
 <template>
-  <Card class="alerts">
+  <Card v-if="sortedAlerts.length" class="alerts">
     <template #content>
       <template v-for="(alert, index) in sortedAlerts" :key="getAlertKey(alert)">
         <Divider v-if="index > 0" :dt="{ horizontal: { margin: '8px 0' } }" />
@@ -21,7 +21,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { AlertBanner } from '@/api/monitoring/interfaces'
-import { getAlertKey, getAlertTitle, sortAlertsBySeverity } from '@/utils/alerts'
+import { getAlertKey, getAlertTitle, getOpenAlerts, sortAlertsBySeverity } from '@/utils/alerts'
 import { TriangleAlert } from 'lucide-vue-next'
 import Card from 'primevue/card'
 import Divider from 'primevue/divider'
@@ -39,7 +39,7 @@ const emit = defineEmits<{
   select: [alert: AlertBanner]
 }>()
 
-const sortedAlerts = computed(() => sortAlertsBySeverity(props.alerts))
+const sortedAlerts = computed(() => sortAlertsBySeverity(getOpenAlerts(props.alerts)))
 </script>
 
 <style scoped>

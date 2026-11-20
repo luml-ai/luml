@@ -32,6 +32,17 @@ export function formatPercentPoints(ratio: number): string {
   return `${(ratio * 100).toFixed(1)}pp`
 }
 
+export function formatSignedDelta(delta: number, formatter: (value: number) => string): string {
+  const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→'
+  return `${arrow} ${formatter(Math.abs(delta))}`
+}
+
+export function getDeltaTone(delta: number): 'up' | 'down' | 'flat' {
+  if (delta > 0) return 'up'
+  if (delta < 0) return 'down'
+  return 'flat'
+}
+
 export function formatMs(value: number): string {
   return `${Math.round(value)} ms`
 }

@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import axios, { type AxiosAdapter } from 'axios'
-import { installInterceptors } from './api.interceptors'
+import {
+  installInterceptors,
+  MONITORING_SESSION_EXPIRED_MESSAGE,
+  resetSessionExpiredReport,
+} from './api.interceptors'
 import { ApiError, SessionExpiredError } from './api.errors'
 import { ApiClass, MONITORING_API_BASE } from './api'
 
@@ -25,9 +29,23 @@ const createInstance = (status: number) => {
   return instance
 }
 
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
 describe('api', () => {
   it('maps 401 to SessionExpiredError', async () => {
     await expect(createInstance(401).get('/header')).rejects.toBeInstanceOf(SessionExpiredError)
+  })
+
+  it('notifies the Platform once when the session expires', async () => {
+    resetSessionExpiredReport()
+    const postMessage = vi.spyOn(window.parent, 'postMessage').mockImplementation(() => {})
+    const instance = createInstance(401)
+    await instance.get('/header').catch(() => null)
+    await instance.get('/runtime').catch(() => null)
+    expect(postMessage).toHaveBeenCalledTimes(1)
+    expect(postMessage).toHaveBeenCalledWith({ type: MONITORING_SESSION_EXPIRED_MESSAGE }, '*')
   })
 
   it('maps other failures to ApiError with status', async () => {

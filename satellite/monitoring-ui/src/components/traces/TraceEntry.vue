@@ -7,7 +7,7 @@
     <div class="value" :class="{ code: !!stats }">
       <pre v-if="stats" class="text">{{ text }}</pre>
       <span v-else class="text">{{ text }}</span>
-      <MCopyButton class="copy" :text="text" :icon-size="14" />
+      <MCopyButton class="copy" :text="text" :label="title" :icon-size="14" />
     </div>
   </div>
 </template>

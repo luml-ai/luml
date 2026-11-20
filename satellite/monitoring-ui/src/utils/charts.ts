@@ -15,6 +15,18 @@ export function formatChartValue(value: number | null | undefined, unit?: string
   return numberFormat.format(value)
 }
 
+const CHART_LABEL_ESCAPES: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+}
+
+export function escapeChartLabel(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => CHART_LABEL_ESCAPES[char] ?? char)
+}
+
 export function toChartPoints(points: SeriesPoint[]): [number, number | null][] {
   return points.map((point) => [new Date(point.t).getTime(), point.value])
 }

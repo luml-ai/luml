@@ -1,7 +1,7 @@
 <template>
   <div class="code">
     <pre class="code-content"><code>{{ code }}</code></pre>
-    <MCopyButton class="code-copy" :text="code" :icon-size="14" />
+    <MCopyButton class="code-copy" :text="code" :label="copyLabel" :icon-size="14" />
   </div>
 </template>
 
@@ -10,9 +10,12 @@ import MCopyButton from '@/components/MCopyButton.vue'
 
 interface Props {
   code: string
+  copyLabel?: string
 }
 
-defineProps<Props>()
+withDefaults(defineProps<Props>(), {
+  copyLabel: 'code',
+})
 </script>
 
 <style scoped>

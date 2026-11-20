@@ -13,16 +13,16 @@ export function formatCardValue(card: Card): string {
   return formatInteger(card.value)
 }
 
+export function getCompareTargetLabel(kind: Card['delta_kind']): string {
+  if (kind === 'previous') return 'previous period'
+  if (kind === 'custom') return 'compared period'
+  return kind ?? 'reference'
+}
+
 export function formatCardDelta(card: Card): string | null {
   if (card.delta == null) return null
   const arrow = card.delta > 0 ? '↑' : card.delta < 0 ? '↓' : '→'
-  const against =
-    card.delta_kind === 'previous'
-      ? 'previous period'
-      : card.delta_kind === 'custom'
-        ? 'compared period'
-        : (card.delta_kind ?? 'reference')
-  return `${arrow} ${formatDeltaMagnitude(card)} vs ${against}`
+  return `${arrow} ${formatDeltaMagnitude(card)} vs ${getCompareTargetLabel(card.delta_kind)}`
 }
 
 function formatDeltaMagnitude(card: Card): string {

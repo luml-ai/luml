@@ -16,6 +16,13 @@
         </Tag>
         <span class="meta">
           <span class="psi">{{ formatPsiLabel(feature.psi) }}</span>
+          <span
+            v-if="feature.psi_delta != null"
+            class="delta"
+            :class="`delta--${getDeltaTone(feature.psi_delta)}`"
+          >
+            {{ formatSignedDelta(feature.psi_delta, formatPsi) }}
+          </span>
           <Tag
             :value="getSeverityLabel(feature.severity)"
             :severity="getSeverityTagSeverity(feature.severity)"
@@ -32,7 +39,8 @@ import { Tag } from 'primevue'
 import type { DriftedFeature } from '@/api/monitoring/interfaces'
 import { STATUS_TAG_TOKENS } from '@/constants/drift'
 import { getSeverityLabel, getSeverityTagSeverity } from '@/utils/alerts'
-import { formatPsiLabel } from '@/utils/drift'
+import { formatPsi, formatPsiLabel } from '@/utils/drift'
+import { formatSignedDelta, getDeltaTone } from '@/utils/format'
 import MEllipsis from '@/components/MEllipsis.vue'
 
 interface Props {
@@ -118,6 +126,20 @@ const emit = defineEmits<{
   font-size: 12px;
   color: var(--p-text-muted-color);
   white-space: nowrap;
+}
+
+.delta {
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--p-text-muted-color);
+}
+
+.delta--up {
+  color: var(--p-message-error-color);
+}
+
+.delta--down {
+  color: var(--p-message-success-color);
 }
 
 @media (max-width: 720px) {

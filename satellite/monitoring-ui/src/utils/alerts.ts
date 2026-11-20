@@ -143,6 +143,10 @@ export function isAlertAcknowledged(alert: AlertBanner): boolean {
   return alert.state === ALERT_STATE_ACKNOWLEDGED
 }
 
+export function getOpenAlerts(alerts: AlertBanner[]): AlertBanner[] {
+  return alerts.filter((alert) => !isAlertAcknowledged(alert))
+}
+
 export function getAlertThreshold(alert: AlertBanner): string {
   return alert.threshold_label ?? (alert.threshold == null ? '—' : String(alert.threshold))
 }

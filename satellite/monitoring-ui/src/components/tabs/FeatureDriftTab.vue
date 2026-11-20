@@ -3,6 +3,7 @@
     <FeatureDriftLoader v-if="loading && !data" />
     <MErrorState v-else-if="error" :error="error" @retry="reload" />
     <div v-else-if="data" class="feature-drift">
+      <MStaleNotice v-if="data.stale" :computed-at="data.computed_at" />
       <MAlerts
         v-if="data.alerts?.length"
         :alerts="data.alerts"
@@ -22,11 +23,7 @@
           :title="multivariateEmptyState.title"
           :detail="multivariateEmptyState.detail"
         />
-        <MultivariateDrift
-          v-else
-          :multivariate="data.multivariate"
-          :total-features="data.features.length"
-        />
+        <MultivariateDrift v-else :multivariate="data.multivariate" />
       </template>
     </div>
     <AlertDialogHost
@@ -46,6 +43,7 @@ import { useFiltersStore } from '@/store/filters'
 import { getFeatureDriftEmptyState, getMultivariateEmptyState } from '@/utils/drift'
 import MErrorState from '@/components/MErrorState.vue'
 import MEmpty from '@/components/MEmpty.vue'
+import MStaleNotice from '@/components/MStaleNotice.vue'
 import MAlerts from '@/components/MAlerts.vue'
 import AlertDialogHost from '@/components/alerts/AlertDialogHost.vue'
 import FeatureDriftLoader from '@/components/feature-drift/FeatureDriftLoader.vue'

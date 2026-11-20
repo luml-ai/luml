@@ -39,7 +39,7 @@
               <button type="button" class="request-id" @click="openTrace(row.event_id)">
                 <MEllipsis :text="row.event_id" />
               </button>
-              <MCopyButton :text="row.event_id" :icon-size="14" />
+              <MCopyButton :text="row.event_id" label="request ID" :icon-size="14" />
             </div>
           </template>
         </Column>

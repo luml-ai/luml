@@ -14,12 +14,11 @@ import MultivariateDriftMetrics from '@/components/feature-drift/MultivariateDri
 
 interface Props {
   multivariate: MultivariatePanel
-  totalFeatures: number
 }
 
 const props = defineProps<Props>()
 
-const metrics = computed(() => getMultivariateMetrics(props.multivariate, props.totalFeatures))
+const metrics = computed(() => getMultivariateMetrics(props.multivariate))
 </script>
 
 <style scoped>

@@ -19,7 +19,9 @@ import {
 } from '@/constants/traces'
 import { isFailedOutcome } from '@/utils/runtime'
 
-export function getTraceStatusSeverity(row: TraceRow): 'success' | 'warn' | 'danger' {
+export function getTraceStatusSeverity(
+  row: Pick<TraceRow, 'status' | 'status_code'>,
+): 'success' | 'warn' | 'danger' {
   if (!isFailedOutcome(row)) return 'success'
   if (row.status_code >= 400 && row.status_code < 500) return 'warn'
   return 'danger'

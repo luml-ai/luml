@@ -1,5 +1,8 @@
 import {
+  Compare,
   SectionState,
+  type Card,
+  type RuntimeBaseline,
   type RuntimeResponse,
   type StatusBreakdownRow,
 } from '@/api/monitoring/interfaces'
@@ -33,4 +36,35 @@ export function getRuntimeEmptyState(runtime: RuntimeResponse): EmptyStateConten
     }
   }
   return null
+}
+
+const RUNTIME_CARD_FIELDS: {
+  key: keyof RuntimeBaseline & keyof RuntimeResponse
+  label: string
+  unit: string | null
+}[] = [
+  { key: 'request_count', label: 'Requests', unit: null },
+  { key: 'success_rate', label: 'Success rate', unit: 'ratio' },
+  { key: 'error_rate', label: 'Error rate', unit: 'ratio' },
+  { key: 'latency_p50_ms', label: 'Latency p50', unit: 'ms' },
+  { key: 'latency_p95_ms', label: 'Latency p95', unit: 'ms' },
+  { key: 'latency_max_ms', label: 'Latency max', unit: 'ms' },
+  { key: 'timeout_count', label: 'Timeouts', unit: null },
+  { key: 'failed_inference_count', label: 'Failed inferences', unit: null },
+]
+
+export function getRuntimeCards(runtime: RuntimeResponse, compare: Compare): Card[] {
+  const baseline = compare === Compare.OFF ? null : (runtime.baseline ?? null)
+  return RUNTIME_CARD_FIELDS.map(({ key, label, unit }) => {
+    const value = (runtime[key] as number | null | undefined) ?? null
+    const previous = baseline ? ((baseline[key] as number | null | undefined) ?? null) : null
+    return {
+      key,
+      label,
+      unit,
+      value,
+      delta: value != null && previous != null ? value - previous : null,
+      delta_kind: baseline ? compare : null,
+    }
+  })
 }
