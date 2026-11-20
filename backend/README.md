@@ -197,6 +197,16 @@ degrades to the previous unthrottled behaviour instead of blocking sign-in.
 `REDIS_URL` is mandatory: the backend refuses to start without it, so a
 deployment can never silently run without authentication rate limits.
 
-The application uses the request client address, so configure Uvicorn's trusted
-proxy addresses for your ingress and restrict direct access to the API when
-running behind a proxy. Untrusted forwarding headers must not set the client IP.
+The IP limit needs the address of the client, not of the proxy in front of the
+API. By default the application uses the request client address, so behind a
+proxy either configure Uvicorn's trusted proxy addresses for your ingress or set
+`CLIENT_IP_HEADER` to the header in which the ingress passes the client IP. The
+header is read only when the setting is present; a missing or malformed value
+falls back to the request client address. Forwarding headers such as
+`X-Forwarded-For` are never used otherwise.
+
+On DigitalOcean App Platform the container only sees the addresses of the
+platform's ingress routers, which all users share, so every App Platform
+environment sets `CLIENT_IP_HEADER=do-connecting-ip`. Set the variable only when
+the API is reachable exclusively through that ingress: a client that can reach
+the API directly can put any address in the header.
