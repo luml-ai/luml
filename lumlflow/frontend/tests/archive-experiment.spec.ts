@@ -10,6 +10,7 @@ import { useAnnotationsStore, type ExperimentSnapshotModelSource } from '@luml/e
 import { workspaceApi } from '@/api/slices/workspace/workspace.api'
 import { api } from '@/api/client'
 import ArchiveExperimentPage from '@/pages/workspaces/ArchiveExperimentPage.vue'
+import DetailsTabs from '@/components/experiments/details/DetailsTabs.vue'
 
 // Run the worker's database provider in-process in jsdom, reading members of the open archive.
 vi.mock('@luml/experiments', async (original) => {
@@ -145,7 +146,10 @@ describe('archived experiment details', () => {
       const database = reads.filter((read) => read.name.startsWith('exp.db'))
       expect(database).toEqual(databaseReads)
       if (fixture === generation2) expect(database.every((read) => read.range)).toBe(true)
+      expect(page.findComponent(DetailsTabs).props('modelValue')).toBe('Overview')
       await tab('Metrics')
+      expect(page.findComponent(DetailsTabs).props('modelValue')).toBe('Metrics')
+      expect(page.get('[role="tab"][aria-selected="true"]').text()).toBe('Metrics')
       await vi.waitFor(() =>
         expect(
           page.findAllComponents({ name: 'DynamicMetricsItem' }).map((c) => c.props('metricName')),

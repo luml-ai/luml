@@ -30,8 +30,13 @@
     <section v-if="inspection.kind === 'dataset'" class="section">
       <h3>Data</h3>
       <Tabs v-if="inspection.splits?.length" v-model:value="activeSplit" class="mb-3">
-        <TabList>
-          <Tab v-for="(item, index) in inspection.splits" :key="index" :value="index">
+        <TabList :pt="TABLIST_PT">
+          <Tab
+            v-for="(item, index) in inspection.splits"
+            :key="index"
+            :value="index"
+            class="split-tab"
+          >
             {{ item.subset }} / {{ item.name }}
           </Tab>
         </TabList>
@@ -107,6 +112,7 @@ import type {
   ArchiveInspection,
   WorkspaceFile,
 } from '@/api/slices/workspace/workspace.interface'
+import { TABLIST_PT } from '@/components/experiments/details/details.const'
 import UiCodeEditor from '@/components/ui/code-editor/UiCodeEditor.vue'
 import UploadButton from '@/components/upload/UploadButton.vue'
 import { getErrorMessage } from '@/helpers/errors'
@@ -204,6 +210,9 @@ watch(
 .actions {
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+.split-tab {
+  border: none;
 }
 .section {
   padding: 12px;
