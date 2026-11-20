@@ -1,6 +1,10 @@
 <template>
   <div class="monitoring-page">
-    <Breadcrumb :model="breadcrumbs" :pt="{ root: { style: 'padding-left: 0' } }" class="breadcrumbs">
+    <Breadcrumb
+      :model="breadcrumbs"
+      :pt="{ root: { style: 'padding-left: 0' } }"
+      class="breadcrumbs"
+    >
       <template #item="{ item, props: itemProps }">
         <RouterLink v-if="item.route" v-slot="{ href, navigate }" :to="item.route" custom>
           <a :href="href" v-bind="itemProps.action" @click="navigate">{{ item.label }}</a>
