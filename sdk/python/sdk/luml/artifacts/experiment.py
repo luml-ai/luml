@@ -133,6 +133,19 @@ def _write_tar(
             index_file.add_to_tar(tar, "attachments.index.json")
 
 
+def _new_file_mode(directory: Path) -> int:
+    """The mode `open` gives a new file in `directory` under the current umask."""
+    # Read from a probe file: `os.umask` can only be read by setting it, which races
+    # with files other threads create meanwhile.
+    probe = directory / f".luml-{secrets.token_hex(8)}.probe"
+    fd = os.open(probe, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+    try:
+        return stat.S_IMODE(os.fstat(fd).st_mode)
+    finally:
+        os.close(fd)
+        probe.unlink()
+
+
 def _write_artifact(
     output_path: str,
     manifest_json: bytes,
@@ -160,10 +173,10 @@ def _write_artifact(
     # Named apart from the target so a long but valid target name cannot overflow it.
     partial = target.with_name(f".luml-{secrets.token_hex(8)}.partial")
     try:
-        # Created like `open` would, so a new archive gets the mode the umask allows.
+        # Private until complete: a descriptor opened mid-write survives a chmod.
         # Without O_BINARY, Windows opens it in text mode and rewrites every LF.
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
-        fd = os.open(partial, flags, 0o666)
+        fd = os.open(partial, flags, 0o600)
     except OSError as error:
         if error.errno not in _NO_SIBLING_ERRNOS:
             raise
@@ -175,6 +188,11 @@ def _write_artifact(
             _write_tar(file, manifest_json, database, attachments)
         if target_stat is not None:
             os.chmod(partial, stat.S_IMODE(target_stat.st_mode))
+        else:
+            # A new archive needed no chmod before; where the mount refuses one or the
+            # probe (FUSE, a full disk), it stays owner-only rather than failing.
+            with contextlib.suppress(OSError):
+                os.chmod(partial, _new_file_mode(target.parent))
         try:
             os.replace(partial, target)
         except OSError as error:

@@ -4,15 +4,18 @@ import os
 import stat
 import sys
 import tarfile
+from collections.abc import Callable, Iterator
 from pathlib import Path
+from typing import BinaryIO
 
 import pytest
 
+import luml.artifacts.experiment as experiment_module
 from luml import (
     ExperimentReference,
     save_experiment,
 )
-from luml.artifacts._base import ArtifactManifest, DiskFile
+from luml.artifacts._base import ArtifactManifest, DiskFile, _BaseFile
 from luml.artifacts._helpers import add_bytes_to_tar
 from luml.experiments.tracker import ExperimentTracker
 
@@ -351,4 +354,104 @@ def test_a_replaced_export_keeps_the_earlier_file_mode(
     tracker.export(str(output), experiment_id=exp_id)
 
     assert stat.S_IMODE(output.stat().st_mode) == 0o604
+    assert [path.name for path in output.parent.iterdir()] == ["exp.tar"]
+
+
+@pytest.fixture
+def set_umask() -> Iterator[Callable[[int], int]]:
+    original = os.umask(0o022)
+    os.umask(original)
+    yield os.umask
+    os.umask(original)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="needs POSIX file modes")
+@pytest.mark.parametrize("umask", [0o022, 0o000])
+@pytest.mark.parametrize("earlier_mode", [None, 0o644])
+def test_the_archive_is_private_while_it_is_written(
+    experiment_with_data: tuple[ExperimentTracker, str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    set_umask: Callable[[int], int],
+    umask: int,
+    earlier_mode: int | None,
+) -> None:
+    tracker, exp_id = experiment_with_data
+    output = tmp_path / "exp.tar"
+    if earlier_mode is not None:
+        output.write_bytes(b"earlier")
+        output.chmod(earlier_mode)
+    modes_while_writing: list[int] = []
+    real_write_tar = experiment_module._write_tar
+
+    def recording_write_tar(
+        file: BinaryIO,
+        manifest_json: bytes,
+        database: tuple[str, _BaseFile],
+        attachments: tuple[_BaseFile, _BaseFile] | None,
+    ) -> None:
+        modes_while_writing.append(stat.S_IMODE(os.fstat(file.fileno()).st_mode))
+        real_write_tar(file, manifest_json, database, attachments)
+        modes_while_writing.append(stat.S_IMODE(os.fstat(file.fileno()).st_mode))
+
+    monkeypatch.setattr(experiment_module, "_write_tar", recording_write_tar)
+    set_umask(umask)
+    tracker.export(str(output), experiment_id=exp_id)
+
+    assert modes_while_writing == [0o600, 0o600]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="needs POSIX file modes")
+@pytest.mark.parametrize(
+    ("umask", "earlier_mode", "final_mode"),
+    [
+        (0o022, None, 0o644),
+        (0o000, None, 0o666),
+        (0o077, None, 0o600),
+        (0o022, 0o600, 0o600),
+        (0o022, 0o644, 0o644),
+        (0o022, 0o640, 0o640),
+        (0o000, 0o600, 0o600),
+    ],
+)
+def test_the_archive_gets_its_final_mode_once_complete(
+    experiment_with_data: tuple[ExperimentTracker, str],
+    tmp_path: Path,
+    set_umask: Callable[[int], int],
+    umask: int,
+    earlier_mode: int | None,
+    final_mode: int,
+) -> None:
+    tracker, exp_id = experiment_with_data
+    output = tmp_path / "out" / "exp.tar"
+    output.parent.mkdir()
+    if earlier_mode is not None:
+        output.write_bytes(b"earlier")
+        output.chmod(earlier_mode)
+    set_umask(umask)
+
+    ref = tracker.export(str(output), experiment_id=exp_id)
+
+    assert ref.validate() is True
+    assert stat.S_IMODE(output.stat().st_mode) == final_mode
+    assert [path.name for path in output.parent.iterdir()] == ["exp.tar"]
+
+
+def test_a_new_archive_is_written_where_the_mount_refuses_chmod(
+    experiment_with_data: tuple[ExperimentTracker, str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tracker, exp_id = experiment_with_data
+    output = tmp_path / "out" / "exp.tar"
+    output.parent.mkdir()
+
+    def refused_chmod(path: object, mode: int) -> None:
+        raise PermissionError(1, "Operation not permitted")
+
+    monkeypatch.setattr(experiment_module.os, "chmod", refused_chmod)
+
+    ref = tracker.export(str(output), experiment_id=exp_id)
+
+    assert ref.validate() is True
     assert [path.name for path in output.parent.iterdir()] == ["exp.tar"]
