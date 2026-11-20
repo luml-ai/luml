@@ -9,13 +9,7 @@
   <Skeleton v-else-if="!archive" height="16rem" />
   <template v-else>
     <h1 class="text-2xl font-medium mb-3">{{ name }}</h1>
-    <Tabs v-model:value="tab" class="mb-4">
-      <TabList :pt="TABLIST_PT">
-        <Tab v-for="(icon, label) in tabs" :key="label" :value="label">
-          <component :is="icon" :size="14" /> {{ label }}
-        </Tab>
-      </TabList>
-    </Tabs>
+    <DetailsTabs v-model="tab" class="mb-4" />
     <div v-if="tab === 'Overview'" class="grid grid-cols-2 gap-6">
       <ParametersCard :parameters="parameters" />
       <div>
@@ -70,8 +64,7 @@
 
 <script setup lang="ts">
 import { computed, markRaw, onUnmounted, provide, ref, shallowRef, toRef, watch } from 'vue'
-import { Card, Message, Skeleton, Tab, TabList, Tabs } from 'primevue'
-import { Braces, LayoutDashboard, ListTree, Paperclip, Table2 } from 'lucide-vue-next'
+import { Card, Message, Skeleton } from 'primevue'
 import {
   DynamicMetrics,
   MarkdownRendererKey,
@@ -88,7 +81,7 @@ import { renderMarkdown } from '@luml/attachments'
 import { workspaceApi } from '@/api/slices/workspace/workspace.api'
 import type { ArchiveInspection } from '@/api/slices/workspace/workspace.interface'
 import ArchiveAttachments from '@/components/workspace/ArchiveAttachments.vue'
-import { TABLIST_PT } from '@/components/experiments/details/details.const'
+import DetailsTabs from '@/components/experiments/details/DetailsTabs.vue'
 import { getErrorMessage } from '@/helpers/errors'
 import { baseName, parentDirectory } from '@/helpers/path'
 import { ROUTE_NAMES } from '@/router/router.const'
@@ -96,13 +89,6 @@ import { useThemeStore } from '@/store/theme'
 import ParametersCard from '@/table-cards/ParametersCard.vue'
 
 const props = defineProps<{ path: string }>()
-const tabs = {
-  Overview: LayoutDashboard,
-  Metrics: Table2,
-  Traces: ListTree,
-  Evals: Braces,
-  Attachments: Paperclip,
-}
 const tab = ref('Overview')
 const evals = useEvalsStore()
 const annotations = useAnnotationsStore()

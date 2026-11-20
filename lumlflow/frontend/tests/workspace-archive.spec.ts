@@ -173,6 +173,8 @@ describe('Workspace archives', () => {
       ])
       expect(wrapper.findAll('.contents button')).toHaveLength(4)
       expect(new Set(reads)).toEqual(new Set([splits[0]!.files[0]]))
+      expect(wrapper.get('[role="tablist"]').attributes('style')).toContain('border-top:')
+      expect(wrapper.findAll('[role="tab"].split-tab')).toHaveLength(2)
       await wrapper.get('[role="tablist"]').findAll('[role="tab"]')[1]!.trigger('click')
       await vi.waitFor(() => expect(wrapper.text()).toContain('Showing first 1,000 rows'))
       expect(new Set(reads)).toEqual(new Set(splits.map((s) => s.files[0])))

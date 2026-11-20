@@ -1,55 +1,77 @@
 import { Blob as NodeBlob } from 'node:buffer'
 import { execFileSync } from 'node:child_process'
-import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
 import { flushPromises, mount, RouterLinkStub, type VueWrapper } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import ToastService from 'primevue/toastservice'
 import ConfirmationService from 'primevue/confirmationservice'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useAnnotationsStore } from '@luml/experiments'
+import { useAnnotationsStore, type ExperimentSnapshotModelSource } from '@luml/experiments'
 import { workspaceApi } from '@/api/slices/workspace/workspace.api'
 import { api } from '@/api/client'
 import ArchiveExperimentPage from '@/pages/workspaces/ArchiveExperimentPage.vue'
+import DetailsTabs from '@/components/experiments/details/DetailsTabs.vue'
 
-// Run the worker's database provider in-process in jsdom, using the installed wasm.
+// Run the worker's database provider in-process in jsdom, reading members of the open archive.
 vi.mock('@luml/experiments', async (original) => {
   const lib = await original<typeof import('@luml/experiments')>()
   return {
     ...lib,
     ExperimentSnapshotWorkerProxy: class extends lib.ExperimentSnapshotDatabaseProvider {
+      constructor() {
+        super({
+          transport: {
+            fetch: (input, init) => fetch(input, init),
+            readRangeSync: ({ url }, offset, length) => {
+              const name = new URL(url, location.origin).searchParams.get('name')!
+              reads.push({ name, range: `bytes=${offset}-${offset + length - 1}` })
+              return archive.members.get(name)!.slice(offset, offset + length)
+            },
+          },
+        })
+      }
       async init(
         data:
           | Parameters<InstanceType<typeof lib.ExperimentSnapshotDatabaseProvider>['init']>[0]
-          | { modelId: string; buffer: ArrayBuffer }[],
+          | ExperimentSnapshotModelSource[],
+        signal?: AbortSignal,
       ) {
-        const modelsInfo = Array.isArray(data) ? data : data.modelsInfo
-        return super.init({
-          modelsInfo,
-          wasmUrl: createRequire(import.meta.url).resolve('sql.js/dist/sql-wasm.wasm'),
-        })
+        return super.init({ modelsInfo: Array.isArray(data) ? data : data.modelsInfo }, signal)
       }
       terminate() {}
     },
   }
 })
 
+function readArchive(name: string) {
+  const file = resolve(import.meta.dirname, 'fixtures', name)
+  const names = execFileSync('tar', ['-tf', file], { encoding: 'utf8' }).trim().split('\n')
+  const members = new Map(
+    names.map((member) => [member, new Uint8Array(execFileSync('tar', ['-xOf', file, member]))]),
+  )
+  const files = [...members].map(([member, bytes]) => ({ name: member, size: bytes.length }))
+  const manifest = JSON.parse(new TextDecoder().decode(members.get('manifest.json')))
+  return { members, files, manifest }
+}
+
 const path = String.raw`/work/run\42.luml`
-const fixture = resolve(import.meta.dirname, 'fixtures/run.luml')
-const members = new Map(
-  ['manifest.json', 'exp.db.zip', 'attachments.index.json', 'attachments.tar'].map(
-    (name) => [name, new Uint8Array(execFileSync('tar', ['-xOf', fixture, name]))] as const,
-  ),
-)
-const files = [...members].map(([name, bytes]) => ({ name, size: bytes.length }))
-const manifest = JSON.parse(new TextDecoder().decode(members.get('manifest.json')))
+const generation1 = readArchive('run.luml')
+const generation2 = readArchive('run-gen2.luml')
+let archive = generation1
+let reads: { name: string; range: string | null }[] = []
 let page: VueWrapper
 beforeEach(() => {
+  archive = generation1
+  reads = []
   vi.spyOn(api, 'post').mockResolvedValue({ data: { signature: 'scoped', expires: 1234 } })
   vi.stubGlobal('Worker', class {})
   vi.stubGlobal('Blob', NodeBlob)
   localStorage.setItem('lumlflow.flow.token', 'fixture')
-  vi.spyOn(workspaceApi, 'inspectFile').mockResolvedValue({ kind: 'experiment', manifest, files })
+  vi.spyOn(workspaceApi, 'inspectFile').mockImplementation(async () => ({
+    kind: 'experiment',
+    manifest: archive.manifest,
+    files: archive.files,
+  }))
 })
 afterEach(() => {
   page?.unmount()
@@ -62,7 +84,7 @@ function open() {
     props: { path },
     global: {
       plugins: [createPinia(), ToastService, ConfirmationService],
-      stubs: { RouterLink: RouterLinkStub, DynamicMetrics: true },
+      stubs: { RouterLink: RouterLinkStub, DynamicMetricsItem: true },
     },
   })
 }
@@ -75,19 +97,32 @@ async function tab(label: string) {
 }
 
 describe('archived experiment details', () => {
-  it(
-    'renders the SDK archive read-only and reads only the selected attachment range',
+  it.each([
+    {
+      generation: 'generation 1, zipped database',
+      fixture: generation1,
+      databaseReads: [{ name: 'exp.db.zip', range: null }],
+    },
+    {
+      generation: 'generation 2, database read by range',
+      fixture: generation2,
+      databaseReads: expect.arrayContaining([
+        { name: 'exp.db', range: expect.stringMatching(/^bytes=\d+-\d+$/) },
+      ]),
+    },
+  ])(
+    'renders the SDK archive ($generation) read-only and reads only the selected attachment range',
     { timeout: 20000 },
-    async () => {
+    async ({ fixture, databaseReads }) => {
+      archive = fixture
       const post = vi.spyOn(api, 'post')
       const get = vi.spyOn(api, 'get')
-      const reads: { name: string; range: string | null }[] = []
       vi.stubGlobal('fetch', async (url: string, opts: RequestInit) => {
         const member = new URL(url, location.origin)
         expect(member.pathname).toBe('/api/flow/file/entry')
         expect(member.searchParams.get('path')).toBe(path)
         const name = member.searchParams.get('name')!
-        const bytes = members.get(name)!
+        const bytes = archive.members.get(name)!
         const range = new Headers(opts.headers).get('Range')
         reads.push({ name, range })
         if (!range) return new Response(bytes)
@@ -108,9 +143,18 @@ describe('archived experiment details', () => {
       expect(page.text()).toContain('Archive run')
       expect(page.text()).not.toMatch(/Rename|Delete|Upload|Edit tags/)
       expect(useAnnotationsStore().isEditAvailable).toBe(false)
-      expect(reads).toEqual([{ name: 'exp.db.zip', range: null }])
+      const database = reads.filter((read) => read.name.startsWith('exp.db'))
+      expect(database).toEqual(databaseReads)
+      if (fixture === generation2) expect(database.every((read) => read.range)).toBe(true)
+      expect(page.findComponent(DetailsTabs).props('modelValue')).toBe('Overview')
       await tab('Metrics')
-      expect(page.findComponent({ name: 'DynamicMetrics' }).props('metricsNames')).toEqual(['loss'])
+      expect(page.findComponent(DetailsTabs).props('modelValue')).toBe('Metrics')
+      expect(page.get('[role="tab"][aria-selected="true"]').text()).toBe('Metrics')
+      await vi.waitFor(() =>
+        expect(
+          page.findAllComponents({ name: 'DynamicMetricsItem' }).map((c) => c.props('metricName')),
+        ).toEqual(['loss']),
+      )
       await tab('Traces')
       await vi.waitFor(() => expect(page.text()).toContain('trace-1'))
       await tab('Evals')
@@ -120,7 +164,9 @@ describe('archived experiment details', () => {
       expect(attachment).toBeDefined()
       await attachment!.trigger('click')
       await vi.waitFor(() => expect(page.text()).toContain('Recorded in the archive'))
-      const index = JSON.parse(new TextDecoder().decode(members.get('attachments.index.json')))
+      const index = JSON.parse(
+        new TextDecoder().decode(archive.members.get('attachments.index.json')),
+      )
       const [start, size] = index['attachments/notes.txt']
       expect(reads.filter((read) => read.name === 'attachments.tar')).toEqual([
         { name: 'attachments.tar', range: `bytes=${start}-${start + size - 1}` },
@@ -131,7 +177,11 @@ describe('archived experiment details', () => {
   )
 
   it('rejects a non-experiment direct link before requesting any bytes', async () => {
-    vi.mocked(workspaceApi.inspectFile).mockResolvedValue({ kind: 'model', manifest, files })
+    vi.mocked(workspaceApi.inspectFile).mockResolvedValue({
+      kind: 'model',
+      manifest: archive.manifest,
+      files: archive.files,
+    })
     const fetch = vi.fn()
     vi.stubGlobal('fetch', fetch)
     open()
