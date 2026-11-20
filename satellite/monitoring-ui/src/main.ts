@@ -1,13 +1,17 @@
+import './assets/main.css'
 import { createApp } from 'vue'
-import VueApexCharts from 'vue3-apexcharts'
-import App from './App.vue'
-import { initTheme } from './lib/theme'
-import './assets/luml-design-system.css'
-import './assets/dashboard.css'
+import { createPinia } from 'pinia'
 
-// Theme before mount: the first frame must already be the Platform's color.
+import App from './App.vue'
+import { initPrimeVue } from './lib/primevue'
+import { initTheme } from './lib/theme'
+
 initTheme()
 
 const app = createApp(App)
-app.component('apexchart', VueApexCharts)
+
+app.use(createPinia())
+
+initPrimeVue(app)
+
 app.mount('#app')

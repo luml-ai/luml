@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { chromium } from '@playwright/test'
 import { mount } from '@vue/test-utils'
 import { compileStyle, parse } from 'vue/compiler-sfc'
@@ -6,8 +7,9 @@ import { describe, expect, it } from 'vitest'
 import FilePreviewHeader from '../FilePreviewHeader.vue'
 import headerSource from '../FilePreviewHeader.vue?raw'
 
-const lightTheme = readFileSync('src/demo/assets/theme/light-theme.css', 'utf8')
-const darkTheme = readFileSync('src/demo/assets/theme/dark-theme.css', 'utf8')
+const require = createRequire(import.meta.url)
+const lightTheme = readFileSync(require.resolve('@luml/design-tokens/light-theme.css'), 'utf8')
+const darkTheme = readFileSync(require.resolve('@luml/design-tokens/dark-theme.css'), 'utf8')
 
 describe('attachment preview header styles', () => {
   it('renders a visible border, background and emphasized file name in both themes', async () => {

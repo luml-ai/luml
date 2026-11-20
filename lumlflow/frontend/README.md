@@ -224,7 +224,6 @@ Run from inside `lumlflow/frontend/`, or append `--workspace=lumlflow/frontend` 
 | Command | What it does |
 |---|---|
 | `npm run build` | Type-checks **and** builds for production — output goes to `dist/` |
-| `npm run style` | Regenerates theme CSS variables from design tokens in `tokens/` |
 
 > `npm run build` = `vue-tsc --build` followed by `vite build` (sequential, not parallel — unlike the main app).
 
@@ -300,21 +299,18 @@ lumlflow/frontend/
 │   │   │   ├── index.css            # CSS entry point
 │   │   │   ├── tailwind/            # Tailwind CSS setup
 │   │   │   ├── primevue/            # PrimeVue component overrides
-│   │   │   ├── fonts/               # Font face definitions
-│   │   │   └── theme/               # Generated light / dark CSS variables
+│   │   │   └── fonts/               # Font face definitions
 │   │   └── img/                     # Logos and images
 │   │
 │   └── app/
 │       └── providers/prime-vue/     # PrimeVue plugin configuration
 │
-├── tokens/                          # Design token source files (JSON)
 ├── public/                          # Static assets (served as-is)
 ├── dist/                            # Production build output
 ├── vite.config.ts                   # Vite config — proxy, aliases, Tailwind plugin
 ├── tsconfig.app.json                # App TypeScript config
 ├── eslint.config.ts                 # ESLint 9 flat config
 ├── .prettierrc.json                 # No semis, single quotes, 100 char width
-├── style-dictionary.config.mjs      # Design token build config
 └── package.json
 ```
 
