@@ -54,10 +54,12 @@
       class="flex flex-wrap items-center gap-1 mt-4"
     >
       <CreateNewFlow :existing-names="existingFlowNames" />
-      <Button variant="text" @click="createType = 'folder'"
+      <Button v-if="!store.isNotebookListing" variant="text" @click="createType = 'folder'"
         ><FolderPlus :size="16" />New folder</Button
       >
-      <Button variant="text" @click="createType = 'file'"><FilePlus :size="16" />New file</Button>
+      <Button v-if="!store.isNotebookListing" variant="text" @click="createType = 'file'"
+        ><FilePlus :size="16" />New file</Button
+      >
     </div>
     <CreateEntryDialog
       v-if="createType && store.currentDirectory"

@@ -136,6 +136,7 @@ class Api:
         stop: Callable[[], None] | None = None,
         attachments: AttachmentCheck | None = None,
         leases: LeaseCheck | None = None,
+        revoke_lease: Callable[[str, str], None] | None = None,
         file_sessions: Callable[[], Sessions] | None = None,
         instance_id: str = "",
         harness_service: harnesses.HarnessService | None = None,
@@ -148,6 +149,7 @@ class Api:
         self._stop = stop
         self._attachments = attachments
         self._leases = leases
+        self._revoke_lease = revoke_lease
         self._harnesses = harness_service or harnesses.HarnessService()
         # Upload jobs in flight. A task nothing references may be collected
         # mid-upload; the set holds each until its done callback drops it.
@@ -1234,7 +1236,9 @@ class Api:
             "leased": bool(params.get("lease")),
         }
 
-    async def agent_end(self, params: dict[str, Any]) -> dict[str, Any]:
+    async def agent_end(
+        self, params: dict[str, Any], *, revoke_lease: bool = True
+    ) -> dict[str, Any]:
         actor = str(params.get("actor") or "")
         session = await self._session(
             params,
@@ -1253,6 +1257,8 @@ class Api:
             intent=params.get("intent") or f"{registered.label} finished",
             actor=registered.actor,
         )
+        if revoke_lease and self._revoke_lease is not None:
+            self._revoke_lease(session.ref.address, registered.actor)
         self._announce_agents(session)
         return {
             "flow": session.ref.address,

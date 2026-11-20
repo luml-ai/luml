@@ -1,8 +1,10 @@
 import asyncio
 import contextlib
+import hmac
 import json
 import logging
 import tarfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -141,6 +143,21 @@ def _flow_router(hub: Hub, api: Api, streams: Streams, *, token: str) -> APIRout
             return _failed(str(failure), status=_INTERNAL)
         return FileResponse(path, filename=filename)
 
+    @router.post(FILE_PATH)
+    def preview_ticket(
+        request: Request, path: str, name: str | None = None
+    ) -> Response:
+        if request.headers.get(TOKEN_HEADER) != token:
+            return _unauthorized()
+        expires = int(time.time()) + 3600
+        return JSONResponse(
+            {
+                "expires": expires,
+                "signature": _preview_signature(token, path, name, expires),
+            },
+            headers={"Cache-Control": "no-store"},
+        )
+
     @router.get(FILE_PATH)
     def file_bytes(request: Request) -> Response:
         return _file_bytes(request, token, member=None)
@@ -181,11 +198,25 @@ def _flow_router(hub: Hub, api: Api, streams: Streams, *, token: str) -> APIRout
     return router
 
 
+def _preview_signature(token: str, path: str, member: str | None, expires: int) -> str:
+    scope = json.dumps(["workspace-preview", path, member, expires]).encode()
+    return hmac.digest(token.encode(), scope, "sha256").hex()
+
+
 def _file_bytes(request: Request, token: str, *, member: str | None) -> Response:
+    selected = request.query_params.get("path", "")
     if not _authorized(request, token):
-        return _unauthorized()
+        try:
+            expires = int(request.query_params.get("expires", ""))
+        except ValueError:
+            return _unauthorized()
+        expected = _preview_signature(token, selected, member, expires)
+        if expires <= time.time() or not hmac.compare_digest(
+            expected.encode(), request.query_params.get("signature", "").encode()
+        ):
+            return _unauthorized()
     try:
-        path = regular_file(request.query_params.get("path", ""))
+        path = regular_file(selected)
         return file_bytes_response(request, path, member)
     except KeyError:
         return _failed(

@@ -4,7 +4,6 @@ import asyncio
 import ctypes
 import errno
 import hashlib
-import logging
 import os
 import re
 import shutil
@@ -28,7 +27,6 @@ from lumlflow.flow.errors import (
 )
 from lumlflow.flow.store.flowstore import FLOW_SUFFIX, STORE_DIRNAME
 
-logger = logging.getLogger(__name__)
 MAX_TEXT_BYTES = 2 * 1024 * 1024
 
 
@@ -219,7 +217,47 @@ def read_text(
             raise NotText("text files must be UTF-8") from error
 
 
-def _preserve_access(path: Path, staged: Path, info: os.stat_result) -> None:
+def _attributes(path: Path, *, moving: bool) -> dict[str, bytes]:
+    # User labels and ACLs can be present on both files and directories.
+    return {
+        key: os.getxattr(path, key, follow_symlinks=False)
+        for key in os.listxattr(path, follow_symlinks=False)
+        if key.startswith("user.")
+        or (key.startswith("system.") and "acl" in key)
+        or (moving and key.startswith("security."))
+    }
+
+
+def _mac_acl(path: Path) -> bytes:
+    libc = ctypes.CDLL(None, use_errno=True)
+    libc.acl_get_link_np.restype = ctypes.c_void_p
+    acl = libc.acl_get_link_np(os.fsencode(path), 0x100)  # ACL_TYPE_EXTENDED
+    if not acl:
+        code = ctypes.get_errno()
+        if code == errno.ENOENT:  # No extended ACL on this entry.
+            return b""
+        raise OSError(code, os.strerror(code))
+    try:
+        libc.acl_to_text.restype = ctypes.c_void_p
+        text = libc.acl_to_text(ctypes.c_void_p(acl), None)
+        if not text:
+            code = ctypes.get_errno()
+            raise OSError(code, os.strerror(code))
+        try:
+            return ctypes.string_at(text)
+        finally:
+            libc.acl_free(ctypes.c_void_p(text))
+    finally:
+        libc.acl_free(ctypes.c_void_p(acl))
+
+
+def _preserve_access(
+    path: Path, staged: Path, info: os.stat_result, *, moving: bool = False
+) -> None:
+    link = stat.S_ISLNK(info.st_mode)
+    denied = PermissionError(
+        errno.EACCES, f"cannot preserve access controls for {path}"
+    )
     if sys.platform == "win32":
         # A sibling inherits its parent's security descriptor. Check that its
         # owner, group and DACL match before replacing the destination.
@@ -237,30 +275,52 @@ def _preserve_access(path: Path, staged: Path, info: os.stat_result) -> None:
                 raise ctypes.WinError()
             return buffer.raw
 
-        if security(path) != security(staged):
-            raise PermissionError(errno.EACCES, "cannot preserve file access controls")
+        if link:
+            raise denied  # GetFileSecurityW would follow the reparse point.
+        descriptor = security(path)
+        if descriptor != security(staged):
+            if not moving or not ctypes.windll.advapi32.SetFileSecurityW(
+                str(staged), 0x7, ctypes.create_string_buffer(descriptor)
+            ):
+                raise denied
+            if security(staged) != descriptor:
+                raise denied
+        staged.chmod(stat.S_IMODE(info.st_mode))
     else:
-        temp = staged.stat()
+        temp = staged.lstat()
         if (temp.st_uid, temp.st_gid) != (info.st_uid, info.st_gid):
-            os.chown(staged, info.st_uid, info.st_gid)
+            os.chown(staged, info.st_uid, info.st_gid, follow_symlinks=False)
+        if not link:
+            staged.chmod(stat.S_IMODE(info.st_mode))
         if sys.platform == "darwin":
             libc = ctypes.CDLL(None, use_errno=True)
-            # COPYFILE_ACL copies just the access control list.
-            if libc.copyfile(os.fsencode(path), os.fsencode(staged), None, 1):
+            # COPYFILE_ACL | COPYFILE_XATTR | COPYFILE_NOFOLLOW
+            if libc.copyfile(
+                os.fsencode(path), os.fsencode(staged), None, 1 | 4 | (3 << 18)
+            ):
                 code = ctypes.get_errno()
                 raise OSError(code, os.strerror(code))
+            if moving and _mac_acl(path) != _mac_acl(staged):
+                raise denied
         elif hasattr(os, "listxattr"):
-            # A default ACL on the parent can also add an ACL to the
-            # temporary file that was absent from the original.
-            acl_names = {"system.posix_acl_access", "system.nfs4_acl"}
-            source = acl_names.intersection(os.listxattr(path))
-            for key in acl_names.intersection(os.listxattr(staged)) - source:
-                os.removexattr(staged, key)
-            for key in source:
-                os.setxattr(staged, key, os.getxattr(path, key))
+            source = _attributes(path, moving=moving)
+            inherited = _attributes(staged, moving=moving)
+            for key in inherited.keys() - source.keys():
+                os.removexattr(staged, key, follow_symlinks=False)
+            for key, value in source.items():
+                if inherited.get(key) != value:
+                    os.setxattr(staged, key, value, follow_symlinks=False)
+            if _attributes(staged, moving=moving) != source:
+                raise denied
         else:
             raise OSError(errno.ENOTSUP, "cannot preserve file access controls")
-    staged.chmod(stat.S_IMODE(info.st_mode))
+    actual = staged.lstat()
+    if (actual.st_uid, actual.st_gid, actual.st_mode) != (
+        info.st_uid,
+        info.st_gid,
+        info.st_mode,
+    ):
+        raise denied
 
 
 def write_text(
@@ -306,6 +366,17 @@ def write_text(
                     expected=expected_mtime,
                     revision=expected_revision,
                 )
+                if sys.platform == "win32":
+                    # CopyFileW retains extended attributes and named streams.
+                    # Only replace the unnamed data stream with the edited bytes.
+                    if not ctypes.windll.kernel32.CopyFileW(
+                        str(path), str(staged), False
+                    ):
+                        raise ctypes.WinError()
+                    with staged.open("wb") as output:
+                        output.write(data)
+                        output.flush()
+                        os.fsync(output.fileno())
                 _preserve_access(path, staged, current)
                 info = staged.stat()
                 if info.st_mtime_ns <= current.st_mtime_ns:
@@ -344,8 +415,18 @@ def directory_path(path: str) -> Path:
 
 
 def check_protected(path: Path, ui_directories: set[Path]) -> None:
-    if path == path.parent or path == Path.home().resolve() or path in ui_directories:
-        raise Protected(f"`{path}` is protected")
+    with os_errors():
+        info = path.lstat()
+        if not stat.S_ISDIR(info.st_mode):
+            return
+        protected = ui_directories | {Path.home().resolve(), Path(path.anchor)}
+        for folder in protected:
+            for ancestor in (folder, *folder.parents):
+                try:
+                    if os.path.samestat(info, ancestor.stat()):
+                        raise Protected(f"`{path}` is protected")
+                except FileNotFoundError:
+                    continue
 
 
 def target_path(parent: Path, name: str, *, directory: bool) -> Path:
@@ -363,6 +444,20 @@ def create(target: Path, *, folder: bool) -> os.stat_result | None:
             return os.fstat(handle.fileno())
 
 
+def _case_change(source: Path, target: Path) -> bool:
+    if (
+        source.parent != target.parent
+        or source.name == target.name
+        or source.name.casefold() != target.name.casefold()
+    ):
+        return False
+    # samefile alone also accepts distinct hard links. Directory enumeration
+    # gives the stored spelling even when lookup ignores case.
+    return os.path.samestat(
+        source.lstat(), target.lstat()
+    ) and target.name not in os.listdir(source.parent)
+
+
 def check_destination(source: Path, target: Path) -> None:
     if target.parent.is_relative_to(source):
         raise FlowError("a folder cannot be moved into itself or its contents")
@@ -370,18 +465,97 @@ def check_destination(source: Path, target: Path) -> None:
         target.lstat()
     except FileNotFoundError:
         return
-    raise AlreadyExists(f'"{target.name}" already exists')
+    if not _case_change(source, target):
+        raise AlreadyExists(f'"{target.name}" already exists')
 
 
 def remove(source: Path) -> None:
     if not stat.S_ISDIR(source.lstat().st_mode):
         source.unlink()
         return
+    _check_mounts(source)
     holding = _detach(source, prefix=".delete-")
     try:
-        shutil.rmtree(holding)
+        _remove_tree(holding)
     except OSError as error:
         raise OsError(f"could not finish deleting {holding}: {error}") from error
+
+
+def _check_mounts(root: Path) -> None:
+    if sys.platform == "linux":
+        # st_dev and ismount both miss same-filesystem bind mounts.
+        with Path("/proc/self/mountinfo").open("rb") as mounts:
+            for line in mounts:
+                name = re.sub(
+                    rb"\\([0-7]{3})", lambda m: bytes([int(m[1], 8)]), line.split()[4]
+                )
+                if Path(os.fsdecode(name)).is_relative_to(root):
+                    raise OSError(
+                        errno.EBUSY,
+                        f"cannot remove mounted filesystem at {os.fsdecode(name)}",
+                    )
+        return
+    pending = [root]
+    while pending:
+        path = pending.pop()
+        if path.is_symlink():
+            continue
+        if path.is_mount() or path.is_junction():
+            raise OSError(errno.EBUSY, f"cannot remove mounted filesystem at {path}")
+        if path.is_dir():
+            pending.extend(path.iterdir())
+
+
+def _mount_id(fd: int) -> int:
+    if sys.platform == "linux":
+        with Path(f"/proc/self/fdinfo/{fd}").open() as info:
+            for line in info:
+                if line.startswith("mnt_id:"):
+                    return int(line.split()[1])
+        raise OSError(errno.ENOTSUP, "could not verify mount boundary")
+    return os.fstat(fd).st_dev
+
+
+def _remove_tree(root: Path) -> None:
+    if os.name == "nt":
+        # Windows volume mounts are reparse points. rmtree does not descend
+        # into junctions, including ones that appeared after the initial check.
+        _check_mounts(root)
+        shutil.rmtree(root)
+        return
+
+    def clear(fd: int, mount: int) -> None:
+        with os.scandir(fd) as entries:
+            for entry in entries:
+                if entry.is_dir(follow_symlinks=False):
+                    child = os.open(entry.name, flags, dir_fd=fd)
+                    try:
+                        if _mount_id(child) != mount:
+                            raise OSError(
+                                errno.EBUSY,
+                                f"cannot remove mounted directory {entry.name}",
+                            )
+                        clear(child, mount)
+                    finally:
+                        os.close(child)
+                    os.rmdir(entry.name, dir_fd=fd)
+                else:
+                    os.unlink(entry.name, dir_fd=fd)
+
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    parent = os.open(root.parent, flags)
+    try:
+        fd = os.open(root.name, flags, dir_fd=parent)
+        try:
+            mount = _mount_id(parent)
+            if _mount_id(fd) != mount:
+                raise OSError(errno.EBUSY, f"cannot remove mounted directory {root}")
+            clear(fd, mount)
+        finally:
+            os.close(fd)
+        os.rmdir(root.name, dir_fd=parent)
+    finally:
+        os.close(parent)
 
 
 def _detach(source: Path, *, prefix: str) -> Path:
@@ -438,6 +612,26 @@ def move(source: Path, target: Path) -> tuple[os.stat_result, os.stat_result]:
     try:
         _rename(source, target)
         return original_info, original_info
+    except FileExistsError:
+        if not _case_change(source, target):
+            raise
+        # Some filesystems refuse even a case-only rename with NOREPLACE.
+        # Keep both legs exclusive so a concurrent creation cannot be overwritten.
+        holding = _detach(source, prefix=".rename-")
+        original = holding / "original"
+        try:
+            _rename(original, target)
+        except BaseException:
+            try:
+                _rename(original, source)
+            except OSError as error:
+                raise OsError(
+                    f"could not restore {original} to {source}: {error}"
+                ) from error
+            holding.rmdir()
+            raise
+        holding.rmdir()
+        return original_info, target.lstat()
     except OSError as error:
         if error.errno != errno.EXDEV:
             raise
@@ -445,17 +639,31 @@ def move(source: Path, target: Path) -> tuple[os.stat_result, os.stat_result]:
     # Stage and verify the copy before publishing or removing any user data.
     with tempfile.TemporaryDirectory(dir=target.parent, prefix=".move-") as staged:
         changed_at = source.lstat().st_ctime_ns
+        _check_mounts(source)
         versions = _versions(source)
         copy = Path(staged) / "copy"
         if stat.S_ISDIR(source.lstat().st_mode):
             shutil.copytree(source, copy, symlinks=True)
         else:
             shutil.copy2(source, copy, follow_symlinks=False)
+        # Verify parent directories before addressing their children. A source
+        # directory replaced by a link during the copy must never redirect chmod.
+        for relative, version in versions.items():
+            entry = source / relative
+            staged_entry = copy / relative
+            current = entry.lstat()
+            if current.st_mode != version[2] or stat.S_IFMT(
+                staged_entry.lstat().st_mode
+            ) != stat.S_IFMT(current.st_mode):
+                raise FlowError(f"`{source}` changed during the move")
+            _preserve_access(entry, staged_entry, current, moving=True)
+        _check_mounts(source)
         if source.lstat().st_ctime_ns != changed_at:
             raise FlowError(f"`{source}` changed during the move")
         holding = _detach(source, prefix=".move-")
         original = holding / "original"
         try:
+            _check_mounts(original)
             if _versions(original) != versions:
                 raise FlowError(f"`{source}` changed during the move")
             info = copy.lstat()
@@ -470,11 +678,9 @@ def move(source: Path, target: Path) -> tuple[os.stat_result, os.stat_result]:
             holding.rmdir()
             raise
         try:
-            shutil.rmtree(holding)
-        except OSError:
-            # The complete destination is already live. Preserve anything the OS
-            # could not clean up instead of rolling back a partially removed tree.
-            logger.warning(
-                "could not clean up moved item at %s", holding, exc_info=True
-            )
+            _remove_tree(holding)
+        except OSError as error:
+            raise OsError(
+                f"moved to {target}, but could not clean up {holding}: {error}"
+            ) from error
         return original_info, info

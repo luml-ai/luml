@@ -399,3 +399,15 @@ async def test_shared_file_retains_owning_group_restriction(tmp_path):
         await api.file_write_text({**edit, "path": str(path), "text": "saved"})
     assert path.read_text() == "saved"
     assert os.getxattr(path, key) == acl
+
+
+@pytest.mark.skipif(not hasattr(os, "setxattr"), reason="requires extended attributes")
+async def test_text_save_keeps_application_metadata(tmp_path):
+    path = tmp_path / "report.md"
+    path.write_text("draft")
+    os.setxattr(path, "user.application-label", b"reviewed")
+    async with daemon_api(tmp_path) as api:
+        edit = await api.file_read_text({"path": str(path)})
+        await api.file_write_text({**edit, "path": str(path), "text": "ready"})
+    assert path.read_text() == "ready"
+    assert os.getxattr(path, "user.application-label") == b"reviewed"

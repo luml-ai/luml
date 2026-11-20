@@ -68,6 +68,7 @@ class AppService(FastAPI):
             allow_origins=list(ALLOWED_ORIGINS),
             allow_methods=["*"],
             allow_headers=["*"],
+            expose_headers=["Content-Range"],
         )
 
         self.include_router(router=auth_router)

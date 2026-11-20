@@ -9,17 +9,28 @@ afterEach(() => {
 })
 
 describe('Workspace file transport', () => {
-  it('encodes a local preview URL and preserves special characters in the absolute path', () => {
+  it('encodes a local preview URL and preserves special characters in the absolute path', async () => {
     const path = '/project/a #1 & 2?.csv'
-    expect(() => workspaceApi.fileUrl(path)).toThrow()
+    await expect(workspaceApi.fileUrl(path)).rejects.toThrow()
     localStorage.setItem('lumlflow.flow.token', 'test key')
-    const url = new URL(workspaceApi.fileUrl(path), location.origin)
+    const ticket = vi
+      .spyOn(api, 'post')
+      .mockResolvedValue({ data: { expires: 1234, signature: 'scoped' } })
+    const url = new URL(await workspaceApi.fileUrl(path), location.origin)
+    expect(ticket).toHaveBeenCalledWith('flow/file', null, {
+      params: { path, name: undefined },
+      headers: { 'x-lumlflow-token': 'test key' },
+    })
     expect(url.origin).toBe(location.origin)
     expect(url.pathname).toBe('/api/flow/file')
-    expect(Object.fromEntries(url.searchParams)).toEqual({ path, token: 'test key' })
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      path,
+      expires: '1234',
+      signature: 'scoped',
+    })
   })
 
-  it('uses the configured backend origin and API prefix for bytes and watcher sockets', () => {
+  it('uses the configured backend origin and API prefix for bytes and watcher sockets', async () => {
     const originalBase = api.defaults.baseURL
     const connect = vi.fn()
     vi.stubGlobal(
@@ -33,7 +44,8 @@ describe('Workspace file transport', () => {
     try {
       api.defaults.baseURL = 'https://daemon.example.test/custom/api/'
       localStorage.setItem('lumlflow.flow.token', 'local')
-      const bytes = new URL(workspaceApi.fileUrl('/project/plot.png'))
+      vi.spyOn(api, 'post').mockResolvedValue({ data: { expires: 1234, signature: 'scoped' } })
+      const bytes = new URL(await workspaceApi.fileUrl('/project/plot.png'))
       expect(bytes.origin + bytes.pathname).toBe('https://daemon.example.test/custom/api/flow/file')
       new FlowStream({ token: 'local' }).connect()
       expect(connect).toHaveBeenCalledWith(

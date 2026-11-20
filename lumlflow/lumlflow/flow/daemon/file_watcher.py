@@ -447,7 +447,9 @@ class FileWatcher(FileSystemEventHandler):
             if directories & selection.directories:
                 sub.offer(self._snapshot(selection))
 
-    def expire(self) -> None:
+    def expire(
+        self, ended: set[tuple[asyncio.StreamWriter, str]] | None = None
+    ) -> None:
         sessions = self._sessions()
         for session in self._at_start.keys() - sessions.keys():
             del self._at_start[session]
@@ -460,6 +462,7 @@ class FileWatcher(FileSystemEventHandler):
                 now - lock.last >= self._idle_s
                 or not sessions
                 or (lock.session is not None and lock.session not in sessions)
+                or (ended and (lock.session, lock.actor) in ended)
             ):
                 del self._locks[path]
                 changed.add(path.parent)

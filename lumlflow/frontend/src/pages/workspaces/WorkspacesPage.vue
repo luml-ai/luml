@@ -224,13 +224,26 @@ async function refreshListing() {
 }
 
 watch(
-  [() => store.currentDirectory, filePath],
-  ([folder, file], _, onCleanup) => {
+  [() => store.currentDirectory, filePath, () => store.isNotebookListing],
+  ([folder, file, notebook], _, onCleanup) => {
     locks.value = []
     const token = streamToken()
-    if (!folder || !token) return
+    if (!folder || notebook || !token) return
     const stream = new FlowStream({ token })
     let timer: ReturnType<typeof setTimeout> | undefined
+    let expiry: ReturnType<typeof setTimeout> | undefined
+    function showLocks(snapshot: WorkspaceFileLock[], idleMs: number) {
+      clearTimeout(expiry)
+      const now = Date.now()
+      locks.value = snapshot.filter((lock) => lock.last + idleMs > now)
+      if (locks.value.length) {
+        const next = locks.value.reduce(
+          (first, lock) => Math.min(first, lock.last + idleMs),
+          Infinity,
+        )
+        expiry = setTimeout(() => showLocks(locks.value, idleMs), next - now)
+      }
+    }
     let subscribedFile = file
     let active = true
     let running = false
@@ -267,7 +280,7 @@ watch(
       }
       if (frame.channel !== 'files') return
       if (frame.type === 'locks') {
-        locks.value = frame.locks
+        showLocks(frame.locks, frame.idle_after_s * 1000)
         if (catchUp) {
           catchUp = false
           queueRefresh(true)
@@ -288,6 +301,7 @@ watch(
     onCleanup(() => {
       active = false
       off()
+      clearTimeout(expiry)
       clearTimeout(timer)
       stream.close()
     })

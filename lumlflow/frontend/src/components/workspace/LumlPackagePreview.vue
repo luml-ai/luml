@@ -42,7 +42,8 @@
         :key="`${revision}-${activeSplit}`"
         :file-name="`data.${split.format}`"
         :file-size="chunk.size"
-        :source="workspaceApi.fileUrl(file.path, chunk.name)"
+        supports-partial-preview
+        :source="chunkSource"
         :total-rows="split.num_rows ?? -1"
         class="chunk-preview"
       />
@@ -87,7 +88,8 @@
         :key="revision"
         :file-name="selected.name"
         :file-size="selected.size"
-        :source="workspaceApi.fileUrl(file.path, selected.name)"
+        supports-partial-preview
+        :source="selectedSource"
       />
     </Dialog>
   </div>
@@ -121,6 +123,12 @@ const split = computed(() => inspection.value?.splits?.[activeSplit.value])
 const chunk = computed(() =>
   inspection.value?.files.find((entry) => entry.name === split.value?.files[0]),
 )
+function memberSource(entry: ArchiveFile | undefined) {
+  const path = props.file.path
+  return () => workspaceApi.fileUrl(path, entry!.name)
+}
+const chunkSource = computed(() => memberSource(chunk.value))
+const selectedSource = computed(() => memberSource(selected.value))
 const manifestYaml = computed(() => stringify(inspection.value?.manifest))
 const contents = computed(() => {
   const rows: (ArchiveFile | { name: string; size: null })[] = []

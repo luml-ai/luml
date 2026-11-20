@@ -114,7 +114,8 @@
               class="shared-preview"
               :file-name="file.name"
               :file-size="file.size"
-              :source="workspaceApi.fileUrl(file.path)"
+              supports-partial-preview
+              :source="previewSource"
             />
             <pre v-else-if="disk" class="plain-text">{{ disk.text }}</pre>
           </template>
@@ -172,6 +173,7 @@ watch(
     refusedLock.value = undefined
   },
 )
+const previewSource = () => workspaceApi.fileUrl(props.file.path)
 const fileType = computed(() => getFileType(props.file.name))
 const isArchive = computed(() => getFileExtension(props.file.name) === 'luml')
 const isTextCandidate = computed(() => {
@@ -181,7 +183,10 @@ const isTextCandidate = computed(() => {
     !props.gone &&
     size !== null &&
     size <= 2 * 1024 * 1024 &&
-    (type === 'text' || type === 'code' || (!type && !isArchive.value))
+    (type === 'text' ||
+      type === 'code' ||
+      !!getPreviewLanguage(props.file.name) ||
+      (!type && !isArchive.value))
   )
 })
 const agentColor = computed(() => {

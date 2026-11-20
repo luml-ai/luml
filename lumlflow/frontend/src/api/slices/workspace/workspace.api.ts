@@ -152,10 +152,18 @@ export const workspaceApi = {
       offset,
     }),
 
-  fileUrl(path: string, entry?: string) {
+  async fileUrl(path: string, entry?: string) {
     const token = getDaemonToken()
     if (!token) throw new WorkspaceUnauthorizedError()
-    const params = new URLSearchParams({ path, token })
+    const { data } = await api.post<{ expires: number; signature: string }>('flow/file', null, {
+      headers: { [TOKEN_HEADER]: token },
+      params: { path, name: entry },
+    })
+    const params = new URLSearchParams({
+      path,
+      expires: String(data.expires),
+      signature: data.signature,
+    })
     if (entry !== undefined) params.set('name', entry)
     const url = entry === undefined ? 'flow/file' : 'flow/file/entry'
     return `${api.getUri({ url })}?${params}`
