@@ -36,7 +36,8 @@ export function pathSegments(path: string): PathSegment[] {
   const trimmed = path.replace(TRAILING_SEPARATORS, '')
   if (trimmed === '') return []
   const separator = trimmed.includes('/') ? '/' : '\\'
-  const parts = trimmed.split(/[\\/]/)
+  // A backslash is an ordinary name character in a POSIX path.
+  const parts = trimmed.split(trimmed.startsWith('/') ? '/' : /[\\/]/)
   const segments: PathSegment[] = []
   let prefix = ''
   for (const [index, part] of parts.entries()) {

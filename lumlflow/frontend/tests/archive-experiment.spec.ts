@@ -1,17 +1,20 @@
 import { Blob as NodeBlob } from 'node:buffer'
 import { execFileSync } from 'node:child_process'
 import { resolve } from 'node:path'
-import { flushPromises, mount, RouterLinkStub, type VueWrapper } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import ToastService from 'primevue/toastservice'
 import ConfirmationService from 'primevue/confirmationservice'
 import { Message } from 'primevue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createMemoryHistory, createRouter, type Router } from 'vue-router'
 import { useAnnotationsStore, type ExperimentSnapshotModelSource } from '@luml/experiments'
 import { workspaceApi } from '@/api/slices/workspace/workspace.api'
 import { api } from '@/api/client'
 import ArchiveExperimentPage from '@/pages/workspaces/ArchiveExperimentPage.vue'
 import DetailsTabs from '@/components/experiments/details/DetailsTabs.vue'
+import WorkspacePath from '@/components/workspace/WorkspacePath.vue'
+import { ROUTE_NAMES } from '@/router/router.const'
 
 // Run the worker's database provider in-process in jsdom, reading members of the open archive.
 vi.mock('@luml/experiments', async (original) => {
@@ -61,6 +64,7 @@ const generation2 = readArchive('run-gen2.luml')
 let archive = generation1
 let reads: { name: string; range: string | null }[] = []
 let page: VueWrapper
+let router: Router
 beforeEach(() => {
   archive = generation1
   reads = []
@@ -80,12 +84,19 @@ afterEach(() => {
   vi.unstubAllGlobals()
   localStorage.clear()
 })
-function open() {
+function open(file = path) {
+  router = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      { path: '/', component: { template: '<div />' } },
+      { name: ROUTE_NAMES.WORKSPACES, path: '/workspaces', component: { template: '<div />' } },
+    ],
+  })
   page = mount(ArchiveExperimentPage, {
-    props: { path },
+    props: { path: file },
     global: {
-      plugins: [createPinia(), ToastService, ConfirmationService],
-      stubs: { RouterLink: RouterLinkStub, DynamicMetricsItem: true },
+      plugins: [router, createPinia(), ToastService, ConfirmationService],
+      stubs: { DynamicMetricsItem: true },
     },
   })
 }
@@ -140,9 +151,11 @@ describe('archived experiment details', () => {
       expect(notice.text()).toBe(String.raw`Read-only experiment from run\42.luml`)
       // Inset by the outline width, which Message draws outside its box, so main does not clip it.
       expect(notice.classes()).toContain('mx-(--p-message-border-width)')
-      expect(page.getComponent(RouterLinkStub).props('to')).toMatchObject({
-        query: { directory: '/work', file: path },
-      })
+      expect(page.findAll('.p-breadcrumb-item').map((crumb) => crumb.text())).toEqual([
+        '/',
+        'work',
+        String.raw`run\42.luml`,
+      ])
       expect(page.findAll('tr').map((row) => row.text())).toContain('modelId9223372036854775807')
       expect(page.text()).toContain('Archive run')
       expect(page.text()).not.toMatch(/Rename|Delete|Upload|Edit tags/)
@@ -179,6 +192,32 @@ describe('archived experiment details', () => {
       expect(get).not.toHaveBeenCalled()
     },
   )
+
+  it('shows the archive location as Workspace breadcrumbs that open each folder', async () => {
+    const file = '/home/me/my runs/実験/run 1.luml'
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 404 })))
+    open(file)
+    await flushPromises()
+    expect(page.getComponent(WorkspacePath).props('path')).toBe(file)
+    const crumbs = page.findAll('.p-breadcrumb-item')
+    expect(crumbs.map((crumb) => crumb.text())).toEqual([
+      '/',
+      'home',
+      'me',
+      'my runs',
+      '実験',
+      'run 1.luml',
+    ])
+    expect(crumbs.at(-1)!.find('a').exists()).toBe(false)
+    expect(page.text()).not.toContain('Back to Workspace')
+    await crumbs.at(-2)!.get('a').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.name).toBe(ROUTE_NAMES.WORKSPACES)
+    expect(router.currentRoute.value.query).toEqual({ directory: '/home/me/my runs/実験' })
+    await crumbs.at(1)!.get('a').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.query).toEqual({ directory: '/home' })
+  })
 
   it('rejects a non-experiment direct link before requesting any bytes', async () => {
     vi.mocked(workspaceApi.inspectFile).mockResolvedValue({

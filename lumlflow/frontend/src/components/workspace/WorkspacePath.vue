@@ -22,14 +22,15 @@ import { useWorkspaceStore } from '@/store/workspace'
 import { BREADCRUMBS_PT } from '@/components/experiments/experiment/experiment.const'
 import { pathSegments } from '@/helpers/path'
 
+const props = defineProps<{ path?: string }>()
 const workspaceStore = useWorkspaceStore()
 const emit = defineEmits<{ navigate: [path: string] }>()
 
-// Every ancestor is a link; the directory being listed is plain text.
+// Every ancestor is a link; the location shown (by default the listed directory) is plain text.
 const crumbs = computed<MenuItem[]>(() => {
-  const directory = workspaceStore.currentDirectory ?? ''
-  const segments = pathSegments(directory)
-  if (directory.startsWith('/')) segments.unshift({ name: '/', path: '/' })
+  const location = props.path ?? workspaceStore.currentDirectory ?? ''
+  const segments = pathSegments(location)
+  if (location.startsWith('/')) segments.unshift({ name: '/', path: '/' })
   return segments.map(({ name, path }, index) => ({
     label: name,
     path: index < segments.length - 1 ? path : undefined,
