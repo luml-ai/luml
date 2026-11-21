@@ -447,3 +447,15 @@ def test_a_stopping_watcher_cuts_a_resync_short(
         assert recorder.woken == []
     finally:
         watching.stop()
+
+
+@pytest.mark.parametrize("target", ["src/node_modules", "../elsewhere"])
+def test_moving_a_directory_away_wakes_the_root(
+    root: Path, trees: Any, recorder: _Recorder, target: str
+) -> None:
+    _workspace(root)
+    trees.schedule(root)
+
+    (root / "lib").rename(root / target)
+
+    _until(lambda: root in recorder.woken)

@@ -175,6 +175,10 @@ class TreeWatch:
             self._submit(lambda: self.drop(path))
         elif event.name in _PRUNING_FILES:
             self._queue_resync()
+        if event.is_directory and (event.is_moved_from or event.is_moved_to):
+            # The files a directory takes along raise no event of their own,
+            # and its path names no module: only a scan sees them go.
+            self._wake()
         self._post(path)
 
     def on_watch_deleted(self, wd: WatchDescriptor) -> None:

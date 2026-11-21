@@ -569,6 +569,28 @@ async def test_a_helper_in_a_directory_made_after_the_watch_wakes_the_flow(
             await watcher.stop()
 
 
+@pytest.mark.parametrize("away", ["node_modules", "../outside"])
+async def test_moving_a_directory_away_and_back_reaches_the_tree(
+    tmp_path: Path, away: str
+) -> None:
+    root = make_workspace(tmp_path / "project", files=_HELPERS)
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+    moved = {"lib/io.py", "lib/metrics.py"}
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        watcher = Watcher(api.hub, debounce_s=_DEBOUNCE_S)
+        await watcher.start()
+        try:
+            (root / "lib").rename(root / away)
+            await _until(lambda: not moved & _tree_files(session))
+            (root / away).rename(root / "lib")
+            await _until(lambda: moved <= _tree_files(session))
+        finally:
+            await watcher.stop()
+
+
 async def test_an_open_does_not_wait_for_another_workspaces_watch(
     tmp_path: Path,
 ) -> None:
@@ -630,6 +652,11 @@ class _HeldPlacement:
             schedule(scheduled)
 
         placement.schedule = held  # type: ignore[method-assign]
+
+
+def _tree_files(session: FlowSession) -> set[str]:
+    tree = session.store.index.workspace_tree()
+    return set(tree.files) if tree else set()
 
 
 FLOWS = ("churn", "sales")
