@@ -244,7 +244,7 @@ class Watcher:
         woken = {
             session.ref.path
             for session in self.hub.opened()
-            if _scanned_below(session, path)
+            if session.ref.path not in self._woken and _tracked_below(session, path)
         }
         if woken:
             self._woken |= woken
@@ -487,13 +487,10 @@ def _placement(
     return _RecursiveWatches(post, vanished)
 
 
-def _scanned_below(session: "FlowSession", path: Path) -> bool:
-    try:
-        relative = path.resolve().relative_to(session.workspace_dir)
-    except (ValueError, OSError):
+def _tracked_below(session: "FlowSession", path: Path) -> bool:
+    # One set lookup: `rm -rf node_modules` on a recursive watch sends one
+    # event per entry, and each lands here, on the loop.
+    if not path.is_relative_to(session.workspace_dir):
         return False
-    tree = session.store.index.workspace_tree()
-    if tree is None:
-        return False
-    below = f"{relative.as_posix()}/" if relative.parts else ""
-    return any(name.startswith(below) for name in tree.files)
+    relative = path.relative_to(session.workspace_dir)
+    return (relative.as_posix() if relative.parts else "") in session.tracked_dirs

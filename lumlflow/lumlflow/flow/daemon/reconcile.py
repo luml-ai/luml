@@ -133,6 +133,7 @@ def sync_workspace_code(
 ) -> dict[Path, list[str]]:
     changed: dict[Path, list[str]] = {}
     for session in sessions:
+        session.track(tree)
         known = session.store.index.workspace_tree()
         if known is not None and known.tree_hash == tree.tree_hash:
             continue

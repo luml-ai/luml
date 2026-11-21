@@ -14,6 +14,7 @@ from lumlflow.flow.daemon.reconcile import MIXED_EDITING
 from lumlflow.flow.daemon.watcher import Watcher, Watches, WatchSet
 from lumlflow.flow.dsl.tree import WorkspaceTree, scan_workspace
 from lumlflow.flow.store.flowstore import manifest_path, store_dir
+from lumlflow.flow.store.index import Index
 from lumlflow.flow.store.models import FlagSet
 
 from tests.helpers.daemon import (
@@ -626,6 +627,61 @@ async def test_a_vanished_directory_wakes_the_flows_that_scanned_files_below_it(
 
     assert data_woke == set()
     assert not {"lib/io.py", "lib/metrics.py"} & left
+
+
+async def test_a_vanished_path_is_answered_without_reading_the_tree_back(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project", files=_HELPERS)
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+    reads: list[Index] = []
+    workspace_tree = Index.workspace_tree
+
+    def counted(index: Index) -> Any:
+        reads.append(index)
+        return workspace_tree(index)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        watcher = Watcher(api.hub, debounce_s=600)
+        monkeypatch.setattr(Index, "workspace_tree", counted)
+        # Nothing else runs on the loop while these synchronous calls do.
+        for index in range(2000):
+            watcher.vanished(root / "node_modules" / f"pkg{index}" / "index.js")
+            watcher.vanished(root / "data" / f"rows{index}.csv")
+        woken, during = set(watcher._woken), len(reads)
+        await watcher.stop()
+
+    assert (during, woken) == (0, set())
+
+
+async def test_the_directories_a_vanished_path_is_checked_against_follow_the_tree(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project", files=_HELPERS)
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        watcher = Watcher(api.hub, debounce_s=600)
+
+        def wakes(relative: str) -> bool:
+            watcher._woken.clear()
+            watcher.vanished(root / relative)
+            return session.ref.path in watcher._woken
+
+        before = wakes("pkg")
+        write_file(root / "pkg" / "sub" / "x.py", "X = 1")
+        await api.hub.quiesce(session)
+        tracked = {name: wakes(name) for name in ("pkg", "pkg/sub", "pk", "pkg/su")}
+        (root / "pkg" / "sub" / "x.py").unlink()
+        await api.hub.quiesce(session)
+        after = wakes("pkg")
+        await watcher.stop()
+
+    assert (before, after) == (False, False)
+    assert tracked == {"pkg": True, "pkg/sub": True, "pk": False, "pkg/su": False}
 
 
 async def test_an_open_does_not_wait_for_another_workspaces_watch(

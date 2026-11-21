@@ -94,6 +94,11 @@ class FlowSession:
         self.reactor = Reactor(self)
         self.accepted_files: dict[str, AcceptedFile] = {}
         self.worktree = Worktree(store)
+        # Every directory, root-relative ("" for the root), holding a file of
+        # the last workspace tree applied: what a vanished path is checked
+        # against without reading the tree back.
+        self.tracked_dirs: frozenset[str] = frozenset()
+        self._tracked_hash: str | None = None
 
     def _tracker_state(self, ref: TrackerRef) -> tuple[TrackerState, str]:
         state = queries.experiment_state(self, ref)
@@ -119,6 +124,20 @@ class FlowSession:
             self.streams.kernel(
                 self.ref.address, event, params, step=self.store.next_step - 1
             )
+
+    def track(self, tree: WorkspaceTree) -> None:
+        if tree.tree_hash == self._tracked_hash:
+            return
+        parents = {name.rpartition("/")[0] for name in tree.files}
+        tracked: set[str] = set()
+        for parent in parents:
+            while parent not in tracked:
+                tracked.add(parent)
+                if not parent:
+                    break
+                parent = parent.rpartition("/")[0]
+        self.tracked_dirs = frozenset(tracked)
+        self._tracked_hash = tree.tree_hash
 
     def reconcile(
         self, *, tier: Tier = "quiesce", actor: str | None = None
