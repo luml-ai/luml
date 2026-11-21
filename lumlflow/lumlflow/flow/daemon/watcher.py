@@ -1,13 +1,14 @@
 import asyncio
 import contextlib
 import logging
+import threading
 from collections import Counter
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal, Protocol
 
 from watchdog.events import (
     DirCreatedEvent,
@@ -23,6 +24,7 @@ from watchdog.events import (
     FileSystemEventHandler,
 )
 from watchdog.observers import Observer
+from watchdog.observers.api import ObservedWatch
 from watchdog.utils import UnsupportedLibcError, platform
 
 from lumlflow.flow.dsl.accept import CELL_SUFFIX
@@ -155,19 +157,24 @@ class Watcher:
         self.hub = hub
         self.debounce_s = debounce_s
         self._loop: asyncio.AbstractEventLoop | None = None
-        self._observer: Any = None
-        # Scheduling walks the tree, so it runs on `_placer`'s one thread, in
-        # the order the loop asked; `_scheduled` belongs to that thread.
+        # Placing watches walks the tree, so the placement runs on `_placer`'s
+        # one thread, in the order it was asked for, and nowhere else.
+        self._placement: _Placement | None = None
         self._placer: ThreadPoolExecutor | None = None
-        self._scheduled: dict[Path, Any] = {}
+        self._stopping = threading.Event()
         self._woken: set[Path] = set()
         self._deadline: float | None = None
         self._timer: asyncio.Future[None] | None = None
 
     async def start(self) -> None:
         self._loop = asyncio.get_running_loop()
-        self._observer = _observer()
-        self._observer.start()
+        self._stopping.clear()
+        self._placement = _placement(
+            post=self._post,
+            wake=self._post_wake,
+            submit=self._submit,
+            stopping=self._stopping,
+        )
         self._placer = ThreadPoolExecutor(
             max_workers=1, thread_name_prefix="lumlflow-watch"
         )
@@ -177,16 +184,15 @@ class Watcher:
     async def stop(self) -> None:
         self.hub.watches.observe = None
         self.hub.watches.forget = None
+        self._stopping.set()
         placer, self._placer = self._placer, None
         if placer is not None:
             await asyncio.to_thread(
                 partial(placer.shutdown, wait=True, cancel_futures=True)
             )
-        self._scheduled.clear()
-        if self._observer is not None:
-            self._observer.stop()
-            await asyncio.to_thread(self._observer.join, _JOIN_TIMEOUT_S)
-            self._observer = None
+        placement, self._placement = self._placement, None
+        if placement is not None:
+            await asyncio.to_thread(placement.stop)
         timer, self._timer = self._timer, None
         self._deadline = None
         if timer is not None:
@@ -219,28 +225,31 @@ class Watcher:
                 logger.exception("reconciling %s after a file event failed", path)
 
     def _schedule(self, root: Path) -> Future[None] | None:
-        return None if self._placer is None else self._placer.submit(self._place, root)
+        if self._placer is None or self._placement is None:
+            return None
+        return self._placer.submit(self._placement.schedule, root)
 
     def _unschedule(self, root: Path) -> Future[None] | None:
-        return None if self._placer is None else self._placer.submit(self._drop, root)
+        if self._placer is None or self._placement is None:
+            return None
+        return self._placer.submit(self._placement.unschedule, root)
 
-    def _place(self, root: Path) -> None:
-        observer = self._observer
-        if observer is None or root in self._scheduled:
-            return
-        try:
-            self._scheduled[root] = observer.schedule(
-                _Handler(self._post), str(root), recursive=True, event_filter=_CHANGES
-            )
-        except OSError as unwatchable:
-            logger.warning("not watching %s: %s", root, unwatchable)
+    def _submit(self, work: Callable[[], None]) -> None:
+        """Any thread → the placing thread, for the watches' own upkeep."""
+        placer = self._placer
+        if placer is not None:
+            with contextlib.suppress(RuntimeError):
+                placer.submit(work)
 
-    def _drop(self, root: Path) -> None:
-        watch = self._scheduled.pop(root, None)
-        if watch is None or self._observer is None:
-            return
-        with contextlib.suppress(KeyError, OSError):
-            self._observer.unschedule(watch)
+    def _wake(self, root: Path) -> None:
+        woken = {
+            session.ref.path
+            for session in self.hub.opened()
+            if session.watch.root == root
+        }
+        if woken:
+            self._woken |= woken
+            self._arm()
 
     def _arm(self) -> None:
         """Push the quiet-point out, and start waiting for it if nobody is.
@@ -263,12 +272,61 @@ class Watcher:
             await self.flush()
 
     def _post(self, path: str) -> None:
-        """Observer thread → loop thread. The only thread hop in the daemon."""
+        """Watching threads → loop thread: the only way an event reaches it."""
         loop = self._loop
         if loop is None:
             return
         with contextlib.suppress(RuntimeError):
             loop.call_soon_threadsafe(self.notice, Path(path))
+
+    def _post_wake(self, root: Path) -> None:
+        loop = self._loop
+        if loop is None:
+            return
+        with contextlib.suppress(RuntimeError):
+            loop.call_soon_threadsafe(self._wake, root)
+
+
+class _Placement(Protocol):
+    def schedule(self, root: Path) -> None: ...
+
+    def unschedule(self, root: Path) -> None: ...
+
+    def stop(self) -> None: ...
+
+
+class _RecursiveWatches:
+    """Where one recursive watch is cheap and one per directory is not
+    (FSEvents, ReadDirectoryChangesW): the whole tree, with `classify`
+    dropping what the scan prunes."""
+
+    def __init__(self, post: Callable[[str], None]) -> None:
+        self._post = post
+        self._observer = Observer()
+        self._observer.start()
+        self._scheduled: dict[Path, ObservedWatch] = {}
+
+    def schedule(self, root: Path) -> None:
+        if root in self._scheduled:
+            return
+        try:
+            self._scheduled[root] = self._observer.schedule(
+                _Handler(self._post), str(root), recursive=True, event_filter=_CHANGES
+            )
+        except OSError as unwatchable:
+            logger.warning("not watching %s: %s", root, unwatchable)
+
+    def unschedule(self, root: Path) -> None:
+        watch = self._scheduled.pop(root, None)
+        if watch is None:
+            return
+        with contextlib.suppress(KeyError, OSError):
+            self._observer.unschedule(watch)
+
+    def stop(self) -> None:
+        self._scheduled.clear()
+        self._observer.stop()
+        self._observer.join(_JOIN_TIMEOUT_S)
 
 
 class _Handler(FileSystemEventHandler):
@@ -281,10 +339,16 @@ class _Handler(FileSystemEventHandler):
                 self._post(str(path))
 
 
-def _observer() -> Any:
+def _placement(
+    *,
+    post: Callable[[str], None],
+    wake: Callable[[Path], None],
+    submit: Callable[[Callable[[], None]], None],
+    stopping: threading.Event,
+) -> _Placement:
     if platform.is_linux():
         with contextlib.suppress(UnsupportedLibcError):
-            from lumlflow.flow.daemon.inotify import TolerantInotifyObserver
+            from lumlflow.flow.daemon.inotify import InotifyTrees
 
-            return TolerantInotifyObserver()
-    return Observer()
+            return InotifyTrees(post=post, wake=wake, submit=submit, stopping=stopping)
+    return _RecursiveWatches(post)

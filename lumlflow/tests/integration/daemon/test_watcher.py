@@ -528,6 +528,47 @@ async def test_an_edit_during_a_scan_brings_exactly_one_more_scan(
     assert changes == [["helpers.py", "lib/io.py"]]
 
 
+async def test_an_edit_inside_an_excluded_directory_wakes_nobody(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project", files=_HELPERS)
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+    for excluded in ("node_modules/pkg", ".venv/lib", ".git/hooks"):
+        (root / excluded).mkdir(parents=True)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        watcher = _CountingWatcher(api.hub, debounce_s=_DEBOUNCE_S)
+        await watcher.start()
+        try:
+            for excluded in ("node_modules/pkg", ".venv/lib", ".git/hooks"):
+                write_file(root / excluded / "module.py", "X = 1")
+            await _barrier(watcher, root)
+        finally:
+            await watcher.stop()
+
+    assert (watcher.flushes, watcher.woken) == (0, set())
+
+
+async def test_a_helper_in_a_directory_made_after_the_watch_wakes_the_flow(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project", files=_HELPERS)
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        watcher = Watcher(api.hub, debounce_s=_DEBOUNCE_S)
+        await watcher.start()
+        try:
+            write_file(root / "features" / "fresh" / "scaling.py", "S = 1")
+            await _until(
+                lambda: _code_changes(api, "churn") == [["features/fresh/scaling.py"]]
+            )
+        finally:
+            await watcher.stop()
+
+
 FLOWS = ("churn", "sales")
 _HELPERS = {"helpers.py": "AUC = 1", "lib/metrics.py": "K = 3", "lib/io.py": "N = 1"}
 
