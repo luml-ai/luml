@@ -1,8 +1,11 @@
 <template>
   <div class="details-header">
-    <Tag class="feature-tag" severity="secondary">
-      <MEllipsis :text="detail.feature" />
-    </Tag>
+    <div class="feature">
+      <Tag class="feature-tag" severity="secondary">
+        <MEllipsis :text="detail.feature" />
+      </Tag>
+      <span v-if="detail.distribution?.kind" class="kind">{{ detail.distribution.kind }}</span>
+    </div>
     <div class="details-actions">
       <span class="meta">
         <span class="psi">{{ formatPsiLabel(detail.psi) }}</span>
@@ -41,9 +44,22 @@ defineProps<Props>()
   gap: 8px;
 }
 
+.feature {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .feature-tag {
   min-width: 0;
   max-width: 100%;
+}
+
+.kind {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--p-text-muted-color);
 }
 
 .details-actions {

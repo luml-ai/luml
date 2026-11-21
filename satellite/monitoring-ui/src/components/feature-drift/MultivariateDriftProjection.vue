@@ -37,7 +37,9 @@ const props = defineProps<Props>()
 const isEmpty = computed(
   () =>
     !props.multivariate.reference_projection.length &&
-    !props.multivariate.current_projection.length,
+    !props.multivariate.current_projection.length &&
+    !props.multivariate.reference_ellipse?.length &&
+    !props.multivariate.current_ellipse?.length,
 )
 </script>
 

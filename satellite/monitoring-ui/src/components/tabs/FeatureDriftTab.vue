@@ -11,7 +11,13 @@
       />
       <MEmpty v-if="emptyState" :title="emptyState.title" :detail="emptyState.detail" />
       <template v-else>
+        <MEmpty
+          v-if="!data.features.length"
+          :title="NO_RANKED_FEATURES_STATE.title"
+          :detail="NO_RANKED_FEATURES_STATE.detail"
+        />
         <FeatureDriftPanel
+          v-else
           :features="data.features"
           :selected="data.selected"
           :selected-feature="selectedFeature"
@@ -36,11 +42,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, useTemplateRef } from 'vue'
+import { computed, useTemplateRef, watch } from 'vue'
 import { api } from '@/api'
 import { useMonitoringData } from '@/composables/useMonitoringData'
 import { useFiltersStore } from '@/store/filters'
-import { getFeatureDriftEmptyState, getMultivariateEmptyState } from '@/utils/drift'
+import {
+  NO_RANKED_FEATURES_STATE,
+  getFeatureDriftEmptyState,
+  getMultivariateEmptyState,
+} from '@/utils/drift'
 import MErrorState from '@/components/MErrorState.vue'
 import MEmpty from '@/components/MEmpty.vue'
 import MStaleNotice from '@/components/MStaleNotice.vue'
@@ -59,6 +69,11 @@ const { data, loading, error, reload } = useMonitoringData((dims) =>
 const selectedFeature = computed(() => {
   const loadedFeature = data.value?.selected?.feature ?? null
   return loading.value ? (filtersStore.feature ?? loadedFeature) : loadedFeature
+})
+
+watch(data, (value) => {
+  const topFeature = value?.features[0]?.feature
+  if (!filtersStore.feature && topFeature) filtersStore.setFeature(topFeature)
 })
 
 const emptyState = computed(() => (data.value ? getFeatureDriftEmptyState(data.value) : null))

@@ -14,7 +14,7 @@ import {
   type ReferenceProfileSummaryItem,
   type ReferenceStatItem,
 } from '@/types/reference-profile'
-import { formatDecimal, formatInteger } from '@/utils/format'
+import { formatInteger } from '@/utils/format'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -37,6 +37,13 @@ function toText(value: unknown): string {
   return '—'
 }
 
+function getPcaComponents(document: unknown): unknown {
+  const count = getPath(document, ['pca_profile', 'pca', 'n_components'])
+  if (typeof count === 'number') return count
+  const ratios = getPath(document, ['pca_profile', 'pca', 'explained_variance_ratio'])
+  return Array.isArray(ratios) && ratios.length ? ratios.length : undefined
+}
+
 export function getReferenceProfileSummary(
   profile: ReferenceProfileResponse,
 ): ReferenceProfileSummaryItem[] {
@@ -51,10 +58,8 @@ export function getReferenceProfileSummary(
       label: 'Features',
       value: isRecord(summaries) ? `${categorical} categorical · ${numerical} numerical` : '—',
     },
-    {
-      label: 'PCA components',
-      value: toText(getPath(document, ['pca_profile', 'pca', 'n_components'])),
-    },
+    { label: 'Reference rows', value: toText(getPath(document, ['n_reference_samples'])) },
+    { label: 'PCA components', value: toText(getPcaComponents(document)) },
     { label: 'Monitored output', value: toText(getPath(document, ['output_summary', 'name'])) },
   ]
 }
@@ -133,12 +138,16 @@ export function getReferenceProfileEmptyState(
   return null
 }
 
+const largeStatFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 })
+const smallStatFormat = new Intl.NumberFormat('en-US', { maximumSignificantDigits: 4 })
+
 function formatStatValue(value: number): string {
-  return Number.isInteger(value) ? formatInteger(value) : formatDecimal(value)
+  if (Number.isInteger(value)) return formatInteger(value)
+  return Math.abs(value) >= 1 ? largeStatFormat.format(value) : smallStatFormat.format(value)
 }
 
-function formatProbability(value: number): string {
-  return `${(value * 100).toFixed(3)}%`
+function formatProbability(value: number | null): string {
+  return value == null ? '—' : `${(value * 100).toFixed(3)}%`
 }
 
 export function getReferenceStats(feature: ReferenceProfileFeature): ReferenceStatItem[] {
@@ -148,23 +157,26 @@ export function getReferenceStats(feature: ReferenceProfileFeature): ReferenceSt
   }))
 }
 
-function getProbabilityEntries(feature: ReferenceProfileFeature): [string, number][] {
+function formatBinLabel(edges: number[], index: number): string {
+  const from = edges[index]
+  const to = edges[index + 1]
+  return from == null || to == null
+    ? String(index)
+    : `${formatStatValue(from)} – ${formatStatValue(to)}`
+}
+
+function getProbabilityEntries(feature: ReferenceProfileFeature): [string, number | null][] {
   if (feature.categories?.length) {
     const probabilities = feature.category_probabilities ?? []
     return feature.categories.map((category, index) => [category, probabilities[index] ?? 0])
   }
   const histogram = feature.histogram ?? []
   const edges = feature.bin_edges ?? []
+  if (!histogram.length) {
+    return edges.slice(1).map((_, index) => [formatBinLabel(edges, index), null])
+  }
   const total = histogram.reduce((sum, value) => sum + value, 0)
-  return histogram.map((value, index) => {
-    const from = edges[index]
-    const to = edges[index + 1]
-    const label =
-      from == null || to == null
-        ? String(index)
-        : `${formatStatValue(from)} – ${formatStatValue(to)}`
-    return [label, total ? value / total : 0]
-  })
+  return histogram.map((value, index) => [formatBinLabel(edges, index), total ? value / total : 0])
 }
 
 export function getReferenceProbabilities(
@@ -173,7 +185,7 @@ export function getReferenceProbabilities(
   return getProbabilityEntries(feature).map(([label, probability]) => ({
     label,
     value: formatProbability(probability),
-    width: `${Math.min(100, Math.max(0, probability * 100))}%`,
+    width: `${Math.min(100, Math.max(0, (probability ?? 0) * 100))}%`,
   }))
 }
 

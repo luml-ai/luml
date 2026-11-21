@@ -62,16 +62,30 @@ const bounds = computed(() =>
 )
 
 const pinnedPoints = computed(() =>
-  allPoints.value.filter((point) => !isPcaPointInBounds(point, bounds.value)),
+  [
+    ...props.multivariate.reference_projection.map((point) => ({ point, population: 'Reference' })),
+    ...props.multivariate.current_projection.map((point) => ({ point, population: 'Current' })),
+  ].filter(({ point }) => !isPcaPointInBounds(point, bounds.value)),
 )
 
-function getTooltipValue(
-  value: number,
-  axis: keyof PcaPoint,
-  opts?: { seriesIndex?: number; dataPointIndex?: number },
-): number {
-  if (opts?.seriesIndex !== PCA_SERIES_INDEX.pinned || opts.dataPointIndex == null) return value
-  return pinnedPoints.value[opts.dataPointIndex]?.[axis] ?? value
+interface TooltipOpts {
+  seriesIndex?: number
+  dataPointIndex?: number
+}
+
+function getPinnedPoint(opts?: TooltipOpts) {
+  if (opts?.seriesIndex !== PCA_SERIES_INDEX.pinned || opts.dataPointIndex == null) return null
+  return pinnedPoints.value[opts.dataPointIndex] ?? null
+}
+
+function getTooltipValue(value: number, axis: keyof PcaPoint, opts?: TooltipOpts): number {
+  return getPinnedPoint(opts)?.point[axis] ?? value
+}
+
+function formatTooltipX(value: number, opts?: TooltipOpts): string {
+  const label = `PC1 ${formatPcaTick(getTooltipValue(value, 'x', opts))}`
+  const pinned = getPinnedPoint(opts)
+  return pinned ? `${pinned.population} (beyond range) · ${label}` : label
 }
 
 function getVisiblePoints(points: PcaPoint[]) {
@@ -92,7 +106,9 @@ const series = computed(() => [
   {
     name: 'Beyond range',
     type: 'scatter',
-    data: toPcaChartPoints(pinnedPoints.value.map((point) => clampPcaPoint(point, bounds.value))),
+    data: toPcaChartPoints(
+      pinnedPoints.value.map(({ point }) => clampPcaPoint(point, bounds.value)),
+    ),
   },
   {
     name: 'Reference ellipse',
@@ -164,8 +180,7 @@ const options = computed<ApexOptions>(() => {
       ],
       theme: isDark.value ? 'dark' : 'light',
       x: {
-        formatter: (value, opts) =>
-          `PC1 ${formatPcaTick(getTooltipValue(Number(value), 'x', opts))}`,
+        formatter: (value, opts) => formatTooltipX(Number(value), opts),
       },
       y: {
         formatter: (value, opts) => `PC2 ${formatPcaTick(getTooltipValue(value, 'y', opts))}`,

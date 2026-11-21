@@ -13,10 +13,7 @@
       <template v-else>
         <MStepSelector />
         <MSeriesCharts v-if="data.series?.length" :series="data.series" />
-        <OverviewTopFeatures
-          v-if="data.top_drifted_features?.length"
-          :features="data.top_drifted_features"
-        />
+        <OverviewTopFeatures v-if="isTabular" :features="data.top_drifted_features ?? []" />
       </template>
     </div>
     <AlertDialogHost
@@ -53,10 +50,11 @@ const { data, loading, error, reload } = useMonitoringData((dims) =>
 
 const emptyState = computed(() => (data.value ? getOverviewEmptyState(data.value) : null))
 
-const cards = computed(() => {
-  const isTabular = headerStore.modelKind === 'tabular'
-  return (data.value?.cards ?? []).filter((card) => isCardVisibleForKind(card, isTabular))
-})
+const isTabular = computed(() => headerStore.modelKind === 'tabular')
+
+const cards = computed(() =>
+  (data.value?.cards ?? []).filter((card) => isCardVisibleForKind(card, isTabular.value)),
+)
 
 const alertDialog = useTemplateRef('alertDialog')
 </script>

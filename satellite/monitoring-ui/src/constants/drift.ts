@@ -22,8 +22,6 @@ export const PCA_LEGEND_ITEMS = [
   { key: 'pinned', label: 'Beyond range' },
 ]
 
-export const PCA_PROJECTED_COMPONENTS = 2
-
 export const PCA_SERIES_COLORS = {
   referenceEllipse: '--p-surface-600',
   referencePoint: '--p-surface-500',

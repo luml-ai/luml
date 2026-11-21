@@ -55,6 +55,7 @@ import {
   getReferenceNote,
   getReferenceProbabilities,
   getReferenceProbabilitiesTitle,
+  getReferenceProfileEmptyState,
   getReferenceStats,
 } from '@/utils/reference-profile'
 import MEllipsis from '@/components/MEllipsis.vue'
@@ -118,6 +119,8 @@ const note = computed(() =>
 
 const emptyState = computed<EmptyStateContent | null>(() => {
   if (!profile.value || referenceFeature.value) return null
+  const sectionEmptyState = getReferenceProfileEmptyState(profile.value)
+  if (sectionEmptyState) return sectionEmptyState
   return {
     title: 'No reference profile for this feature',
     detail: 'The training baseline does not include this feature.',

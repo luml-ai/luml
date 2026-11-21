@@ -7,7 +7,6 @@ import {
   type PcaPoint,
 } from '@/api/monitoring/interfaces'
 import {
-  PCA_PROJECTED_COMPONENTS,
   PCA_RANGE_PADDING,
   PCA_RANGE_QUANTILE,
   PSI_ATTENTION_THRESHOLD,
@@ -18,12 +17,7 @@ import {
 import { SEVERITY_COLORS } from '@/constants/alerts'
 import type { EmptyStateContent } from '@/types/empty'
 import type { MultivariateMetric, PcaBounds, PcaRange } from '@/types/drift'
-import {
-  formatDecimal,
-  formatOptional,
-  formatPercent,
-  getSeverityByThresholds,
-} from '@/utils/format'
+import { formatDecimal, formatOptional, formatPercent } from '@/utils/format'
 
 const psiFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 })
 
@@ -36,7 +30,9 @@ export function formatPsiValue(psi: number | null | undefined): string {
 }
 
 export function getPsiSeverity(psi: number): Severity {
-  return getSeverityByThresholds(psi, PSI_WARNING_THRESHOLD, PSI_CRITICAL_THRESHOLD)
+  if (psi > PSI_CRITICAL_THRESHOLD) return Severity.CRITICAL
+  if (psi >= PSI_WARNING_THRESHOLD) return Severity.WARNING
+  return Severity.OK
 }
 
 export function formatPsiLabel(psi: number | null | undefined): string {
@@ -79,13 +75,12 @@ export function getFeatureDriftEmptyState(
       detail: 'The worker has not materialized feature drift for this window yet.',
     }
   }
-  if (!featureDrift.features.length) {
-    return {
-      title: 'No features to rank',
-      detail: 'Feature drift needs a reference profile and live traffic in this window.',
-    }
-  }
   return null
+}
+
+export const NO_RANKED_FEATURES_STATE: EmptyStateContent = {
+  title: 'No features to rank',
+  detail: 'Feature drift needs a reference profile and live traffic in this window.',
 }
 
 export function getMultivariateEmptyState(
@@ -110,14 +105,19 @@ export function countPsiAttention(multivariate: MultivariatePanel): number {
   return multivariate.feature_psi.filter((feature) => feature.psi >= PSI_ATTENTION_THRESHOLD).length
 }
 
+export function getShiftMetricLabel(metric: string | null | undefined): string {
+  if (!metric) return 'Shift distance'
+  const label = metric.replace(/_/g, ' ')
+  return label.charAt(0).toUpperCase() + label.slice(1)
+}
+
 export function getMultivariateMetrics(multivariate: MultivariatePanel): MultivariateMetric[] {
-  const projectedVariance = multivariate.explained_variance.slice(0, PCA_PROJECTED_COMPONENTS)
-  const explainedVariance = projectedVariance.length
-    ? projectedVariance.reduce((sum, value) => sum + value, 0)
+  const explainedVariance = multivariate.explained_variance.length
+    ? multivariate.explained_variance.reduce((sum, value) => sum + value, 0)
     : null
   return [
     {
-      label: 'Centroid shift',
+      label: getShiftMetricLabel(multivariate.shift_metric),
       value: formatOptional(multivariate.shift_value, (value) =>
         `${value.toFixed(2)} ${multivariate.shift_unit ?? ''}`.trim(),
       ),
