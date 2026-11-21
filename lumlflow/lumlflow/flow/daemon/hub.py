@@ -161,6 +161,7 @@ class Hub:
         self._scanner = ThreadPoolExecutor(thread_name_prefix="lumlflow-scan")
         self._scan_locks: dict[Path, asyncio.Lock] = {}
         self._stopping = threading.Event()
+        self._scan_stops: set[threading.Event] = set()
         self._opening: dict[Path, asyncio.Event] = {}
 
     def flows(self) -> list[FlowRef]:
@@ -264,12 +265,13 @@ class Hub:
 
     async def open(self, ref: FlowRef, *, actor: str | None = None) -> FlowSession:
         self._remember_loop()
-        session = self._sessions.get(ref.path)
-        if session is not None:
+        while (session := self._sessions.get(ref.path)) is not None:
             session.touch()
-            if (opening := self._opening.get(ref.path)) is not None:
-                await opening.wait()
-            return session
+            if (opening := self._opening.get(ref.path)) is None:
+                return session
+            # Looked up again after: a first sync that did not finish takes
+            # its session with it, and this open starts over.
+            await opening.wait()
         store = (
             FlowStore.open(ref.path)
             if store_dir(ref.path).is_dir()
@@ -338,8 +340,15 @@ class Hub:
         materialization imports it, or the cache is poisoned with a value
         computed from code the hash no longer describes.
         """
+        if (opening := self._opening.get(session.ref.path)) is not None:
+            await opening.wait()
+        if not self._live(session):
+            return
         async with self._scan_lock(session.workspace_dir):
             tree = await self._scan(session.workspace_dir)
+            # Closed while the scan ran: its store is no longer there to take it.
+            if not self._live(session):
+                return
             workspace_changed = bool(
                 reconciliation.sync_workspace_code(tree, [session])
             )
@@ -368,24 +377,63 @@ class Hub:
     @contextlib.asynccontextmanager
     async def _first_scan(self, session: FlowSession) -> AsyncGenerator[WorkspaceTree]:
         """A new session's first look at its workspace, once its watch is in
-        place; anyone opening it meanwhile waits for the look to finish."""
+        place; anyone opening or closing it meanwhile waits for the look to
+        finish. A session whose first sync does not finish — cancelled, or
+        failed — is let go of before anyone waiting is let in, so the next
+        open does the whole first sync again."""
         path = session.ref.path
         opening = self._opening[path] = asyncio.Event()
         try:
             async with self._scan_lock(session.workspace_dir):
                 await self.watches.settled()
                 yield await self._scan(session.workspace_dir)
+        except BaseException:
+            await self._discard(session)
+            raise
         finally:
             del self._opening[path]
             opening.set()
+
+    async def _discard(self, session: FlowSession) -> None:
+        try:
+            await session.close()
+        finally:
+            if self._live(session):
+                del self._sessions[session.ref.path]
+                self.watches.release(session.watch.root)
+
+    def _live(self, session: FlowSession) -> bool:
+        return self._sessions.get(session.ref.path) is session
 
     def _scan_lock(self, workspace_dir: Path) -> asyncio.Lock:
         return self._scan_locks.setdefault(workspace_dir, asyncio.Lock())
 
     async def _scan(self, workspace_dir: Path) -> WorkspaceTree:
-        return await asyncio.wrap_future(
-            self._scanner.submit(scan_workspace, workspace_dir, stopping=self._stopping)
-        )
+        """The workspace as the scan thread found it.
+
+        A cancelled caller is told nothing until the thread has let go of the
+        tree: it holds the workspace's lock until then, so a retry cannot put
+        a second scan of the same tree beside the first. The scan is told to
+        stop, so that wait is short.
+        """
+        stop = threading.Event()
+        if self._stopping.is_set():
+            stop.set()
+        self._scan_stops.add(stop)
+        try:
+            submitted = self._scanner.submit(
+                scan_workspace, workspace_dir, stopping=stop
+            )
+            scanning = asyncio.wrap_future(submitted)
+            try:
+                return await asyncio.shield(scanning)
+            except asyncio.CancelledError:
+                stop.set()
+                submitted.cancel()
+                await _finished(scanning)
+                raise
+        finally:
+            self._scan_stops.discard(stop)
 
     def _session(self, ref: FlowRef, store: FlowStore) -> FlowSession:
         self._remember_loop()
@@ -423,6 +471,10 @@ class Hub:
                 still is not None and not still(session)
             )
 
+        # A slow first open finishes, or is let go of, before anything closes
+        # it: otherwise its scan would land on the store this closes.
+        while (opening := self._opening.get(path)) is not None:
+            await opening.wait()
         if self._sessions.get(path) is not session:
             return False
         await session.reactor.stop()
@@ -484,9 +536,16 @@ class Hub:
     async def close(self) -> None:
         self._closed = True
         self._stopping.set()
+        for stop in self._scan_stops:
+            stop.set()
         await asyncio.to_thread(
             partial(self._scanner.shutdown, wait=True, cancel_futures=True)
         )
+        # With the scans stopped, an open in flight ends promptly; it closes
+        # its own session when it fails, and must not have it closed twice.
+        openings = [opening.wait() for opening in self._opening.values()]
+        if openings:
+            await asyncio.gather(*openings)
         self._unsubscribe_tracker()
         for session in list(self._sessions.values()):
             self.watches.release(session.watch.root)
@@ -581,6 +640,16 @@ def _is_flow(path: Path) -> bool:
     return path.is_dir() and (
         store_dir(path).is_dir() or path.name.endswith(FLOW_SUFFIX)
     )
+
+
+async def _finished(future: "asyncio.Future[Any]") -> None:
+    """Wait for `future` to finish, through any further cancellation; what it
+    ended with is nobody's to hear."""
+    while not future.done():
+        with contextlib.suppress(asyncio.CancelledError):
+            await asyncio.wait([future])
+    if not future.cancelled():
+        future.exception()
 
 
 def _running_loop() -> asyncio.AbstractEventLoop | None:

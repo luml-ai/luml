@@ -8,7 +8,13 @@ from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import Hub
 from lumlflow.flow.dsl.tree import ScanStopped, WorkspaceTree, scan_workspace
 
-from tests.helpers.daemon import SCORE_CELL, daemon_api, make_workspace, write_cell
+from tests.helpers.daemon import (
+    SCORE_CELL,
+    daemon_api,
+    make_workspace,
+    slice_of,
+    write_cell,
+)
 
 _PROMPT_S = 2.0
 # Enough turns of the loop for a coroutine with no I/O to reach the lock.
@@ -107,3 +113,153 @@ async def test_closing_during_a_blocked_scan_ends_it(
         for thread in threading.enumerate()
         if thread.name.startswith("lumlflow-scan")
     ]
+
+
+class _StubbornScan(_BlockedScan):
+    """A scan that does not look at its stop flag until released: a thread
+    deep in one huge directory listing."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._running = 0
+        self.overlapped = False
+        self._lock = threading.Lock()
+
+    def __call__(
+        self, workspace_dir: Path, *, stopping: threading.Event | None = None
+    ) -> WorkspaceTree:
+        with self._lock:
+            self.calls += 1
+            self._running += 1
+            self.overlapped |= self._running > 1
+        self.entered.set()
+        try:
+            self.release.wait(_PROMPT_S * 5)
+            return scan_workspace(workspace_dir, stopping=stopping)
+        finally:
+            with self._lock:
+                self._running -= 1
+
+
+async def _cancelled(task: "asyncio.Task[object]") -> None:
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(task, _PROMPT_S)
+
+
+async def test_a_cancelled_first_open_leaves_no_half_open_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project", files={"helpers.py": "AUC = 1"})
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        ref = api.resolve("churn")
+        scan = _BlockedScan()
+        monkeypatch.setattr(hub_module, "scan_workspace", scan)
+        opening = asyncio.create_task(api.hub.open(ref))
+        await scan.started()
+        await _cancelled(opening)
+        left = (api.hub.attached(ref.path), api.hub.watches.roots())
+        monkeypatch.setattr(hub_module, "scan_workspace", scan_workspace)
+        reopened = await asyncio.wait_for(api.hub.open(ref), _PROMPT_S)
+        synced = reopened.store.index.workspace_tree() is not None
+        accepted = sorted(slice_of(reopened, "main"))
+
+    assert left == (None, [])
+    assert (synced, accepted) == (True, ["score"])
+
+
+async def test_a_first_open_whose_scan_fails_leaves_no_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project", files={"helpers.py": "AUC = 1"})
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    def unreadable(workspace_dir: Path, **kwargs: object) -> WorkspaceTree:
+        raise PermissionError(13, "permission denied", str(workspace_dir))
+
+    async with daemon_api(root) as api:
+        ref = api.resolve("churn")
+        monkeypatch.setattr(hub_module, "scan_workspace", unreadable)
+        with pytest.raises(PermissionError):
+            await api.hub.open(ref)
+        left = (api.hub.attached(ref.path), api.hub.watches.roots())
+        monkeypatch.setattr(hub_module, "scan_workspace", scan_workspace)
+        reopened = await api.hub.open(ref)
+        synced = reopened.store.index.workspace_tree() is not None
+
+    assert left == (None, [])
+    assert synced
+
+
+async def test_a_cancelled_scan_keeps_its_workspace_until_its_thread_ends(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project", files={"helpers.py": "AUC = 1"})
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        scan = _StubbornScan()
+        monkeypatch.setattr(hub_module, "scan_workspace", scan)
+        first = asyncio.create_task(api.hub.quiesce(session))
+        await scan.started()
+        first.cancel()
+        retries = [asyncio.create_task(api.hub.quiesce(session)) for _ in range(3)]
+        for _ in range(_YIELDS):
+            await asyncio.sleep(0)
+        while_stuck = (scan.calls, first.done())
+        scan.release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(first, _PROMPT_S)
+        await asyncio.wait_for(asyncio.gather(*retries), _PROMPT_S)
+
+    assert while_stuck == (1, False)
+    assert not scan.overlapped
+
+
+async def test_deleting_a_flow_mid_first_open_waits_for_the_open(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project", files={"helpers.py": "AUC = 1"})
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        ref = api.resolve("churn")
+        scan = _BlockedScan()
+        monkeypatch.setattr(hub_module, "scan_workspace", scan)
+        opening = asyncio.create_task(api.hub.open(ref))
+        await scan.started()
+        deleting = asyncio.create_task(api.hub.delete_flow(ref))
+        for _ in range(_YIELDS):
+            await asyncio.sleep(0)
+        deleted_early = deleting.done()
+        scan.release.set()
+        await asyncio.wait_for(opening, _PROMPT_S)
+        await asyncio.wait_for(deleting, _PROMPT_S)
+        left = (api.hub.attached(ref.path), api.hub.watches.roots())
+
+    assert not deleted_early
+    assert left == (None, [])
+    assert not ref.path.exists()
+
+
+async def test_closing_the_hub_mid_first_open_ends_the_open(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project", files={"helpers.py": "AUC = 1"})
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+    hub = Hub()
+    api = Api(hub, directory=root)
+    ref = api.resolve("churn")
+    scan = _BlockedScan()
+    monkeypatch.setattr(hub_module, "scan_workspace", scan)
+    opening = asyncio.create_task(hub.open(ref))
+    await scan.started()
+
+    await asyncio.wait_for(hub.close(), _PROMPT_S)
+
+    with pytest.raises(ScanStopped):
+        await opening
+    assert (hub.attached(ref.path), hub.watches.roots()) == (None, [])
