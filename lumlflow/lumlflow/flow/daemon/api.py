@@ -7,6 +7,7 @@ import tempfile
 import time
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -56,6 +57,9 @@ _FENCED = frozenset(
     }
 )
 _OBSERVES = _FENCED | {"context", "rewind"}
+# The fenced method this call passed the fence for: waiting for the workspace
+# scan lets a rewind in, so the fence is checked again once the scan is done.
+_fenced_call: ContextVar[str | None] = ContextVar("fenced_call", default=None)
 
 CLAIM_IDLE_S = 180.0
 
@@ -549,9 +553,7 @@ class Api:
         source = str(params.get("source") or "")
         if not source.strip():
             raise FlowError(f"`{slug}` cannot be edited with empty source")
-        session = await self._session(params, actor=_actor(params))
-        await self.hub.quiesce(session, actor=_actor(params))
-        branch = _branch(session, params)
+        session, branch = await self._read(params)
         head = queries.head(session, branch, slug)
         base = params.get("base")
         if base and base != head.definition_hash and not params.get("force"):
@@ -985,9 +987,7 @@ class Api:
 
     async def adopt(self, params: dict[str, Any]) -> dict[str, Any]:
         actor = _actor(params)
-        session = await self._session(params, actor=actor)
-        await self.hub.quiesce(session, actor=actor)
-        branch = _branch(session, params)
+        session, branch = await self._read(params)
         force = bool(params.get("force"))
         result = session.store.branches.adopt(
             str(params.get("slug") or ""),
@@ -1285,6 +1285,8 @@ class Api:
     async def _read(self, params: dict[str, Any]) -> tuple[FlowSession, str]:
         session = await self._session(params, actor=_actor(params))
         await self.hub.quiesce(session, actor=_actor(params))
+        if (fenced := _fenced_call.get()) is not None:
+            self.fence(fenced, params)
         return session, _branch(session, params)
 
     async def _flow_status(self, ref: FlowRef, *, actor: str) -> dict[str, Any]:
@@ -1408,6 +1410,7 @@ class Api:
             row = session.store.branches.get(branch)
         except FlowError:
             return
+        _fenced_call.set(method)
         key = (session.ref.address, actor, row.branch_id)
         standing = session.store.index.head_step(row.branch_id)
         seen = self._lane_seen.get(key)
