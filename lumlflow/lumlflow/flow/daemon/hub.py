@@ -538,6 +538,11 @@ class Hub:
     async def delete_flow(self, ref: FlowRef) -> None:
         if not _is_flow(ref.path):
             raise FlowNotFound(f"`{ref.relpath}` is not a flow")
+        if ref.path.is_symlink():
+            raise FlowError(
+                f"`{ref.relpath}` is a link to another flow; "
+                "delete the flow it points to"
+            )
         self._known.pop(ref.path, None)
         self._found.pop(ref.path, None)
         key = _session_key(ref.path)

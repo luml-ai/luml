@@ -9,7 +9,7 @@ from lumlflow.flow.daemon.hub import Hub
 from lumlflow.flow.daemon.main import Daemon
 from lumlflow.flow.daemon.workspace import FlowRef
 from lumlflow.flow.dsl.tree import ScanStopped, WorkspaceTree, scan_workspace
-from lumlflow.flow.errors import FlowNotFound
+from lumlflow.flow.errors import FlowError, FlowNotFound
 from lumlflow.flow.store.flowstore import store_dir
 from lumlflow.flow.store.models import RunRecorded
 
@@ -391,9 +391,11 @@ async def test_deleting_a_symlink_opened_by_its_name_keeps_its_target(
 
     async with daemon_api(root) as api:
         await api.flow_open({"flow": "alias"})
-        with pytest.raises(OSError):
+        with pytest.raises(FlowError, match="is a link"):
             await api.flow_delete({"flow": "alias"})
+        still_open = api.hub.attached(root / "churn.flow")
 
+    assert still_open is not None
     assert cell.is_file()
     assert store_dir(root / "churn.flow").is_dir()
 
