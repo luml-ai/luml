@@ -12,9 +12,8 @@ from typing import Any
 
 import pytest
 
-pytestmark = pytest.mark.skipif(
-    not sys.platform.startswith("linux"), reason="inotify is Linux only"
-)
+if not sys.platform.startswith("linux"):
+    pytest.skip("inotify is Linux only", allow_module_level=True)
 
 _TIMEOUT_S = 10.0
 _EXCLUDED = (
