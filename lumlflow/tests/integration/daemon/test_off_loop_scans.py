@@ -501,7 +501,6 @@ async def test_a_run_waiting_for_its_scan_keeps_the_daemon_from_idling_out(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = make_workspace(tmp_path / "project")
-    write_cell(root / "churn.flow", "score", SCORE_CELL)
     daemon = Daemon(root)
     try:
         await daemon.api.flow_open({"flow": "churn"})
