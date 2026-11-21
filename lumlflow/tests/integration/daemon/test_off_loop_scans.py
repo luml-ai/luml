@@ -377,3 +377,29 @@ async def test_a_symlink_and_its_target_opened_together_share_one_session(
     assert opened == [first]
     assert attached is first
     assert first.ref.name == "alias"
+
+
+async def test_stopping_after_a_waiting_caller_left_stops_the_run_that_stayed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        scan = _BlockedScan()
+        monkeypatch.setattr(hub_module, "scan_workspace", scan)
+        staying = asyncio.create_task(api.run({"flow": "churn"}))
+        await scan.started()
+        leaving = asyncio.create_task(api.run({"flow": "churn"}))
+        for _ in range(_YIELDS):
+            await asyncio.sleep(0)
+        await _cancelled(leaving)
+        left = await api.cancel({"flow": "churn"})
+        scan.release.set()
+        outcome = await asyncio.wait_for(staying, _PROMPT_S)
+        left_after = await api.cancel({"flow": "churn"})
+
+    assert left["left"] == 1
+    assert (outcome["abandoned"], outcome["executed"]) == (True, [])
+    assert left_after["left"] == 0

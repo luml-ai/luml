@@ -84,7 +84,7 @@ _TOUCHES = frozenset(
 )
 
 
-@dataclass
+@dataclass(eq=False)
 class _PendingRun:
     """A run still waiting for its scan, before it reaches the queue."""
 
