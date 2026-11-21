@@ -7,10 +7,11 @@
     :draggable="false"
     :style="dialogStyle"
     :pt="dialogPt"
+    :aria-labelledby="titleId"
     @show="load"
   >
     <template #header>
-      <TraceDialogHeader :title="title" :event-id="eventId" :trace="trace" />
+      <TraceDialogHeader :title-id="titleId" :title="title" :event-id="eventId" :trace="trace" />
     </template>
     <TraceLoader v-if="!trace && loading" />
     <div v-else-if="error" class="state">
@@ -33,13 +34,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, shallowRef, watch } from 'vue'
+import { computed, ref, shallowRef, useId, watch } from 'vue'
 import { Dialog } from 'primevue'
-import { api } from '@/api'
+import { api, ApiError } from '@/api'
 import type { TraceDetailResponse, TraceSpan } from '@/api/monitoring/interfaces'
 import { useFiltersStore } from '@/store/filters'
-import { TRACE_DIALOG_GAP } from '@/constants/traces'
-import { buildSpanTree, getSpanRange, getTraceDetailEmptyState } from '@/utils/traces'
+import { NOT_FOUND_STATUS, TRACE_DIALOG_GAP } from '@/constants/traces'
+import {
+  buildSpanTree,
+  getSpanRange,
+  getTraceDetailEmptyState,
+  TRACE_NOT_FOUND_STATE,
+} from '@/utils/traces'
 import MEmpty from '@/components/MEmpty.vue'
 import MErrorState from '@/components/MErrorState.vue'
 import TraceDialogHeader from '@/components/traces/TraceDialogHeader.vue'
@@ -57,7 +63,7 @@ const visible = defineModel<boolean>('visible', { required: true })
 
 const filtersStore = useFiltersStore()
 
-const loaded = shallowRef<{ eventId: string; response: TraceDetailResponse } | null>(null)
+const loaded = shallowRef<{ eventId: string; response: TraceDetailResponse | null } | null>(null)
 const error = shallowRef<Error | null>(null)
 const loading = ref(false)
 const selection = shallowRef<{ eventId: string; spanId: string } | null>(null)
@@ -75,11 +81,15 @@ const dialogPt = {
   content: { class: 'trace-dialog-content' },
 }
 
+const titleId = useId()
+
 let requestId = 0
 
-const response = computed(() =>
-  loaded.value && loaded.value.eventId === props.eventId ? loaded.value.response : null,
+const current = computed(() =>
+  loaded.value && loaded.value.eventId === props.eventId ? loaded.value : null,
 )
+
+const response = computed(() => current.value?.response ?? null)
 
 const trace = computed(() => response.value?.trace ?? null)
 
@@ -89,9 +99,10 @@ const tree = computed(() => buildSpanTree(spans.value))
 
 const range = computed(() => getSpanRange(spans.value))
 
-const emptyState = computed(() =>
-  response.value ? getTraceDetailEmptyState(response.value) : null,
-)
+const emptyState = computed(() => {
+  if (!current.value) return null
+  return response.value ? getTraceDetailEmptyState(response.value) : TRACE_NOT_FOUND_STATE
+})
 
 const selectedSpan = computed<TraceSpan | null>(() => {
   const current = selection.value
@@ -116,6 +127,11 @@ async function load() {
     error.value = null
   } catch (e) {
     if (id !== requestId) return
+    if (e instanceof ApiError && e.status === NOT_FOUND_STATUS) {
+      loaded.value = { eventId, response: null }
+      error.value = null
+      return
+    }
     error.value = e instanceof Error ? e : new Error(String(e))
   } finally {
     if (id === requestId) loading.value = false
@@ -123,7 +139,7 @@ async function load() {
 }
 
 watch(
-  () => [filtersStore.dimensions, filtersStore.refreshKey],
+  () => filtersStore.dimensions,
   () => {
     if (visible.value) load()
   },

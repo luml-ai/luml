@@ -10,17 +10,27 @@
       type="button"
       class="toggle"
       :aria-expanded="isOpened"
+      :aria-label="isOpened ? `Collapse ${node.name}` : `Expand ${node.name}`"
       @click.stop="$emit('toggle', node.span_id)"
     >
       <component :is="isOpened ? ChevronDown : ChevronRight" :size="14" />
     </button>
     <div v-else class="toggle-placeholder" />
     <div class="body">
-      <TraceSpanTitle :span="node" />
+      <div class="title-row">
+        <TraceSpanTitle class="title" :span="node" />
+        <span
+          v-if="isFailed"
+          v-tooltip.top="'Span failed'"
+          class="error-dot"
+          role="img"
+          aria-label="Span failed"
+        />
+      </div>
       <div class="progress">
-        <div class="progress-offset" :style="{ width: `${startProgress}%` }" />
+        <div class="progress-offset" :style="{ width: `${bar.start}%` }" />
         <ProgressBar
-          :value="endProgress"
+          :value="bar.end"
           :show-value="false"
           class="progress-bar"
           :pt="{ value: { style: { background: spanType.color } } }"
@@ -49,7 +59,7 @@ import { ProgressBar } from 'primevue'
 import { ChevronDown, ChevronRight } from 'lucide-vue-next'
 import type { TraceSpan, TraceSpanNode } from '@/api/monitoring/interfaces'
 import type { TraceSpanRange } from '@/types/traces'
-import { getSpanProgress, getSpanTypeData } from '@/utils/traces'
+import { getSpanBar, getSpanTypeData, isFailedSpan } from '@/utils/traces'
 import TraceSpanTitle from '@/components/traces/TraceSpanTitle.vue'
 
 interface Props {
@@ -77,11 +87,9 @@ const isSelected = computed(() => props.selectedSpanId === props.node.span_id)
 
 const spanType = computed(() => getSpanTypeData(props.node.dfs_span_type))
 
-const startProgress = computed(() =>
-  getSpanProgress(props.node.start_time_unix_nano, props.range, 0),
-)
+const isFailed = computed(() => isFailedSpan(props.node))
 
-const endProgress = computed(() => getSpanProgress(props.node.end_time_unix_nano, props.range, 100))
+const bar = computed(() => getSpanBar(props.node, props.range))
 </script>
 
 <style scoped>
@@ -135,6 +143,26 @@ const endProgress = computed(() => getSpanProgress(props.node.end_time_unix_nano
   flex-direction: column;
   gap: 8px;
   min-width: 0;
+}
+
+.title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.title {
+  flex: 1;
+}
+
+.error-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--p-message-error-color);
 }
 
 .progress {

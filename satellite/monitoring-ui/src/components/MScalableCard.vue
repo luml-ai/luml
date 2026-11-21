@@ -25,13 +25,17 @@
       modal
       block-scroll
       dismissable-mask
+      :close-on-escape="false"
       :draggable="false"
       :style="dialogStyle"
-      :pt="{ mask: { style: { '--px-mask-background': 'transparent' } } }"
+      :aria-labelledby="title ? titleId : undefined"
+      :aria-label="title ? undefined : 'Expanded chart'"
+      :pt="{ mask: { class: maskClass, style: { '--px-mask-background': 'transparent' } } }"
+      @after-hide="restoreScrollLock"
     >
       <template #header>
         <div v-if="title" class="header-text">
-          <h3 class="title">{{ title }}</h3>
+          <h3 :id="titleId" class="title">{{ title }}</h3>
           <span v-if="subtitle" class="subtitle">{{ subtitle }}</span>
         </div>
       </template>
@@ -46,9 +50,11 @@
 </template>
 
 <script setup lang="ts">
+import { useId } from 'vue'
 import { Maximize2, Minimize2 } from 'lucide-vue-next'
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
+import { useNestedDialog } from '@/composables/useNestedDialog'
 
 const DIALOG_GAP = 15
 
@@ -69,6 +75,10 @@ withDefaults(defineProps<Props>(), {
 defineSlots<Slots>()
 
 const isScaled = defineModel<boolean>('scaled', { default: false })
+
+const titleId = useId()
+
+const { maskClass, restoreScrollLock } = useNestedDialog(isScaled)
 
 const dialogStyle = {
   width: `calc(100vw - ${2 * DIALOG_GAP}px)`,

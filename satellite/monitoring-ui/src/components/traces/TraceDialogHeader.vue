@@ -1,6 +1,6 @@
 <template>
   <div class="header">
-    <MEllipsis class="title" :text="title" />
+    <MEllipsis :id="titleId" class="title" :text="title" />
     <div v-if="eventId" class="badge">
       <span class="badge-text">{{ shortEventId }}</span>
       <MCopyButton :text="eventId" label="request ID" />
@@ -25,6 +25,7 @@ import MCopyButton from '@/components/MCopyButton.vue'
 import MEllipsis from '@/components/MEllipsis.vue'
 
 interface Props {
+  titleId?: string
   title: string
   eventId: string | null
   trace?: TraceDetail | null

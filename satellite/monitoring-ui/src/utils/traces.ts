@@ -5,6 +5,7 @@ import {
   type SortOrder,
   type TraceDetailResponse,
   type TraceRow,
+  type Dimensions,
   type TraceSortKey,
   type TraceSpan,
   type TraceSpanNode,
@@ -15,6 +16,9 @@ import type { SpanTypeData, TraceEntry, TraceSpanRange } from '@/types/traces'
 import {
   DEFAULT_TRACES_SORT_FIELD,
   DEFAULT_TRACES_SORT_ORDER,
+  MIN_SPAN_BAR_PERCENT,
+  NEW_SORT_FIELD_ORDER,
+  SPAN_STATUS_ERROR,
   type TableSortOrder,
 } from '@/constants/traces'
 import { isFailedOutcome } from '@/utils/runtime'
@@ -47,6 +51,54 @@ export function normalizeTraceSort(
   return { field, order }
 }
 
+export interface TracesQuery {
+  dimensions: Dimensions
+  first: number
+  sort: { field: string; order: TableSortOrder }
+}
+
+export function isSameTracesQuery(a: TracesQuery, b: TracesQuery): boolean {
+  return (
+    a.dimensions === b.dimensions &&
+    a.first === b.first &&
+    a.sort.field === b.sort.field &&
+    a.sort.order === b.sort.order
+  )
+}
+
+export function isLatestTracesQuery(query: TracesQuery): boolean {
+  return (
+    query.first === 0 &&
+    query.sort.field === DEFAULT_TRACES_SORT_FIELD &&
+    query.sort.order === DEFAULT_TRACES_SORT_ORDER
+  )
+}
+
+export function getNextTraceSort(
+  current: { field: string; order: TableSortOrder },
+  field: unknown,
+  order: number | null | undefined,
+): { field: string; order: TableSortOrder } {
+  if (typeof field === 'string' && field && field !== current.field) {
+    return { field, order: NEW_SORT_FIELD_ORDER }
+  }
+  return normalizeTraceSort(field, order)
+}
+
+export function getFreshTraceIds(rows: TraceRow[], previousIds: ReadonlySet<string>): Set<string> {
+  return new Set(rows.filter((row) => !previousIds.has(row.event_id)).map((row) => row.event_id))
+}
+
+export function countNewTraces(latestRows: TraceRow[], topEventId: string): number {
+  const index = latestRows.findIndex((row) => row.event_id === topEventId)
+  return index === -1 ? latestRows.length : index
+}
+
+export function formatNewTracesLabel(count: number, pageSize: number): string {
+  const amount = count >= pageSize ? `${pageSize}+` : String(count)
+  return `${amount} new ${count === 1 ? 'trace' : 'traces'} — show latest`
+}
+
 export function getTracesEmptyState(traces: TracesResponse): EmptyStateContent | null {
   if (traces.state === SectionState.UNAVAILABLE) {
     return {
@@ -71,30 +123,47 @@ export function buildSpanTree(spans: TraceSpan[]): TraceSpanNode[] {
   const nodes = new Map<string, TraceSpanNode>(
     spans.map((span) => [span.span_id, { ...span, children: [] }]),
   )
+  const cycleIds = getParentCycleIds(nodes)
   const roots: TraceSpanNode[] = []
   for (const node of nodes.values()) {
     const parent = node.parent_span_id ? nodes.get(node.parent_span_id) : undefined
-    if (parent && !isInParentCycle(node, nodes)) parent.children.push(node)
+    if (parent && !cycleIds.has(node.span_id)) parent.children.push(node)
     else roots.push(node)
   }
   return sortSpanNodes(roots)
 }
 
-function isInParentCycle(span: TraceSpan, spansById: Map<string, TraceSpan>): boolean {
+function getParentCycleIds(nodes: Map<string, TraceSpan>): Set<string> {
   const visited = new Set<string>()
-  let current = span.parent_span_id ? spansById.get(span.parent_span_id) : undefined
-  while (current && !visited.has(current.span_id)) {
-    if (current.span_id === span.span_id) return true
-    visited.add(current.span_id)
-    current = current.parent_span_id ? spansById.get(current.parent_span_id) : undefined
+  const cycleIds = new Set<string>()
+  for (const startId of nodes.keys()) {
+    const path: string[] = []
+    const onPath = new Set<string>()
+    let id: string | null | undefined = startId
+    while (id && nodes.has(id) && !visited.has(id)) {
+      visited.add(id)
+      onPath.add(id)
+      path.push(id)
+      id = nodes.get(id)?.parent_span_id
+    }
+    if (id && onPath.has(id)) {
+      path.slice(path.indexOf(id)).forEach((cycleId) => cycleIds.add(cycleId))
+    }
   }
-  return false
+  return cycleIds
 }
 
-function sortSpanNodes(nodes: TraceSpanNode[]): TraceSpanNode[] {
-  return nodes
-    .sort((a, b) => a.start_time_unix_nano - b.start_time_unix_nano)
-    .map((node) => ({ ...node, children: sortSpanNodes(node.children) }))
+function compareSpanStart(a: TraceSpanNode, b: TraceSpanNode): number {
+  return a.start_time_unix_nano - b.start_time_unix_nano
+}
+
+function sortSpanNodes(roots: TraceSpanNode[]): TraceSpanNode[] {
+  const stack = [roots]
+  for (let nodes = stack.pop(); nodes; nodes = stack.pop()) {
+    nodes.sort(compareSpanStart)
+    for (const node of nodes) if (node.children.length) stack.push(node.children)
+  }
+  return roots
 }
 
 export function getSpanRange(spans: TraceSpan[]): TraceSpanRange {
@@ -113,10 +182,27 @@ export function getSpanProgress(time: number, range: TraceSpanRange, fallback: n
   return Math.min(100, Math.max(0, percent))
 }
 
+export function getSpanBar(span: TraceSpan, range: TraceSpanRange): { start: number; end: number } {
+  const start = getSpanProgress(span.start_time_unix_nano, range, 0)
+  const end = getSpanProgress(span.end_time_unix_nano, range, 100)
+  const width = Math.max(end - start, MIN_SPAN_BAR_PERCENT)
+  const boundedStart = Math.min(start, 100 - width)
+  return { start: boundedStart, end: boundedStart + width }
+}
+
 export function getCollapsibleSpanIds(nodes: TraceSpanNode[]): string[] {
-  return nodes.flatMap((node) =>
-    node.children.length ? [node.span_id, ...getCollapsibleSpanIds(node.children)] : [],
-  )
+  const ids: string[] = []
+  const stack = [...nodes]
+  for (let node = stack.pop(); node; node = stack.pop()) {
+    if (!node.children.length) continue
+    ids.push(node.span_id)
+    stack.push(...node.children)
+  }
+  return ids
+}
+
+export function isFailedSpan(span: TraceSpan): boolean {
+  return span.status_code === SPAN_STATUS_ERROR
 }
 
 export function getSpanTypeData(type: SpanTypeEnum | null): SpanTypeData {
@@ -186,9 +272,18 @@ export function getSpanMetadata(span: TraceSpan): TraceEntry[] {
     { key: 'kind', value: span.kind },
     { key: 'status_code', value: span.status_code },
     { key: 'status_message', value: span.status_message },
-    { key: 'start_time_unix_nano', value: span.start_time_unix_nano },
-    { key: 'end_time_unix_nano', value: span.end_time_unix_nano },
+    { key: 'start_time', value: formatNanoTimestamp(span.start_time_unix_nano) },
+    { key: 'end_time', value: formatNanoTimestamp(span.end_time_unix_nano) },
   ].filter((entry) => entry.value != null)
+}
+
+export function formatNanoTimestamp(ns: number): string {
+  const micros = Math.round(ns / 1_000)
+  const millis = Math.floor(micros / 1_000)
+  const date = new Date(millis)
+  if (Number.isNaN(date.getTime())) return String(ns)
+  const fraction = String(micros - millis * 1_000).padStart(3, '0')
+  return date.toISOString().replace('Z', `${fraction}Z`)
 }
 
 export function formatTraceValue(value: unknown): string {
@@ -203,6 +298,12 @@ export function getTraceValueStats(text: string): string | null {
   return `${lines} lines · ${text.length} chars`
 }
 
+export const TRACE_NOT_FOUND_STATE: EmptyStateContent = {
+  title: 'Trace not found',
+  detail:
+    'This inference call is no longer in the selected window. Widen the time window to inspect it.',
+}
+
 export function getTraceDetailEmptyState(response: TraceDetailResponse): EmptyStateContent | null {
   if (response.state === SectionState.UNAVAILABLE) {
     return {
@@ -210,12 +311,7 @@ export function getTraceDetailEmptyState(response: TraceDetailResponse): EmptySt
       detail: 'The monitoring store could not provide this inference call.',
     }
   }
-  if (!response.trace) {
-    return {
-      title: 'Trace not found',
-      detail: 'This inference call is no longer available in the selected window.',
-    }
-  }
+  if (!response.trace) return TRACE_NOT_FOUND_STATE
   if (!response.trace.spans.length) {
     return {
       title: 'No spans recorded',

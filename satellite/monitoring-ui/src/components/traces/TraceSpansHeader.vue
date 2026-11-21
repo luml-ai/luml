@@ -7,6 +7,7 @@
       v-tooltip.top="expanded ? 'Collapse all' : 'Expand all'"
       severity="secondary"
       variant="outlined"
+      :aria-label="expanded ? 'Collapse all spans' : 'Expand all spans'"
       @click="$emit('toggle')"
     >
       <template #icon>
