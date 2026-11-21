@@ -55,7 +55,7 @@ export const ALERTS_COLUMN_WIDTHS = {
 
 export enum AlertSortField {
   NAME = 'name',
-  SEEN = 'last_seen',
+  SEEN = 'state',
   VALUE = 'current_value',
   TYPE = 'severity',
   DURATION = 'duration_seconds',

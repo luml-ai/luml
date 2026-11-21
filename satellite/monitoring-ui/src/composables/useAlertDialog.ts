@@ -1,7 +1,7 @@
-import { computed, ref, shallowRef } from 'vue'
+import { computed, getCurrentScope, onScopeDispose, ref, shallowRef } from 'vue'
 import { useToast } from 'primevue'
 import { api } from '@/api'
-import type { AlertBanner } from '@/api/monitoring/interfaces'
+import { SectionState, type AlertBanner } from '@/api/monitoring/interfaces'
 import { useFiltersStore } from '@/store/filters'
 import { useTabsStore } from '@/store/tabs'
 import { useDataQualityStore } from '@/store/data-quality'
@@ -24,6 +24,9 @@ export function useAlertDialog(
   const opened = ref(false)
   const acknowledgingKey = shallowRef<string | null>(null)
   const pendingTarget = shallowRef<AlertBanner | null>(null)
+  let disposed = false
+
+  if (getCurrentScope()) onScopeDispose(() => (disposed = true))
 
   const currentAlert = computed(() => findAlert(alerts(), selection.value?.key ?? null))
 
@@ -66,10 +69,27 @@ export function useAlertDialog(
     acknowledgingKey.value = key
     try {
       try {
-        await api.monitoring.acknowledgeAlert(filtersStore.dimensions, alert.metric)
+        const response = await api.monitoring.acknowledgeAlert(
+          filtersStore.dimensions,
+          alert.metric,
+        )
+        if (response.state === SectionState.UNAVAILABLE) {
+          toast.add(
+            simpleErrorToast(
+              'The monitoring store is unavailable. Please try again.',
+              'Could not acknowledge alert',
+            ),
+          )
+          return
+        }
       } catch (e) {
         const err = e instanceof Error ? e : new Error(String(e))
         toast.add(simpleErrorToast(getErrorMessage(err), 'Could not acknowledge alert'))
+        return
+      }
+      if (disposed) {
+        filtersStore.refresh()
+        toast.add(simpleSuccessToast(getAlertName(alert), 'Alert acknowledged'))
         return
       }
       await reload()

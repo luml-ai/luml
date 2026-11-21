@@ -1,19 +1,21 @@
 <template>
   <Card v-if="sortedAlerts.length" class="alerts">
     <template #content>
-      <template v-for="(alert, index) in sortedAlerts" :key="getAlertKey(alert)">
-        <Divider v-if="index > 0" :dt="{ horizontal: { margin: '8px 0' } }" />
-        <div class="alert" :class="`alert--${alert.severity}`">
-          <div class="alert-title">
-            <TriangleAlert :size="14" class="alert-icon" />
-            <button type="button" class="alert-name" @click="emit('select', alert)">
-              {{ getAlertTitle(alert) }}
-            </button>
-            <Tag v-if="alert.feature" :value="alert.feature" severity="secondary" />
+      <div class="alerts-list">
+        <template v-for="(alert, index) in sortedAlerts" :key="getAlertKey(alert)">
+          <Divider v-if="index > 0" :dt="{ horizontal: { margin: '8px 0' } }" />
+          <div class="alert" :class="`alert--${alert.severity}`">
+            <div class="alert-title">
+              <TriangleAlert :size="14" class="alert-icon" />
+              <button type="button" class="alert-name" @click="emit('select', alert)">
+                {{ getAlertTitle(alert) }}
+              </button>
+              <Tag v-if="alert.feature" :value="alert.feature" severity="secondary" />
+            </div>
+            <span class="alert-message">{{ alert.message }}</span>
           </div>
-          <span class="alert-message">{{ alert.message }}</span>
-        </div>
-      </template>
+        </template>
+      </div>
     </template>
   </Card>
 </template>
@@ -45,6 +47,11 @@ const sortedAlerts = computed(() => sortAlertsBySeverity(getOpenAlerts(props.ale
 <style scoped>
 .alerts {
   border: 1px solid var(--p-content-border-color);
+}
+
+.alerts-list {
+  max-height: 220px;
+  overflow-y: auto;
 }
 
 .alert {

@@ -1,9 +1,24 @@
 <template>
   <MTableCard>
-    <AlertsSummary :groups="groups" />
+    <div class="header">
+      <AlertsSummary :groups="groups" />
+      <Button
+        v-if="freshKeys.size"
+        :label="freshLabel"
+        size="small"
+        severity="warn"
+        variant="outlined"
+        @click="emit('seen')"
+      >
+        <template #icon>
+          <BellRing :size="14" />
+        </template>
+      </Button>
+    </div>
     <DataTable
       :value="rows"
       :data-key="getAlertKey"
+      :row-class="getRowClass"
       lazy
       scrollable
       row-group-mode="subheader"
@@ -39,7 +54,14 @@
         :style="getColumnStyle(ALERTS_COLUMN_WIDTHS.seen)"
       >
         <template #body="{ data: row }">
-          <MEllipsis :text="formatTimestamp(row.last_seen)" />
+          <span
+            v-if="isAlertAcknowledged(row)"
+            class="seen"
+            title="Someone has acknowledged this alert; it stays until the metric recovers"
+          >
+            <Check :size="12" />
+            Seen
+          </span>
         </template>
       </Column>
       <Column
@@ -83,7 +105,8 @@
 
 <script setup lang="ts">
 import { computed, shallowRef } from 'vue'
-import { Column, DataTable, Tag, type DataTableSortEvent } from 'primevue'
+import { Button, Column, DataTable, Tag, type DataTableSortEvent } from 'primevue'
+import { BellRing, Check } from 'lucide-vue-next'
 import type { AlertBanner, AlertGroup } from '@/api/monitoring/interfaces'
 import { ALERTS_COLUMN_WIDTHS, AlertSortField } from '@/constants/alerts'
 import type { TableSortOrder } from '@/constants/traces'
@@ -96,9 +119,9 @@ import {
   getSeverityLabel,
   getSeverityTagSeverity,
   getSortedAlerts,
+  isAlertAcknowledged,
   isAlertSortField,
 } from '@/utils/alerts'
-import { formatTimestamp } from '@/utils/format'
 import { getColumnStyle, getTableMinWidth } from '@/utils/table'
 import MTableCard from '@/components/MTableCard.vue'
 import MEllipsis from '@/components/MEllipsis.vue'
@@ -106,13 +129,17 @@ import AlertsSummary from '@/components/alerts/AlertsSummary.vue'
 
 interface Props {
   groups: AlertGroup[]
+  freshKeys?: Set<string>
 }
 
 interface Emits {
   select: [alert: AlertBanner]
+  seen: []
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  freshKeys: () => new Set(),
+})
 
 const emit = defineEmits<Emits>()
 
@@ -131,6 +158,15 @@ const groupCounts = computed(() =>
   Object.fromEntries(props.groups.map(({ group, alerts }) => [group, alerts.length])),
 )
 
+const freshLabel = computed(() => {
+  const count = props.freshKeys.size
+  return `${count} new ${count === 1 ? 'alert' : 'alerts'} — mark seen`
+})
+
+function getRowClass(row: AlertBanner) {
+  return props.freshKeys.has(getAlertKey(row)) ? 'row--fresh' : undefined
+}
+
 function onSort(event: DataTableSortEvent) {
   const field = isAlertSortField(event.sortField) ? event.sortField : null
   sort.value = { field, order: event.sortOrder === -1 ? -1 : 1 }
@@ -138,6 +174,25 @@ function onSort(event: DataTableSortEvent) {
 </script>
 
 <style scoped>
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.seen {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--p-text-muted-color);
+}
+
+:deep(.row--fresh) {
+  background: var(--p-highlight-background);
+}
+
 .group {
   font-size: 14px;
   font-weight: 500;

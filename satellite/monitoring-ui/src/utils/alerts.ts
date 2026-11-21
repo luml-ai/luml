@@ -71,7 +71,7 @@ export function formatDuration(seconds: number | null | undefined): string {
 
 function getAlertSortValue(alert: AlertBanner, field: AlertSortField): string | number | null {
   if (field === AlertSortField.NAME) return getAlertName(alert).toLowerCase()
-  if (field === AlertSortField.SEEN) return alert.last_seen ? Date.parse(alert.last_seen) : null
+  if (field === AlertSortField.SEEN) return isAlertAcknowledged(alert) ? 1 : 0
   if (field === AlertSortField.TYPE) return SEVERITY_ORDER[alert.severity] ?? null
   return alert[field] ?? null
 }
@@ -145,6 +145,18 @@ export function isAlertAcknowledged(alert: AlertBanner): boolean {
 
 export function getOpenAlerts(alerts: AlertBanner[]): AlertBanner[] {
   return alerts.filter((alert) => !isAlertAcknowledged(alert))
+}
+
+export function getAlertKeys(alerts: AlertBanner[]): Set<string> {
+  return new Set(alerts.map(getAlertKey))
+}
+
+export function getFreshAlertKeys(
+  alerts: AlertBanner[],
+  seenKeys: Set<string> | null,
+): Set<string> {
+  if (!seenKeys) return new Set()
+  return new Set(alerts.map(getAlertKey).filter((key) => !seenKeys.has(key)))
 }
 
 export function getAlertThreshold(alert: AlertBanner): string {
