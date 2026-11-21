@@ -7,7 +7,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from watchdog.events import FileSystemEvent, FileSystemEventHandler
+from watchdog.events import (
+    DirCreatedEvent,
+    DirDeletedEvent,
+    DirModifiedEvent,
+    DirMovedEvent,
+    FileClosedEvent,
+    FileCreatedEvent,
+    FileDeletedEvent,
+    FileModifiedEvent,
+    FileMovedEvent,
+    FileSystemEvent,
+    FileSystemEventHandler,
+)
 from watchdog.observers import Observer
 from watchdog.utils import UnsupportedLibcError, platform
 
@@ -26,6 +38,20 @@ _JOIN_TIMEOUT_S = 2.0
 _CELL_DEPTH = 3
 
 Watched = Literal["cell", "code"]
+
+# Only what can change a scan's result. Opens and reads are left out: a scan
+# reads every file it hashes, so reacting to reads would wake the next scan.
+_CHANGES: list[type[FileSystemEvent]] = [
+    FileCreatedEvent,
+    DirCreatedEvent,
+    FileModifiedEvent,
+    DirModifiedEvent,
+    FileClosedEvent,
+    FileMovedEvent,
+    DirMovedEvent,
+    FileDeletedEvent,
+    DirDeletedEvent,
+]
 
 
 @dataclass(frozen=True)
@@ -169,7 +195,7 @@ class Watcher:
             return
         try:
             self._scheduled[root] = observer.schedule(
-                _Handler(self._post), str(root), recursive=True
+                _Handler(self._post), str(root), recursive=True, event_filter=_CHANGES
             )
         except OSError as unwatchable:
             logger.warning("not watching %s: %s", root, unwatchable)

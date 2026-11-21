@@ -3,7 +3,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from lumlflow.flow.daemon.api import Api
-from lumlflow.flow.daemon.hub import FlowSession
+from lumlflow.flow.daemon.hub import FlowSession, Hub
 from lumlflow.flow.daemon.reconcile import MIXED_EDITING
 from lumlflow.flow.daemon.watcher import Watcher, Watches, WatchSet
 from lumlflow.flow.store.flowstore import manifest_path, store_dir
@@ -430,7 +430,92 @@ async def test_a_watched_edit_with_two_registered_agents_belongs_to_user(
     assert landed.actor == "user"
 
 
+async def test_reading_the_workspace_wakes_nobody(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "project", files=_HELPERS)
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        watcher = _CountingWatcher(api.hub, debounce_s=_DEBOUNCE_S)
+        watcher.start()
+        try:
+            for path in sorted(root.rglob("*.py")):
+                path.read_bytes()
+            await _barrier(watcher, root)
+        finally:
+            await watcher.stop()
+
+    assert (watcher.flushes, watcher.woken) == (0, set())
+
+
+async def test_a_scan_does_not_wake_the_next_scan(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "project", files=_HELPERS)
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        watcher = _CountingWatcher(api.hub, debounce_s=_DEBOUNCE_S)
+        watcher.start()
+        try:
+            await api.hub.quiesce(session)
+            await _barrier(watcher, root)
+        finally:
+            await watcher.stop()
+
+    assert (watcher.flushes, watcher.woken) == (0, set())
+
+
+async def test_a_write_wakes_exactly_one_flush(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "project", files=_HELPERS)
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        watcher = _CountingWatcher(api.hub, debounce_s=_DEBOUNCE_S)
+        watcher.start()
+        try:
+            write_file(root / "helpers.py", "AUC = 2")
+            await _until(lambda: watcher.flushes == 1 and _settled(watcher))
+            await _barrier(watcher, root)
+        finally:
+            await watcher.stop()
+
+    assert (watcher.flushes, watcher.woken) == (1, set())
+
+
 FLOWS = ("churn", "sales")
+_HELPERS = {"helpers.py": "AUC = 1", "lib/metrics.py": "K = 3", "lib/io.py": "N = 1"}
+
+
+class _CountingWatcher(Watcher):
+    def __init__(self, hub: Hub, *, debounce_s: float) -> None:
+        super().__init__(hub, debounce_s=debounce_s)
+        self.flushes = 0
+        self.noticed: set[Path] = set()
+
+    @property
+    def woken(self) -> set[Path]:
+        return set(self._woken)
+
+    def notice(self, path: Path) -> None:
+        self.noticed.add(path.resolve())
+        super().notice(path)
+
+    async def flush(self) -> None:
+        self.flushes += 1
+        await super().flush()
+
+
+def _settled(watcher: Watcher) -> bool:
+    return watcher._timer is None or watcher._timer.done()
+
+
+async def _barrier(watcher: _CountingWatcher, root: Path) -> None:
+    """Wait until an event written now has been noticed: inotify delivers in
+    order, so everything the steps before it caused has been noticed too."""
+    marker = write_file(root / f"barrier-{len(watcher.noticed)}.txt", "-")
+    await _until(lambda: marker.resolve() in watcher.noticed and _settled(watcher))
 
 
 def _outside_flow(
