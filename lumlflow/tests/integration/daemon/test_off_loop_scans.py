@@ -510,3 +510,24 @@ async def test_a_run_waiting_for_its_scan_keeps_the_daemon_from_idling_out(
 
     assert not idle["stopping"]
     assert idle["attached"]["active_runs"] == 1
+
+
+async def test_a_stopped_run_still_waiting_for_its_scan_lets_the_daemon_idle_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    daemon = Daemon(root)
+    try:
+        await daemon.api.flow_open({"flow": "churn"})
+        scan = _BlockedScan()
+        monkeypatch.setattr(hub_module, "scan_workspace", scan)
+        running = asyncio.create_task(daemon.api.run({"flow": "churn"}))
+        await scan.started()
+        await daemon.api.cancel({"flow": "churn"})
+        idle = await daemon.api.shutdown_if_idle({"path": str(root / "churn.flow")})
+        scan.release.set()
+        await asyncio.wait_for(running, _PROMPT_S)
+    finally:
+        await daemon.hub.close()
+
+    assert idle["attached"]["active_runs"] == 0

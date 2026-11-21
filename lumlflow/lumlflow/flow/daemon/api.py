@@ -1384,6 +1384,13 @@ class Api:
             "leased_sessions": sum(self._leased_here(session) for session in sessions),
         }
 
+    def waiting_runs(self, flow: str | None = None) -> int:
+        return sum(
+            1
+            for run in self.pending_runs
+            if not run.abandoned and (flow is None or run.flow == flow)
+        )
+
     def _leased_here(self, session: FlowSession) -> int:
         if self._leases is None:
             return 0

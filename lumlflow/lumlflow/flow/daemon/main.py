@@ -451,7 +451,7 @@ class Daemon:
             "leased_sessions": len(leases),
             "stream_subscribers": self.streams.watchers,
             "open_flows": open_flows,
-            "active_runs": len(self.api.pending_runs)
+            "active_runs": self.api.waiting_runs()
             + sum(session.queue.in_flight for session in self.hub.opened()),
             "other_requests": sum(
                 1 for call in self._calls if call is not current and not call.done()
