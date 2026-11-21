@@ -46,6 +46,7 @@ import type { MetaEntry } from '@fnnx-ai/common/dist/interfaces'
 import type { PromptOptimizationModelMetadataPayload } from '@/lib/data-processing/interfaces'
 import { ModelDownloader } from '@/lib/bucket-service'
 import JSZip from 'jszip'
+import { redactSecrets } from '@luml/experiments'
 import CollectionModelCardTabular from '@/components/orbits/tabs/registry/collection/artifact/card/CollectionModelCardTabular.vue'
 import CollectionModelCardPromptOptimization from '@/components/orbits/tabs/registry/collection/artifact/card/CollectionModelCardPromptOptimization.vue'
 import CollectionModelCardForecasting from '@/components/orbits/tabs/registry/collection/artifact/card/CollectionModelCardForecasting.vue'
@@ -88,8 +89,7 @@ function setForecastingMetadata(file: MetaEntry[]) {
 async function setHtmlData(model: ModelArtifact) {
   const htmlArchiveName = FnnxService.findHtmlCard(model.file_index)
   if (!htmlArchiveName) return
-  const url = await artifactsStore.getDownloadUrl(model.id)
-  const modelDownloader = new ModelDownloader(url)
+  const modelDownloader = new ModelDownloader(artifactsStore.downloadUrlSource(model.id))
   const arrayBuffer = await modelDownloader.getFileFromBucket<ArrayBuffer>(
     model.file_index,
     htmlArchiveName,
@@ -116,8 +116,7 @@ async function setLumlMetadata(tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM, model: Mod
   const metadataFileName = FnnxService.getModelMetadataFileName(model.file_index)
   if (!metadataFileName) return
   artifactsStore.setCurrentModelTag(tag)
-  const url = await artifactsStore.getDownloadUrl(model.id)
-  const modelDownloader = new ModelDownloader(url)
+  const modelDownloader = new ModelDownloader(artifactsStore.downloadUrlSource(model.id))
   const file = await modelDownloader.getFileFromBucket<MetaEntry[]>(
     model.file_index,
     metadataFileName,
@@ -147,7 +146,9 @@ async function init() {
     loading.value = true
     await setMetadata()
   } catch (e) {
-    console.error(e)
+    // The raw error holds the presigned URL of the request.
+    const message = e instanceof Error ? e.message : String(e)
+    console.error(`Model card could not be loaded: ${redactSecrets(message)}`)
   } finally {
     loading.value = false
   }

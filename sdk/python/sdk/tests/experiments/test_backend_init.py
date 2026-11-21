@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from luml.experiments.backends import BackendRegistry
 from luml.experiments.backends.sqlite import SQLiteBackend
 from luml.experiments.tracker import ExperimentTracker
 
@@ -23,6 +24,30 @@ def test_tracker_creates_missing_parent_dirs(tmp_path: Path) -> None:
 
     assert base_path.is_dir()
     assert exp_id
+
+
+class _ConfigOnlyBackend(SQLiteBackend):
+    def __init__(self, config: str) -> None:
+        super().__init__(config)
+
+
+def test_tracker_builds_a_registered_backend_that_takes_only_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setitem(BackendRegistry.backends, "config-only", _ConfigOnlyBackend)
+
+    tracker = ExperimentTracker(f"config-only://{tmp_path / 'store'}")
+
+    assert isinstance(tracker.backend, _ConfigOnlyBackend)
+    tracker.backend.close()
+
+
+def test_tracker_hands_a_custom_flush_interval_to_the_backend(tmp_path: Path) -> None:
+    tracker = ExperimentTracker(f"sqlite://{tmp_path / 'store'}", flush_interval=0)
+
+    assert isinstance(tracker.backend, SQLiteBackend)
+    assert tracker.backend._write_buffer.write_through
+    tracker.backend.close()
 
 
 @pytest.mark.parametrize("status", ["active", "completed", "error"])

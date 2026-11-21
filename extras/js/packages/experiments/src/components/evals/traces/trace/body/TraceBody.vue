@@ -28,7 +28,8 @@
         </TabList>
         <TabPanels class="tabs-panels">
           <TabPanel :value="0">
-            <div v-if="sortedAttributes" class="items">
+            <div v-if="payloadMessage">{{ payloadMessage }}</div>
+            <div v-else-if="sortedAttributes" class="items">
               <UiMultiTypeText
                 v-for="[key, value] in sortedAttributes"
                 :key="key"
@@ -39,7 +40,8 @@
             <div v-else>Attributes not found.</div>
           </TabPanel>
           <TabPanel :value="1">
-            <div v-if="sortedEvents" class="items">
+            <div v-if="payloadMessage">{{ payloadMessage }}</div>
+            <div v-else-if="sortedEvents" class="items">
               <UiMultiTypeText
                 v-for="[key, value] in sortedEvents"
                 :key="key"
@@ -51,7 +53,8 @@
             <div v-else>Events not found.</div></TabPanel
           >
           <TabPanel :value="2">
-            <div v-if="data.attributes" class="items"></div>
+            <div v-if="payloadMessage">{{ payloadMessage }}</div>
+            <div v-else-if="span.attributes" class="items"></div>
             <div v-else>Metadata not found.</div>
           </TabPanel>
         </TabPanels>
@@ -69,13 +72,14 @@
 </template>
 
 <script setup lang="ts">
-import type { TraceSpan } from '@/interfaces/interfaces'
-import { computed, ref, watch } from 'vue'
+import type { SpanPayload, TraceSpan } from '@/interfaces/interfaces'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { History } from 'lucide-vue-next'
 import { Tabs, TabList, Tab, TabPanels, TabPanel, useToast } from 'primevue'
 import { getErrorMessage, getFormattedTime, getSpanTypeData, safeParse } from '@/helpers/helpers'
 import { useAnnotationsStore } from '@/store/annotations'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { useEvalsStore } from '@/store/evals'
+import { showReadErrorToast } from '@/lib/primevue/data/toasts'
 import UiMultiTypeText from '../../../../ui/UiMultiTypeText.vue'
 import AnnotationsButton from '../../../../annotations/AnnotationsButton.vue'
 import AnnotationsView from '../../../../annotations/view/AnnotationsView.vue'
@@ -89,11 +93,25 @@ type Props = {
 const props = defineProps<Props>()
 
 const annotationsStore = useAnnotationsStore()
+const evalsStore = useEvalsStore()
 const toast = useToast()
 
 const currentTab = ref(0)
 const isAnnotationsVisible = ref(false)
 const annotationsLoading = ref(false)
+const payload = shallowRef<SpanPayload | null>(null)
+const payloadStatus = ref<'ready' | 'loading' | 'error'>('ready')
+let payloadRequestId = 0
+
+const span = computed<TraceSpan>(() => {
+  return payload.value ? { ...props.data, ...payload.value } : props.data
+})
+
+const payloadMessage = computed(() => {
+  if (payloadStatus.value === 'loading') return 'Loading span data.'
+  if (payloadStatus.value === 'error') return 'Cannot load span data.'
+  return null
+})
 
 const spanTypeData = computed(() => {
   return getSpanTypeData(props.data.dfs_span_type)
@@ -104,11 +122,11 @@ const time = computed(() => {
 })
 
 const sortedAttributes = computed(() => {
-  if (!props.data.attributes) return null
+  if (!span.value.attributes) return null
   const parsed =
-    typeof props.data.attributes === 'string'
-      ? safeParse(props.data.attributes)
-      : props.data.attributes
+    typeof span.value.attributes === 'string'
+      ? safeParse(span.value.attributes)
+      : span.value.attributes
   if (!parsed || typeof parsed !== 'object') return null
   return Object.entries(parsed).sort((a, b) => {
     return a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' })
@@ -116,9 +134,9 @@ const sortedAttributes = computed(() => {
 })
 
 const sortedEvents = computed(() => {
-  if (!props.data.events) return null
+  if (!span.value.events) return null
   const parsed =
-    typeof props.data.events === 'string' ? safeParse(props.data.events) : props.data.events
+    typeof span.value.events === 'string' ? safeParse(span.value.events) : span.value.events
   if (!parsed || typeof parsed !== 'object') return null
   return Object.entries(parsed).sort((a, b) => {
     return a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' })
@@ -144,11 +162,60 @@ async function getAnnotations() {
     annotationsLoading.value = true
     await annotationsStore.getSpanAnnotations(props.artifactId, props.traceId, props.data.span_id)
   } catch (error) {
-    toast.add(simpleErrorToast(getErrorMessage(error, 'Failed to get annotations')))
+    showReadErrorToast(toast, error, getErrorMessage(error, 'Failed to get annotations'))
   } finally {
     annotationsLoading.value = false
   }
 }
+
+// Only an explicit `payloadLoaded: false` fetches, so spans from providers that predate
+// the flag keep showing what they carry. `keepShown`: a re-read after a refresh shows the
+// current payload until the new one arrives.
+async function loadPayload(selected: TraceSpan, keepShown = false) {
+  const requestId = ++payloadRequestId
+  const { artifactId, traceId } = props
+  if (selected.payloadLoaded !== false) {
+    payload.value = null
+    payloadStatus.value = 'ready'
+    return
+  }
+  const cached = evalsStore.getCachedSpanPayload(artifactId, traceId, selected.span_id)
+  if (cached) {
+    payload.value = cached
+    payloadStatus.value = 'ready'
+    return
+  }
+  if (!keepShown || !payload.value) {
+    payload.value = null
+    payloadStatus.value = 'loading'
+  }
+  try {
+    const result = await evalsStore.loadSpanPayload(artifactId, traceId, selected.span_id)
+    if (requestId !== payloadRequestId) return
+    payload.value = result
+    payloadStatus.value = 'ready'
+  } catch {
+    if (requestId !== payloadRequestId) return
+    payloadStatus.value = 'error'
+  }
+}
+
+function retryFailedPayload() {
+  if (payloadStatus.value === 'error') loadPayload(props.data)
+}
+
+defineExpose({ retryFailedPayload })
+
+watch(
+  () => [props.artifactId, props.traceId, props.data.span_id, props.data.payloadLoaded],
+  () => loadPayload(props.data),
+  { immediate: true },
+)
+
+watch(
+  () => evalsStore.spanPayloadsVersion,
+  () => loadPayload(props.data, true),
+)
 
 watch(
   () => props.data.span_id,

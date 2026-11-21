@@ -20,7 +20,7 @@ from lumlflow.api.experiments_traces import (
 )
 from lumlflow.api.luml import luml_router
 from lumlflow.api.models import models_router
-from lumlflow.infra.exceptions import ApplicationError
+from lumlflow.infra.exceptions import ApplicationError, CodedError
 from lumlflow.settings import get_config
 
 OPEN_API_PATHS = frozenset({"/api/auth/status"})
@@ -89,10 +89,10 @@ class AppService(FastAPI):
             request: Request,
             exc: ApplicationError,
         ) -> JSONResponse:
-            return JSONResponse(
-                status_code=exc.status_code,
-                content={"detail": exc.message},
-            )
+            detail: str | dict[str, str] = exc.message
+            if isinstance(exc, CodedError):
+                detail = {"code": exc.code, "message": exc.message}
+            return JSONResponse(status_code=exc.status_code, content={"detail": detail})
 
     def custom_openapi(self) -> dict[str, Any]:
         if self.openapi_schema:

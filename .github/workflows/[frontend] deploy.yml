@@ -12,6 +12,8 @@ on:
       - "package.json"
       - "package-lock.json"
       - "satellite/implementations/kubernetes/tests/snapshots/settings_fields.json"
+      - "sdk/python/sdk/luml/experiments/backends/exp_migrations/**"
+      - "sdk/python/sdk/tests/fixtures/experiment_snapshots/**"
   workflow_dispatch:
 
 concurrency:

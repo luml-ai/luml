@@ -10,6 +10,7 @@ import { useCollectionsStore } from './collections'
 import { useTracksStore } from './tracks'
 import { useDeploymentsStore } from './deployments'
 import { useSecretsStore } from './orbit-secrets'
+import { useArtifactsStore } from './artifacts'
 
 export const useUserStore = defineStore('user', () => {
   const authStore = useAuthStore()
@@ -55,6 +56,7 @@ export const useUserStore = defineStore('user', () => {
     useTracksStore().reset()
     useDeploymentsStore().reset()
     useSecretsStore().reset()
+    useArtifactsStore().clearDownloadUrls()
   }
 
   const resetPassword = async (reset_token: string, new_password: string) => {

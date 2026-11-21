@@ -12,6 +12,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'satellite/implementations/kubernetes/tests/snapshots/settings_fields.json'
+      - 'sdk/python/sdk/tests/fixtures/experiment_snapshots/**'
   workflow_call:
   workflow_dispatch:
 
@@ -55,6 +56,15 @@ jobs:
           npm run build-only --workspace=@luml/attachments
           npm run build-only --workspace=@luml/experiments
 
+      - name: Type check
+        working-directory: frontend
+        run: npm run type-check
+
+      # Kept out of `type-check`: `npm run build` runs that script and must not depend on tests.
+      - name: Type check the browser suites
+        working-directory: frontend
+        run: npm run type-check:tests
+
       - name: Run unit tests
         working-directory: frontend
         run: npm run test:ci
@@ -62,6 +72,12 @@ jobs:
   integration:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # The browsers and their system packages come with the image, so no run downloads them.
+    # The tag must match the locked @playwright/test version (.github/tests/test_frontend_ci.py).
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble@sha256:b0ab6f3cb99aa7803adbc14d9027ec1785fc6e433b97e134e0f8fe61683b6b53
+      # The runner's uid owns the workspace and HOME; --ipc=host and --init as in playwright.dev/docs/docker.
+      options: --user 1001 --ipc=host --init
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -72,30 +88,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --include=optional
-
-      - name: Get Playwright version
-        id: pw-version
-        working-directory: frontend
-        run: |
-          VERSION=$(node -p "require('@playwright/test/package.json').version")
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        id: pw-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw-version.outputs.version }}
-
-      - name: Install Playwright browsers
-        if: steps.pw-cache.outputs.cache-hit != 'true'
-        working-directory: frontend
-        run: npx playwright install --with-deps chromium
-
-      - name: Install Playwright system deps
-        if: steps.pw-cache.outputs.cache-hit == 'true'
-        working-directory: frontend
-        run: npx playwright install-deps chromium
 
       - name: Build workspace packages
         run: |

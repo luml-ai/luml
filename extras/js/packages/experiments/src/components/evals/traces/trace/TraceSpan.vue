@@ -9,8 +9,8 @@
     }"
     @click="$emit('select', data)"
   >
-    <button v-if="data.children.length" class="button" @click.stop="spanOpened = !spanOpened">
-      <component :is="spanOpened ? ChevronDown : ChevronRight" :size="14"></component>
+    <button v-if="data.children.length" class="button" @click.stop="$emit('toggle', data)">
+      <component :is="opened ? ChevronDown : ChevronRight" :size="14"></component>
     </button>
     <div v-else style="width: 35px; flex: 0 0 auto"></div>
     <div class="item-body">
@@ -32,41 +32,27 @@
             width: startProgress + '%',
           }"
         ></div>
-        <ProgressBar
-          :value="endProgress"
-          :show-value="false"
+        <div
           class="progress"
-          :pt="{
-            value: {
-              style: {
-                backgroundColor: spanTypeData.color,
-              },
-            },
-          }"
-        ></ProgressBar>
+          role="progressbar"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          :aria-valuenow="endProgress"
+        >
+          <div
+            class="progress-value"
+            :style="{ width: endProgress + '%', backgroundColor: spanTypeData.color }"
+          ></div>
+        </div>
       </div>
     </div>
-  </div>
-  <div v-if="data.children.length && spanOpened" class="children">
-    <TraceSpan
-      v-for="item in data.children"
-      :key="item.span_id"
-      :data="item"
-      :nesting="nesting + 1"
-      :selected-span-id="selectedSpanId"
-      :all-opened="allOpened"
-      :min-span-time="minSpanTime"
-      :max-span-time="maxSpanTime"
-      @select="(payload: TraceSpanType) => $emit('select', payload)"
-    ></TraceSpan>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { TraceSpan as TraceSpanType } from '@/interfaces/interfaces'
-import { ProgressBar } from 'primevue'
 import { ChevronDown, ChevronRight, History } from 'lucide-vue-next'
-import { computed, ref, watch } from 'vue'
+import { computed } from 'vue'
 import { getFormattedTime, getSpanTypeData } from '@/helpers/helpers'
 import AnnotationsTag from '../../../annotations/AnnotationsTag.vue'
 
@@ -74,19 +60,18 @@ type Props = {
   data: TraceSpanType
   nesting: number
   selectedSpanId: string | undefined
-  allOpened: boolean
+  opened: boolean
   maxSpanTime: number | null
   minSpanTime: number | null
 }
 
 type Emits = {
   select: [TraceSpanType]
+  toggle: [TraceSpanType]
 }
 
 defineEmits<Emits>()
 const props = defineProps<Props>()
-
-const spanOpened = ref(true)
 
 const spanTypeData = computed(() => {
   return getSpanTypeData(props.data.dfs_span_type)
@@ -111,24 +96,18 @@ function spanProgress(timeNano: number, fallback: number): number {
 
 const startProgress = computed(() => spanProgress(props.data.start_time_unix_nano, 0))
 const endProgress = computed(() => spanProgress(props.data.end_time_unix_nano, 100))
-
-watch(
-  () => props.allOpened,
-  (val) => {
-    spanOpened.value = val
-  },
-)
 </script>
 
 <style scoped>
 .item {
+  height: 100%;
+  box-sizing: border-box;
   padding: 8px;
   border-radius: 8px;
   display: flex;
   gap: 8px;
   align-items: flex-start;
   overflow: hidden;
-  margin-bottom: 4px;
   border: 1px solid transparent;
   cursor: pointer;
   transition:
@@ -196,8 +175,19 @@ watch(
   margin-bottom: 8px;
 }
 
+/* Plain elements styled like PrimeVue's ProgressBar: rows remount on every scroll, and
+   the component costs far more to mount. */
 .progress {
+  position: relative;
+  overflow: hidden;
   height: 4px;
+  background: var(--p-progressbar-background);
+  border-radius: var(--p-progressbar-border-radius);
+}
+
+.progress-value {
+  position: absolute;
+  height: 100%;
 }
 
 .progress-wrapper {

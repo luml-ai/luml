@@ -18,10 +18,12 @@ from luml.schemas.artifacts import (
     ArtifactStatus,
 )
 
+# v1 snapshots store a zipped exp.db.zip; v2 store a raw exp.db that browsers
+# read by HTTP Range. Mirrors FnnxService.findExperimentSnapshotArchiveName.
 EXPERIMENT_SNAPSHOT_PATTERN = (
     r"meta_artifacts/dataforce\.studio~c~~c~"
-    r"experiment_snapshot~c~v1~~et~~[^/]+/exp\.db\.zip$"
-    r"|^exp\.db\.zip$"
+    r"experiment_snapshot~c~v[12]~~et~~[^/]+/exp\.db(\.zip)?$"
+    r"|^exp\.db(\.zip)?$"
 )
 
 

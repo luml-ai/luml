@@ -40,12 +40,12 @@ import type {
   SortParams,
   TableColumn,
 } from './evals.interface'
-import { computed, onBeforeMount, reactive, ref, watch } from 'vue'
+import { computed, onBeforeMount, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useEvalsStore } from '../../store/evals'
 import { useDebounceFn } from '@vueuse/core'
 import { Braces } from 'lucide-vue-next'
 import { useAnnotationsStore } from '@/store/annotations'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { showReadErrorToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
 import { useToast } from 'primevue'
 import UiCard from '../ui/UiCard.vue'
@@ -123,19 +123,30 @@ function getNextPage() {
   emit('get-next-page')
 }
 
+// A filter change and a refresh both read the averages: the latest read wins.
+let averageScoresRequest = 0
+
 async function fetchAverageScores() {
+  const request = ++averageScoresRequest
   try {
-    averageScores.value = await evalsStore.getProvider.getDatasetAverageScores(
+    const scores = await evalsStore.getProvider.getDatasetAverageScores(
       props.datasetId,
       filter.search,
       [...filter.filters],
     )
+    if (closed || request !== averageScoresRequest) return
+    averageScores.value = scores
   } catch (error) {
-    toast.add(simpleErrorToast(getErrorMessage(error, 'Failed to fetch average scores')))
+    if (closed || request !== averageScoresRequest) return
+    showReadErrorToast(toast, error, getErrorMessage(error, 'Failed to fetch average scores'))
   }
 }
 
+// A filter typed just before the view closed fires its debounced reload after the close.
+let closed = false
+
 function onFilterChange() {
+  if (closed) return
   emit('filter-change', filter)
   fetchAverageScores()
 }
@@ -149,6 +160,12 @@ const debouncedOnFilterChange = useDebounceFn(onFilterChange, 300)
 onBeforeMount(fetchAverageScores)
 
 watch(filter, debouncedOnFilterChange)
+
+watch(() => evalsStore.refreshedVersion, fetchAverageScores)
+
+onBeforeUnmount(() => {
+  closed = true
+})
 </script>
 
 <style scoped>

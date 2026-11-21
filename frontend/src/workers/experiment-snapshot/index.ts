@@ -1,54 +1,98 @@
 /// <reference lib="webworker" />
 
-import type { CallPayload, InitPayloadItem } from './interfaces'
-import { ExperimentSnapshotDatabaseProvider } from '@luml/experiments'
+import type { CallMessage, InitPayloadItem, ReopenPayload } from './interfaces'
+import {
+  ExperimentSnapshotDatabaseProvider,
+  redactSecrets,
+  snapshotErrorFields,
+} from '@luml/experiments'
+import sqliteWasmUrl from '@sqlite.org/sqlite-wasm/sqlite3.wasm?url'
 
 let provider: ExperimentSnapshotDatabaseProvider | null = null
 
-const activeRequests = new Set<string>()
+const activeRequests = new Map<string, AbortController>()
+// The failures version the proxy last heard of. A per-call baseline would lose the change of
+// a call that was cancelled (its answer is never posted): the next call starts from it.
+let reportedFailuresVersion = 0
 
-async function init(payload: InitPayloadItem[], requestId: string) {
-  provider = new ExperimentSnapshotDatabaseProvider()
-  await provider.init({ modelsInfo: payload, wasmUrl: '/sql-wasm.wasm' })
-  self.postMessage({ type: 'result', requestId, data: true })
+function post(requestId: string, data: unknown, extra: Record<string, unknown> = {}) {
+  if (!activeRequests.has(requestId)) return
+  self.postMessage({ type: 'result', requestId, data, ...extra })
 }
 
-async function call(payload: CallPayload, requestId: string) {
+/**
+ * Set on the answer, or the error, of the first call posted after an experiment of a comparison
+ * was left out or read again: the proxy then tells the views to read the statuses again.
+ */
+function statusesChanged(requestId: string): { statusesChanged?: true } {
+  if (!provider || !activeRequests.has(requestId)) return {}
+  const version = provider.readFailuresVersion
+  if (version === reportedFailuresVersion) return {}
+  reportedFailuresVersion = version
+  return { statusesChanged: true }
+}
+
+async function init(payload: InitPayloadItem[], requestId: string, signal: AbortSignal) {
+  provider = new ExperimentSnapshotDatabaseProvider()
+  reportedFailuresVersion = provider.readFailuresVersion
+  const failures = await provider.init({ modelsInfo: payload, sqliteWasmUrl }, signal)
+  post(requestId, failures)
+}
+
+async function reopen(payload: ReopenPayload, requestId: string, signal: AbortSignal) {
+  if (!provider) throw new Error('Provider not initialized')
+  post(requestId, await provider.reopenSnapshot(payload.modelId, payload.source, signal))
+}
+
+async function call({ payload, deadline, context }: CallMessage, requestId: string) {
   const { method, args } = payload
+  // Calls queue behind a read that blocks the thread; one whose caller gave up meanwhile is
+  // not run, so the reads after it are not delayed.
+  if (deadline !== undefined && Date.now() >= deadline) {
+    throw new Error('Experiment snapshot worker request timed out')
+  }
   if (!provider) {
     throw new Error('Provider not initialized')
   }
-  const fn = provider[method] as (...args: unknown[]) => unknown
+  const target = provider
+  const fn = target[method] as (...args: unknown[]) => unknown
   if (typeof fn !== 'function') {
     throw new Error(`Provider method "${method}" does not exist`)
   }
-  const result = await fn.apply(provider, args ?? [])
-  if (!activeRequests.has(requestId)) return
-  self.postMessage({ type: 'result', requestId, data: result })
+  const result = await target.runCall({ ...context, deadline }, () => fn.apply(target, args ?? []))
+  post(requestId, result, statusesChanged(requestId))
 }
 
 self.onmessage = async (event) => {
   const { type, payload, requestId } = event.data
   if (type === 'cancel') {
+    // Stops downloads of an abandoned init or reopen; the answer is not posted.
+    activeRequests.get(requestId)?.abort()
     activeRequests.delete(requestId)
     return
   }
-  activeRequests.add(requestId)
+  const controller = new AbortController()
+  activeRequests.set(requestId, controller)
   try {
     switch (type) {
       case 'init':
-        await init(payload, requestId)
+        await init(payload, requestId, controller.signal)
+        break
+      case 'reopen':
+        await reopen(payload, requestId, controller.signal)
         break
       case 'call':
-        await call(payload, requestId)
+        await call(event.data, requestId)
         break
     }
   } catch (err: unknown) {
-    const error = err as Error
+    const { message } = (err ?? {}) as { message?: unknown }
     self.postMessage({
       type: 'error',
       requestId,
-      error: error.message,
+      error: redactSecrets(typeof message === 'string' ? message : String(err)),
+      ...snapshotErrorFields(err),
+      ...(type === 'call' ? statusesChanged(requestId) : {}),
     })
   } finally {
     activeRequests.delete(requestId)

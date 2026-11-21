@@ -34,6 +34,7 @@ class TestLogEvalSample:
             metadata={"latency_ms": 42},
         )
 
+        tracker.backend.flush()
         conn = _exp_db(tmp_path, exp_id)
         row = conn.execute(
             "SELECT id, dataset_id, inputs, outputs, refs, scores, metadata FROM evals"
@@ -62,6 +63,7 @@ class TestLogEvalSample:
             inputs={"x": 1},
         )
 
+        tracker.backend.flush()
         conn = _exp_db(tmp_path, exp_id)
         row = conn.execute(
             "SELECT outputs, refs, scores, metadata FROM evals WHERE id = 'eval_002'"
@@ -875,6 +877,7 @@ class TestLinkEvalSampleToTrace:
             trace_id="trace_link",
         )
 
+        tracker.backend.flush()
         conn = _exp_db(tmp_path, exp_id)
         row = conn.execute(
             "SELECT eval_dataset_id, eval_id, trace_id FROM eval_traces_bridge"

@@ -2,6 +2,7 @@ import type {
   BucketSecret,
   BucketFormData,
   BucketFormDataWithId,
+  BucketConnectionUrls,
 } from '@/lib/api/bucket-secrets/interfaces'
 import { api } from '@/lib/api'
 import { defineStore } from 'pinia'
@@ -32,6 +33,40 @@ export class BucketValidationError extends Error {
         return 'Bucket validation failed'
     }
   }
+}
+
+/**
+ * Written to the bucket and read back by Range. Long enough that a storage ignoring Range and
+ * answering with the whole object fails the length check.
+ */
+const RANGE_TEST_CONTENT = new TextEncoder().encode(
+  'LUML connection test: this object checks that the storage answers HTTP Range requests.',
+)
+// A range from the middle too: some broken implementations only handle a prefix.
+const RANGE_CHECKS: [number, number][] = [
+  [0, 10],
+  [5, 12],
+]
+
+/**
+ * Status does not tell (some S3 implementations honour Range with 200), so any 2xx passes
+ * whose body is exactly the requested bytes of what was written.
+ */
+async function readsRange(url: string, start: number, end: number): Promise<boolean> {
+  let body: Uint8Array
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { Range: `bytes=${start}-${end}` },
+      mode: 'cors',
+    })
+    if (!response.ok) return false
+    body = new Uint8Array(await response.arrayBuffer())
+  } catch {
+    return false
+  }
+  const expected = RANGE_TEST_CONTENT.subarray(start, end + 1)
+  return body.length === expected.length && body.every((byte, index) => byte === expected[index])
 }
 
 export const useBucketsStore = defineStore('buckets', () => {
@@ -78,20 +113,10 @@ export const useBucketsStore = defineStore('buckets', () => {
       if (fullResponse.status !== 200) {
         throw new BucketValidationError(BucketValidationErrorCode.INVALID_STATUS)
       }
-
-      let rangeResponse: Response
-      try {
-        rangeResponse = await fetch(downloadUrl, {
-          method: 'GET',
-          headers: { Range: 'bytes=0-10' },
-          mode: 'cors',
-        })
-      } catch {
-        throw new BucketValidationError(BucketValidationErrorCode.RANGE_NOT_SUPPORTED)
-      }
-
-      if (rangeResponse.status !== 206 && rangeResponse.status !== 200) {
-        throw new BucketValidationError(BucketValidationErrorCode.RANGE_NOT_SUPPORTED)
+      for (const [start, end] of RANGE_CHECKS) {
+        if (!(await readsRange(downloadUrl, start, end))) {
+          throw new BucketValidationError(BucketValidationErrorCode.RANGE_NOT_SUPPORTED)
+        }
       }
     } catch (err) {
       if (err instanceof BucketValidationError) {
@@ -101,23 +126,22 @@ export const useBucketsStore = defineStore('buckets', () => {
     }
   }
 
-  async function checkBucket(data: BucketFormData) {
-    const connectionUrls = await api.bucketSecrets.getBucketSecretConnectionUrls(data)
-    const text = 'Connection test...'
-    const blob = new Blob([text], { type: 'text/plain' })
-    const buffer = await blob.arrayBuffer()
-    await axios.put(connectionUrls.presigned_url, buffer, {
+  async function testConnection(connectionUrls: BucketConnectionUrls) {
+    await axios.put(connectionUrls.presigned_url, RANGE_TEST_CONTENT.slice().buffer, {
       headers: { 'Content-Type': 'application/octet-stream', 'x-ms-blob-type': 'BlockBlob' },
     })
-
     try {
       await validateRangeSupport(connectionUrls.download_url)
     } catch (err) {
       await axios.delete(connectionUrls.delete_url).catch(() => {})
       throw err
     }
-
     await axios.delete(connectionUrls.delete_url)
+  }
+
+  async function checkBucket(data: BucketFormData) {
+    const connectionUrls = await api.bucketSecrets.getBucketSecretConnectionUrls(data)
+    await testConnection(connectionUrls)
   }
 
   async function checkExistingBucket(
@@ -130,19 +154,7 @@ export const useBucketsStore = defineStore('buckets', () => {
       bucketId,
       { ...data, id: bucketId },
     )
-    const text = 'Connection test...'
-    const blob = new Blob([text], { type: 'text/plain' })
-    const buffer = await blob.arrayBuffer()
-    await axios.put(connectionUrls.presigned_url, buffer, {
-      headers: { 'Content-Type': 'application/octet-stream', 'x-ms-blob-type': 'BlockBlob' },
-    })
-    try {
-      await validateRangeSupport(connectionUrls.download_url)
-    } catch (err) {
-      await axios.delete(connectionUrls.delete_url).catch(() => {})
-      throw err
-    }
-    await axios.delete(connectionUrls.delete_url)
+    await testConnection(connectionUrls)
   }
 
   return {

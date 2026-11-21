@@ -1,0 +1,30 @@
+{
+  "artifact": "a_premigration_wal_lost.tar",
+  "era": "pre-migration, legacy indexes (before 78051758); link_to_model without end_experiment",
+  "producer": "commit 271f778ff40717364612e4b9bcf8102d8ce786ba (78051758~1, package 'dataforce')",
+  "generation": "real code",
+  "artifact_kind": "model",
+  "generation_log": {
+    "non_finite_metric_logging": {
+      "nan": "accepted",
+      "inf": "accepted"
+    }
+  },
+  "snapshot_member": "meta_artifacts/dataforce.studio~c~~c~experiment_snapshot~c~v1~~et~~44436d0b5ce54f7ab55ff23eba2d6119/exp.db.zip",
+  "user_version": 0,
+  "recorded_revisions": [],
+  "tables": [],
+  "indexes": [],
+  "attachments_columns": [],
+  "expected": {
+    "static_params": {},
+    "metrics": {},
+    "non_finite_metric": null,
+    "attachments": 0,
+    "traces": [],
+    "datasets": {},
+    "eval_annotations": 0,
+    "span_annotations": 0,
+    "eval_annotation_rationales": []
+  }
+}

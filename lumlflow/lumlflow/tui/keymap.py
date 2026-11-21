@@ -630,6 +630,15 @@ def build_default_registry() -> KeymapRegistry:
                 scope="span_tree",
                 group="Span tree",
             ),
+            Command(
+                id="span_tree.show_all",
+                key="v",
+                label="Show all",
+                description="Show or shorten long span values",
+                scope="span_tree",
+                group="Span tree",
+                show_in_footer=False,
+            ),
         ]
     )
 

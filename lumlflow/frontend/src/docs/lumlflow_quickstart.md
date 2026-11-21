@@ -72,7 +72,7 @@ tracker.log_dynamic("precision", precision, step=0)
 tracker.log_dynamic("recall", recall, step=0)
 ```
 
-For iterative training (e.g. incrementally adding trees or running multiple epochs), log metrics at each step to produce a training curve.
+For iterative training (e.g. incrementally adding trees or running multiple epochs), log metrics at each step to produce a training curve. Steps must be integers: a fractional step such as 2.5 raises `TypeError`.
 
 ```python
 for step in range(10):

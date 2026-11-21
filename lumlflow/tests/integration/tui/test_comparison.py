@@ -16,8 +16,10 @@ import asyncio
 import threading
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
+from luml.experiments.backends.metric_store import choose_bucket_level
 from luml.experiments.tracker import ExperimentTracker
 from lumlflow.schemas.experiments import (
     ExperimentDetails,
@@ -25,6 +27,9 @@ from lumlflow.schemas.experiments import (
 )
 from lumlflow.tui import LumlflowApp
 from lumlflow.tui.data import DataFacade
+from lumlflow.tui.live_refresh import post_from_worker
+from lumlflow.tui.metric_series import MetricSeries, bucket_averages
+from lumlflow.tui.screens import comparison as comparison_module
 from lumlflow.tui.screens.comparison import (
     ComparisonScreen,
     _diff_static_params,
@@ -35,6 +40,7 @@ from lumlflow.tui.screens.experiments import ExperimentsScreen
 from lumlflow.tui.widgets.panel_frame import PanelFrame
 from textual.widgets import DataTable, ListView, Static
 
+from tests.helpers.metrics import require_newer_reader, revision2_experiment
 from tests.helpers.tui import settle_workers
 
 
@@ -507,17 +513,171 @@ class TestMetricOverlay:
             for _ in range(40):
                 await pilot.pause()
                 both_loaded = (
-                    ea in screen._metric_histories
-                    and eb in screen._metric_histories
-                    and all(screen._metric_histories[k] is not None for k in (ea, eb))
+                    ea in screen._metric_series
+                    and eb in screen._metric_series
+                    and all(screen._metric_series[k] is not None for k in (ea, eb))
                 )
                 if both_loaded:
                     break
-            assert ea in screen._metric_histories
-            assert eb in screen._metric_histories
-            for history in screen._metric_histories.values():
+            assert ea in screen._metric_series
+            assert eb in screen._metric_series
+            for history in screen._metric_series.values():
                 assert history is not None
-                assert history.history  # at least one point per exp
+                assert history.has_points  # at least one point per exp
+
+    async def test_series_share_one_level_over_the_union_step_range(
+        self,
+        facade: DataFacade,
+        tracker: ExperimentTracker,
+    ) -> None:
+        early = _seed_experiment(
+            tracker,
+            name="early",
+            metric_series={"loss": [(i, 1.0) for i in range(100)]},
+        )
+        late = _seed_experiment(
+            tracker,
+            name="late",
+            metric_series={"loss": [(i, 2.0) for i in range(5000, 5100)]},
+        )
+        app = _make_app(facade)
+        async with app.run_test(size=(120, 50)) as pilot:
+            details = [_fetch_details(facade, early), _fetch_details(facade, late)]
+            screen = _push_comparison(app, facade, details)
+            for _ in range(3):
+                await settle_workers(pilot)
+            budget = screen._chart_max_points()
+            series = screen._metric_series
+            loaded = [series[early], series[late]]
+            assert all(s is not None for s in loaded)
+            expected = choose_bucket_level(0, 5099, budget)
+            # The late run alone would fit a finer level than the union needs.
+            assert choose_bucket_level(5000, 5099, budget) < expected
+            assert [s.level for s in loaded if s is not None] == [expected] * 2
+            width = 4**expected
+            for s in loaded:
+                assert s is not None
+                for bucket in s.buckets:
+                    assert bucket.first_step // width == bucket.bucket
+                    assert bucket.last_step // width == bucket.bucket
+
+    @pytest.mark.parametrize("revision", [0, 1, 2])
+    async def test_a_released_sdk_experiment_compares_with_a_current_one(
+        self,
+        facade: DataFacade,
+        tracker: ExperimentTracker,
+        tmp_path: Path,
+        revision: int,
+    ) -> None:
+        legacy, _ = revision2_experiment(
+            tmp_path / "experiments",
+            "loss",
+            [(i, 1.0) for i in range(300)],
+            revision=revision,
+        )
+        current = _seed_experiment(
+            tracker,
+            name="current",
+            metric_series={"loss": [(i, 2.0) for i in range(1000, 1300)]},
+        )
+        app = _make_app(facade)
+        async with app.run_test(size=(120, 50)) as pilot:
+            details = [_fetch_details(facade, legacy), _fetch_details(facade, current)]
+            screen = _push_comparison(app, facade, details)
+            for _ in range(3):
+                await settle_workers(pilot)
+            expected = choose_bucket_level(0, 1299, screen._chart_max_points())
+            for experiment_id, value in ((legacy, 1.0), (current, 2.0)):
+                series = screen._metric_series[experiment_id]
+                assert series is not None
+                assert series.level == expected
+                assert series.has_points
+                assert set(bucket_averages(series)[1]) == {value}
+
+    async def test_an_unreadable_experiment_leaves_the_others_plotted(
+        self,
+        tmp_path: Path,
+        tracker: ExperimentTracker,
+    ) -> None:
+        readable = _seed_experiment(
+            tracker, name="ok", metric_series={"loss": [(i, 1.0) for i in range(5)]}
+        )
+        future = _seed_experiment(
+            tracker, name="new", metric_series={"loss": [(0, 1.0)]}
+        )
+        tracker.backend.close()
+        require_newer_reader(tmp_path / "experiments" / future / "exp.db")
+        facade = DataFacade(
+            tracker=ExperimentTracker(f"sqlite://{tmp_path / 'experiments'}")
+        )
+        app = _make_app(facade)
+        async with app.run_test(size=(120, 50)) as pilot:
+            details = [_fetch_details(facade, eid) for eid in (readable, future)]
+            screen = _push_comparison(app, facade, details)
+            for _ in range(3):
+                await settle_workers(pilot)
+            assert screen._metric_series[future] is None
+            ok = screen._metric_series[readable]
+            assert ok is not None and ok.has_points
+            status = screen.query_one("#cmp-metric-status", Static)
+            assert "1 could not be read" in str(status.render())
+
+    async def test_a_replaced_series_fetch_does_not_post_its_result(
+        self,
+        facade: DataFacade,
+        tracker: ExperimentTracker,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ea = _seed_experiment(tracker, name="alpha", metric_series={"loss": [(0, 1.0)]})
+        eb = _seed_experiment(tracker, name="beta", metric_series={"loss": [(0, 2.0)]})
+        app = _make_app(facade)
+        async with app.run_test() as pilot:
+            details = [_fetch_details(facade, ea), _fetch_details(facade, eb)]
+            screen = _push_comparison(app, facade, details)
+            await settle_workers(pilot)
+
+            first_started = threading.Event()
+            release_first = threading.Event()
+            stale: dict[str, MetricSeries | None] = {}
+            fresh: dict[str, MetricSeries | None] = {}
+            replies = iter([stale, fresh])
+
+            def blocking_load(
+                *_args: object, **_kwargs: object
+            ) -> dict[str, MetricSeries | None]:
+                reply = next(replies)
+                if reply is stale:
+                    first_started.set()
+                    release_first.wait(timeout=5)
+                return reply
+
+            monkeypatch.setattr(
+                comparison_module, "load_comparison_series", blocking_load
+            )
+            post_attempts = threading.Semaphore(0)
+
+            def counted_post(*args: Any) -> bool:  # noqa: ANN401
+                delivered = post_from_worker(*args)
+                post_attempts.release()
+                return delivered
+
+            monkeypatch.setattr(comparison_module, "post_from_worker", counted_post)
+            posted: list[dict[str, MetricSeries | None]] = []
+            monkeypatch.setattr(
+                screen, "_on_series_result", lambda _key, series: posted.append(series)
+            )
+
+            replaced = screen._fetch_all_series("loss", max_points=80)
+            assert await asyncio.to_thread(first_started.wait, 5)
+            screen._fetch_all_series("loss", max_points=80)
+            await settle_workers(pilot)
+            release_first.set()
+            for _ in range(2):
+                assert await asyncio.to_thread(post_attempts.acquire, timeout=5)
+            await pilot.pause()
+
+            assert replaced.is_cancelled
+            assert len(posted) == 1 and posted[0] is fresh
 
 
 # ---------------------------------------------------------------------------
@@ -773,7 +933,7 @@ class TestBodyScrolling:
 
 class TestLoaderLifetime:
     @pytest.mark.parametrize(
-        ("leave", "expected_reads"), [("discard", 1), ("quit", 1), ("back", 6)]
+        ("leave", "expected_reads"), [("discard", 1), ("quit", 1), ("back", 9)]
     )
     async def test_loader_stops_once_screen_is_discarded(
         self,
@@ -799,7 +959,11 @@ class TestLoaderLifetime:
         release = threading.Event()
         finished = threading.Event()
         errors: list[BaseException] = []
-        for read_name in ("get_metric_history", "get_eval_dataset_ids"):
+        for read_name in (
+            "get_metric_catalog",
+            "get_metric_buckets",
+            "get_eval_dataset_ids",
+        ):
             read = getattr(facade, read_name)
 
             def recorded(*args, _read=read, _name=read_name, **kwargs):
@@ -850,7 +1014,144 @@ class TestLoaderLifetime:
             if leave == "back":
                 expected = {experiment.id for experiment in experiments}
                 for _ in range(100):
-                    if set(screen._metric_histories) == expected:
+                    if set(screen._metric_series) == expected:
                         break
                     await pilot.pause(0.01)
-                assert set(screen._metric_histories) == expected
+                assert set(screen._metric_series) == expected
+
+
+class TestSupersededLoader:
+    """A metric switch cancels the initial loader (same exclusive group), but
+    that loader is the only one that reads the evals."""
+
+    @pytest.fixture
+    def experiments(
+        self, facade: DataFacade, tracker: ExperimentTracker
+    ) -> list[ExperimentDetails]:
+        return [
+            _fetch_details(
+                facade,
+                _seed_experiment(
+                    tracker,
+                    name=f"exp-{index}",
+                    metric_series={"loss": [(0, 1.0)], "acc": [(0, 0.5)]},
+                    evals=[("e-1", "ds-1", {}, {}, {}, {"accuracy": 0.5})],
+                ),
+            )
+            for index in range(3)
+        ]
+
+    @staticmethod
+    def _block_first_read(
+        facade: DataFacade, monkeypatch: pytest.MonkeyPatch
+    ) -> tuple[list[str], threading.Event, threading.Event]:
+        reads: list[str] = []
+        started = threading.Event()
+        release = threading.Event()
+        for read_name in (
+            "get_metric_catalog",
+            "get_metric_buckets",
+            "get_eval_dataset_ids",
+        ):
+            read = getattr(facade, read_name)
+
+            def recorded(*args, _read=read, _name=read_name, **kwargs):
+                reads.append(_name)
+                if len(reads) == 1:
+                    started.set()
+                    assert release.wait(10), "loader was never released"
+                return _read(*args, **kwargs)
+
+            monkeypatch.setattr(facade, read_name, recorded)
+        return reads, started, release
+
+    @staticmethod
+    def _count_finished_workers(
+        screen: ComparisonScreen, monkeypatch: pytest.MonkeyPatch
+    ) -> threading.Semaphore:
+        # Thread workers keep running after cancellation, so `worker.wait()`
+        # returns before they stop: count the threads that really returned.
+        finished = threading.Semaphore(0)
+        run_worker = screen.run_worker
+
+        def observe_worker(work, *args, **kwargs):
+            def observed():
+                try:
+                    return work()
+                finally:
+                    finished.release()
+
+            return run_worker(observed, *args, **kwargs)
+
+        monkeypatch.setattr(screen, "run_worker", observe_worker)
+        return finished
+
+    async def test_a_metric_switch_still_loads_the_evals_once(
+        self,
+        facade: DataFacade,
+        experiments: list[ExperimentDetails],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        reads, started, release = self._block_first_read(facade, monkeypatch)
+        app = _make_app(facade)
+        async with app.run_test() as pilot:
+            await settle_workers(pilot)
+            screen = ComparisonScreen(facade=facade, experiments=experiments)
+            finished = self._count_finished_workers(screen, monkeypatch)
+            dataset_results: list[str] = []
+            on_dataset_ids = screen._on_dataset_ids_result
+
+            def record_dataset_ids(experiment_id: str, dataset_ids: list[str]) -> None:
+                dataset_results.append(experiment_id)
+                on_dataset_ids(experiment_id, dataset_ids)
+
+            monkeypatch.setattr(screen, "_on_dataset_ids_result", record_dataset_ids)
+            await app.push_screen(screen)
+            try:
+                assert await asyncio.to_thread(started.wait, 10)
+                screen._selected_metric = "acc"
+                screen._refresh_metric_chart()
+                assert await asyncio.to_thread(finished.acquire, timeout=10)
+            finally:
+                release.set()
+            assert await asyncio.to_thread(finished.acquire, timeout=10)
+            await settle_workers(pilot)
+
+            # The superseded loader read one catalog and then stopped its
+            # series reads; the switch read 3 catalogs and 3 bucket sets.
+            assert reads.count("get_metric_catalog") == 4
+            assert reads.count("get_metric_buckets") == 3
+            assert reads.count("get_eval_dataset_ids") == 3
+            assert sorted(dataset_results) == sorted(exp.id for exp in experiments)
+            assert {
+                eid: series.key if series else None
+                for eid, series in screen._metric_series.items()
+            } == {exp.id: "acc" for exp in experiments}
+
+    async def test_a_discarded_screen_reads_no_evals(
+        self,
+        facade: DataFacade,
+        experiments: list[ExperimentDetails],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        reads, started, release = self._block_first_read(facade, monkeypatch)
+        app = _make_app(facade)
+        async with app.run_test() as pilot:
+            await settle_workers(pilot)
+            screen = ComparisonScreen(facade=facade, experiments=experiments)
+            finished = self._count_finished_workers(screen, monkeypatch)
+            await app.push_screen(screen)
+            try:
+                assert await asyncio.to_thread(started.wait, 10)
+                screen._selected_metric = "acc"
+                screen._refresh_metric_chart()
+                assert await asyncio.to_thread(finished.acquire, timeout=10)
+                app._jump_home()
+                await pilot.pause()
+                assert not screen.is_attached
+            finally:
+                release.set()
+            assert await asyncio.to_thread(finished.acquire, timeout=10)
+
+            assert reads.count("get_metric_catalog") == 4
+            assert reads.count("get_eval_dataset_ids") == 0

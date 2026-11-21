@@ -37,6 +37,7 @@ export interface FilterProps {
 
 export interface FilterEmits {
   (e: 'apply', filters: FilterItem[]): void
+  (e: 'open'): void
 }
 
 export interface FilterItemEmits {

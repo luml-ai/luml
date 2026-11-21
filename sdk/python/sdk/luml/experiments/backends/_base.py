@@ -1,7 +1,11 @@
+import dataclasses
 from abc import ABC, abstractmethod
+from contextlib import AbstractContextManager
 from typing import Any, Literal
 
 from luml.artifacts._base import _BaseFile
+from luml.experiments.backends._snapshot import ExperimentSnapshot
+from luml.experiments.backends._write_buffer import DEFAULT_FLUSH_INTERVAL
 from luml.experiments.backends.data_types import (
     AnnotationKind,
     AnnotationRecord,
@@ -16,8 +20,11 @@ from luml.experiments.backends.data_types import (
     ExperimentData,
     FileNode,
     Group,
+    MetricBuckets,
+    MetricCatalog,
     Model,
     PaginatedResponse,
+    SpanRecord,
     TraceColumns,
     TraceDetails,
     TraceRecord,
@@ -28,7 +35,9 @@ from luml.experiments.backends.data_types import (
 
 class Backend(ABC):
     @abstractmethod
-    def __init__(self, config: str) -> None:
+    def __init__(
+        self, config: str, flush_interval: float = DEFAULT_FLUSH_INTERVAL
+    ) -> None:
         pass
 
     @abstractmethod
@@ -335,6 +344,12 @@ class Backend(ABC):
         pass
 
     @abstractmethod
+    def snapshot_experiment(
+        self, experiment_id: str
+    ) -> AbstractContextManager[ExperimentSnapshot]:
+        pass
+
+    @abstractmethod
     def export_attachments(
         self, experiment_id: str
     ) -> tuple[_BaseFile, _BaseFile] | None:
@@ -377,6 +392,42 @@ class Backend(ABC):
     @abstractmethod
     def get_trace(self, experiment_id: str, trace_id: str) -> TraceDetails | None:
         pass
+
+    def get_trace_structure(
+        self, experiment_id: str, trace_id: str
+    ) -> TraceDetails | None:
+        """The trace's span tree without span payloads, or None if the trace does not
+        exist.
+
+        `attributes`, `events`, `links` and `status_message` are None on every span.
+        None here means "not loaded", not "empty": `get_span` loads one span's payload.
+        """
+        trace = self.get_trace(experiment_id, trace_id)
+        if trace is None:
+            return None
+        return TraceDetails(
+            trace_id=trace.trace_id,
+            spans=[
+                dataclasses.replace(
+                    span,
+                    status_message=None,
+                    attributes=None,
+                    events=None,
+                    links=None,
+                )
+                for span in trace.spans
+            ],
+        )
+
+    def get_span(
+        self, experiment_id: str, trace_id: str, span_id: str
+    ) -> SpanRecord | None:
+        """One span with its full payload and annotation count, or None if the trace
+        has no span with this id."""
+        trace = self.get_trace(experiment_id, trace_id)
+        if trace is None:
+            return None
+        return next((span for span in trace.spans if span.span_id == span_id), None)
 
     @abstractmethod
     def check_experiments_exists(self, experiment_ids: list[str]) -> None:
@@ -535,6 +586,21 @@ class Backend(ABC):
 
     @abstractmethod
     def get_experiment_ddl_version(self, experiment_id: str) -> int:
+        pass
+
+    @abstractmethod
+    def get_metric_catalog(self, experiment_id: str) -> MetricCatalog:
+        pass
+
+    @abstractmethod
+    def get_metric_buckets(
+        self,
+        experiment_id: str,
+        key: str,
+        level: int,
+        start_step: int | None = None,
+        end_step: int | None = None,
+    ) -> MetricBuckets:
         pass
 
     @abstractmethod

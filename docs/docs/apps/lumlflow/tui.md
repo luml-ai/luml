@@ -44,6 +44,8 @@ The home screen lists experiment groups. `/` starts an incremental search and `s
 
 The experiment view mirrors the browser's [Experiment View](./experiment_view.md) as five tabs — Overview, Metrics, Traces, Evals, and Attachments — reachable by their first letter, by position (`1`–`5`), or by cycling with `Tab`. The Metrics tab renders one chart per metric; arrow keys move between charts and `Enter` zooms into one. Inside the zoom, `←`/`→` step to the adjacent metric, and `S`, `L`, and `X` toggle smoothing, log-scale, and the x-axis between step and elapsed time. The Attachments tab previews text files inline and saves any file to disk with `s`; the path prompt completes filesystem paths as you type.
 
+The trace detail screen loads the span tree first and the data of a span when you select it. Values longer than 4,000 characters are shortened; `v` shows them in full.
+
 ## Publishing to LUML
 
 Publishing follows the same [Registry](../../documentation/Modules/Registry/registry.md) flow as [Uploading to LUML](./uploading.md) in the browser: an API key gate, then Organization → Orbit → Collection selection. A key that is already configured is picked up automatically; otherwise the flow prompts for one and stores it for future publishes.

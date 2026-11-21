@@ -1,0 +1,85 @@
+# Disposable storage and databases for the full-stack experiment snapshot suites; run.sh starts
+# it under a unique project name with ports it checked are free, and removes it at the end.
+# Everything lives in tmpfs or in memory, so nothing outlives `down`.
+
+services:
+  # Postgres and Redis by the digest of their tag's multi-arch index, so a new image under the
+  # tag cannot change a run. To refresh: `docker buildx imagetools inspect <tag>`, its Digest.
+  postgres:
+    image: postgres@sha256:10f9e886f772e9d6484350b043bcf990ead67ae5d9988ddce265d72a299055d5 # postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: df_studio
+    ports:
+      - "127.0.0.1:${E2E_POSTGRES_PORT}:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d df_studio"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe # redis:7-alpine
+    ports:
+      - "127.0.0.1:${E2E_REDIS_PORT}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Docker Hub's minio/minio and minio/mc refuse anonymous pulls and quay.io/minio has no public
+  # tags, so Chainguard's image (MinIO server with mc), pinned by digest: it serves only `latest`
+  # and old digests may go away. To refresh: `docker pull cgr.dev/chainguard/minio:latest`, then
+  # copy the digest from `docker inspect --format '{{index .RepoDigests 0}}' cgr.dev/chainguard/minio`.
+  minio:
+    image: &minio-image cgr.dev/chainguard/minio@sha256:59953701f8f8d0de81aab456f0b0b6c0a1804119415559bf7ede79d944108879
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MC_HOST_local: http://minioadmin:minioadmin@localhost:9000
+    ports:
+      - "127.0.0.1:${E2E_MINIO_PORT}:9000"
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # A bucket and a non-root user whose secret key the expiry scenario rotates, and another
+  # user for the bucket secret behind the proxy, which keeps working after that rotation.
+  minio-init:
+    image: *minio-image
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        set -e
+        mc alias set local http://minio:9000 minioadmin minioadmin
+        mc mb --ignore-existing local/e2e-snapshots
+        mc admin user add local e2euser e2e-secret-key-1
+        mc admin policy attach local readwrite --user e2euser
+        mc admin user add local e2eproxied e2e-proxied-key
+        mc admin policy attach local readwrite --user e2eproxied
+    restart: "no"
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:3.35.0
+    command:
+      - azurite-blob
+      - --blobHost
+      - 0.0.0.0
+      - --inMemoryPersistence
+      - --loose
+      - --skipApiVersionCheck
+    ports:
+      - "127.0.0.1:${E2E_AZURITE_PORT}:10000"

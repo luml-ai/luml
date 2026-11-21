@@ -123,3 +123,39 @@ async def test_signin_limits_survive_rotating_malformed_host(
 
         assert handle.await_count == limit
         assert 0 < int(response.headers["Retry-After"]) <= 60
+
+
+@pytest.mark.parametrize(("rotate_client", "limited"), [(False, True), (True, False)])
+async def test_ip_limit_follows_client_ip_header_behind_rotating_proxies(
+    monkeypatch: pytest.MonkeyPatch, rotate_client: bool, limited: bool
+) -> None:
+    monkeypatch.setattr(config, "CLIENT_IP_HEADER", "do-connecting-ip")
+    app = FastAPI()
+    app.include_router(auth_router, prefix="/v1")
+    with patch(
+        "luml.api.auth.auth_handler.handle_signin",
+        new_callable=AsyncMock,
+        side_effect=HTTPException(401),
+    ):
+        codes = []
+        for index in range(21):
+            transport = httpx2.ASGITransport(
+                app=app, client=(f"10.0.0.{index % 3}", 1234)
+            )
+            async with httpx2.AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
+                response = await client.post(
+                    "/v1/auth/signin",
+                    json={
+                        "email": f"user{index}@example.com",
+                        "password": "wrong-password",
+                    },
+                    headers={
+                        "do-connecting-ip": f"203.0.113.{index if rotate_client else 7}"
+                    },
+                )
+            codes.append(response.status_code)
+
+    assert codes[:20] == [401] * 20
+    assert codes[20] == (429 if limited else 401)

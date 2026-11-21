@@ -1,0 +1,335 @@
+[
+  {
+    "name": "catalog",
+    "experiment": "main",
+    "method": "GET",
+    "endpoint": "metric-catalog",
+    "request": null,
+    "response": {
+      "status": 200,
+      "body": {
+        "revision": 4,
+        "bucket_min_level": 3,
+        "bucket_max_level": 12,
+        "skipped_rows": 0,
+        "metrics": [
+          {
+            "key": "train/loss",
+            "first_step": 0,
+            "last_step": 202,
+            "count": 153,
+            "min": "-Infinity",
+            "max": "Infinity",
+            "writes": 1
+          },
+          {
+            "key": "ünïcode/métric",
+            "first_step": -3,
+            "last_step": 3,
+            "count": 2,
+            "min": 0.5,
+            "max": 1.5,
+            "writes": 1
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "catalog of a revision 2 store",
+    "experiment": "legacy",
+    "method": "GET",
+    "endpoint": "metric-catalog",
+    "request": null,
+    "response": {
+      "status": 200,
+      "body": {
+        "revision": 2,
+        "bucket_min_level": null,
+        "bucket_max_level": null,
+        "skipped_rows": 0,
+        "metrics": [
+          {
+            "key": "train/loss",
+            "first_step": 0,
+            "last_step": 149,
+            "count": null,
+            "min": null,
+            "max": null,
+            "writes": null
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "buckets over the whole range",
+    "experiment": "main",
+    "method": "POST",
+    "endpoint": "metric-buckets",
+    "request": {
+      "keys": [
+        "train/loss",
+        "ünïcode/métric",
+        "missing",
+        "train/loss"
+      ],
+      "start_step": null,
+      "end_step": null,
+      "level": 3
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "level": 3,
+        "series": [
+          {
+            "key": "train/loss",
+            "first_step": 0,
+            "last_step": 202,
+            "buckets": [
+              [
+                0,
+                0,
+                63,
+                64,
+                64,
+                1.37,
+                2.0,
+                107.84
+              ],
+              [
+                1,
+                64,
+                127,
+                64,
+                64,
+                0.73,
+                1.3599999999999999,
+                66.88
+              ],
+              [
+                2,
+                128,
+                149,
+                22,
+                22,
+                0.51,
+                0.72,
+                13.53
+              ],
+              [
+                3,
+                200,
+                202,
+                3,
+                0,
+                "-Infinity",
+                "Infinity",
+                null
+              ]
+            ],
+            "skipped_rows": 0
+          },
+          {
+            "key": "ünïcode/métric",
+            "first_step": -3,
+            "last_step": 3,
+            "buckets": [
+              [
+                -1,
+                -3,
+                -3,
+                1,
+                1,
+                0.5,
+                0.5,
+                0.5
+              ],
+              [
+                0,
+                3,
+                3,
+                1,
+                1,
+                1.5,
+                1.5,
+                1.5
+              ]
+            ],
+            "skipped_rows": 0
+          },
+          {
+            "key": "missing",
+            "first_step": null,
+            "last_step": null,
+            "buckets": [],
+            "skipped_rows": 0
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "buckets over a step range",
+    "experiment": "main",
+    "method": "POST",
+    "endpoint": "metric-buckets",
+    "request": {
+      "keys": [
+        "train/loss"
+      ],
+      "start_step": 100,
+      "end_step": 140,
+      "level": 2
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "level": 2,
+        "series": [
+          {
+            "key": "train/loss",
+            "first_step": 0,
+            "last_step": 202,
+            "buckets": [
+              [
+                6,
+                96,
+                111,
+                16,
+                16,
+                0.8899999999999999,
+                1.04,
+                15.44
+              ],
+              [
+                7,
+                112,
+                127,
+                16,
+                16,
+                0.73,
+                0.8799999999999999,
+                12.88
+              ],
+              [
+                8,
+                128,
+                143,
+                16,
+                16,
+                0.5700000000000001,
+                0.72,
+                10.32
+              ]
+            ],
+            "skipped_rows": 0
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "buckets of a revision 2 store",
+    "experiment": "legacy",
+    "method": "POST",
+    "endpoint": "metric-buckets",
+    "request": {
+      "keys": [
+        "train/loss"
+      ],
+      "start_step": null,
+      "end_step": null,
+      "level": 6
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "level": 6,
+        "series": [
+          {
+            "key": "train/loss",
+            "first_step": 0,
+            "last_step": 149,
+            "buckets": [
+              [
+                0,
+                0,
+                149,
+                150,
+                150,
+                0.51,
+                2.0,
+                188.25
+              ]
+            ],
+            "skipped_rows": 1
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "invalid level",
+    "experiment": "main",
+    "method": "POST",
+    "endpoint": "metric-buckets",
+    "request": {
+      "keys": [
+        "train/loss"
+      ],
+      "start_step": null,
+      "end_step": null,
+      "level": 32
+    },
+    "response": {
+      "status": 422,
+      "body": {
+        "detail": {
+          "code": "invalid-level",
+          "message": "The bucket level must be an integer from 0 to 31, got 32."
+        }
+      }
+    }
+  },
+  {
+    "name": "catalog needing a newer reader",
+    "experiment": "future",
+    "method": "GET",
+    "endpoint": "metric-catalog",
+    "request": null,
+    "response": {
+      "status": 409,
+      "body": {
+        "detail": {
+          "code": "needs-newer-reader",
+          "message": "Experiment '<experiment>' uses schema revision 5, which needs a newer reader (revision 5 or later). Upgrade luml-sdk to read it."
+        }
+      }
+    }
+  },
+  {
+    "name": "buckets needing a newer reader",
+    "experiment": "future",
+    "method": "POST",
+    "endpoint": "metric-buckets",
+    "request": {
+      "keys": [
+        "train/loss"
+      ],
+      "start_step": null,
+      "end_step": null,
+      "level": 0
+    },
+    "response": {
+      "status": 409,
+      "body": {
+        "detail": {
+          "code": "needs-newer-reader",
+          "message": "Experiment '<experiment>' uses schema revision 5, which needs a newer reader (revision 5 or later). Upgrade luml-sdk to read it."
+        }
+      }
+    }
+  }
+]

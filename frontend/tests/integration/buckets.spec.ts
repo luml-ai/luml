@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/test'
+import type { Request } from '@playwright/test'
 import type { ApiMocks } from './fixtures/api-mocks'
 import {
   ORG_ID,
@@ -37,13 +38,18 @@ async function mockBucketsBaseline(apiMocks: ApiMocks) {
     makeBucketConnectionUrls(),
   )
 
-  await apiMocks.put(BUCKET_PRESIGNED_URL, { status: 200, body: '' })
+  // A storage that honours Range: it answers with the requested bytes of what was written.
+  let written = ''
+  await apiMocks.put(BUCKET_PRESIGNED_URL, (req: Request) => {
+    written = req.postData() ?? ''
+    return { status: 200, body: '' }
+  })
 
-  await apiMocks.get(BUCKET_DOWNLOAD_URL, (req: { headers: () => { (): any; new(): any;[x: string]: any } }) => {
-    const hasRange = req.headers()['range']
+  await apiMocks.get(BUCKET_DOWNLOAD_URL, (req: Request) => {
+    const range = /^bytes=(\d+)-(\d+)$/.exec(req.headers()['range'] ?? '')
     return {
-      status: hasRange ? 206 : 200,
-      body: 'ok',
+      status: range ? 206 : 200,
+      body: range ? written.slice(Number(range[1]), Number(range[2]) + 1) : written,
       headers: { 'content-type': 'text/plain' },
     }
   })

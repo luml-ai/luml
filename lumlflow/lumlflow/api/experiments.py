@@ -10,6 +10,9 @@ from lumlflow.schemas.experiments import (
     ExperimentDetails,
     ExperimentMetricHistory,
     FileNode,
+    MetricBuckets,
+    MetricBucketsRequest,
+    MetricCatalog,
     UpdateExperiment,
 )
 from lumlflow.schemas.models import Model
@@ -47,6 +50,20 @@ def get_experiment_metric_history(
     return experiments_handler.get_experiment_metric_history(
         experiment_id, key, max_points
     )
+
+
+@experiments_router.get("/{experiment_id}/metric-catalog", response_model=MetricCatalog)
+def get_metric_catalog(experiment_id: str, response: Response) -> MetricCatalog:
+    # A running experiment keeps growing, so a cached catalog would hide new points.
+    response.headers["Cache-Control"] = "no-store"
+    return experiments_handler.get_metric_catalog(experiment_id)
+
+
+@experiments_router.post(
+    "/{experiment_id}/metric-buckets", response_model=MetricBuckets
+)
+def get_metric_buckets(experiment_id: str, body: MetricBucketsRequest) -> MetricBuckets:
+    return experiments_handler.get_metric_buckets(experiment_id, body)
 
 
 @experiments_router.get("/{experiment_id}/models", response_model=list[Model])

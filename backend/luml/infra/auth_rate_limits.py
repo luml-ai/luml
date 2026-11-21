@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import ipaddress
 import logging
 
 import jwt
@@ -42,18 +43,25 @@ class AuthRateLimiter:
         return retry_after
 
 
-limiter: AuthRateLimiter | None = (
-    AuthRateLimiter(redis_client) if redis_client is not None else None
-)
-if limiter is None:
-    logger.warning("REDIS_URL is not set, authentication rate limits are disabled")
+limiter = AuthRateLimiter(redis_client)
+
+
+def client_ip(request: Request) -> str:
+    if config.CLIENT_IP_HEADER:
+        try:
+            return str(
+                ipaddress.ip_address(
+                    request.headers.get(config.CLIENT_IP_HEADER, "").strip()
+                )
+            )
+        except ValueError:
+            pass
+    return request.client.host if request.client else "unknown"
 
 
 async def limit_auth_attempts(
     request: Request, email: str | None = None, *, reset_token: str | None = None
 ) -> None:
-    if limiter is None:
-        return
     if reset_token is not None:
         try:
             payload = jwt.decode(
@@ -66,8 +74,7 @@ async def limit_auth_attempts(
         ):
             email = payload["sub"]
 
-    ip = request.client.host if request.client else "unknown"
-    scopes = {f"ip:{ip}": IP_LIMIT}
+    scopes = {f"ip:{client_ip(request)}": IP_LIMIT}
     if email is not None:
         scopes[f"email:{email.strip().casefold()}"] = EMAIL_LIMIT
     limits = {

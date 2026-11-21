@@ -181,17 +181,66 @@ def test_google_code_grant_is_unchanged(client: TestClient) -> None:
     consume.assert_not_awaited()
 
 
-def test_limits_are_disabled_without_redis_url(client: TestClient) -> None:
-    with (
-        patch("luml.infra.auth_rate_limits.limiter", None),
-        patch(
-            "luml.api.auth.auth_handler.send_password_reset_email",
-            new_callable=AsyncMock,
-        ) as handle,
-    ):
-        response = client.post(
-            "/v1/auth/forgot-password", json={"email": "u@example.com"}
-        )
+def _signin_ip_keys(
+    client: TestClient, headers: list[dict[str, str]]
+) -> list[set[str]]:
+    with patch(
+        "luml.infra.auth_rate_limits.limiter.consume",
+        new_callable=AsyncMock,
+        return_value=42,
+    ) as consume:
+        for request_headers in headers:
+            response = client.post(
+                "/v1/auth/signin",
+                json={"email": "u@example.com", "password": "wrong-password"},
+                headers=request_headers,
+            )
+            assert response.status_code == 429
+    return [
+        {key for key, limit in call.args[0].items() if limit == 20}
+        for call in consume.await_args_list
+    ]
 
-    assert response.status_code == 200
-    handle.assert_awaited_once()
+
+def test_client_ip_header_sets_the_ip_scope(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(config, "CLIENT_IP_HEADER", "do-connecting-ip")
+
+    first, same, other, normalized = _signin_ip_keys(
+        client,
+        [
+            {"do-connecting-ip": "203.0.113.7", "X-Forwarded-For": "192.0.2.1"},
+            {"do-connecting-ip": "203.0.113.7", "X-Forwarded-For": "192.0.2.2"},
+            {"do-connecting-ip": "203.0.113.8"},
+            {"do-connecting-ip": " 2001:DB8::1 "},
+        ],
+    )
+    assert first == same
+    assert first != other
+    assert (
+        normalized == _signin_ip_keys(client, [{"do-connecting-ip": "2001:db8::1"}])[0]
+    )
+
+
+@pytest.mark.parametrize("header", [None, "do-connecting-ip"])
+@pytest.mark.parametrize("value", ["", "not-an-ip", "203.0.113.7, 192.0.2.1"])
+def test_client_ip_header_falls_back_to_client_address(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, header: str | None, value: str
+) -> None:
+    monkeypatch.setattr(config, "CLIENT_IP_HEADER", header)
+
+    keys = _signin_ip_keys(client, [{}, {"do-connecting-ip": value}])
+    assert keys[0] == keys[1]
+
+
+def test_client_ip_header_is_ignored_when_not_configured(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(config, "CLIENT_IP_HEADER", None)
+
+    keys = _signin_ip_keys(
+        client,
+        [{"do-connecting-ip": "203.0.113.7"}, {"do-connecting-ip": "203.0.113.8"}],
+    )
+    assert keys[0] == keys[1]

@@ -1,5 +1,11 @@
 <template>
-  <Dialog v-model:visible="visible" :draggable="false" :pt="dialogPt" position="right">
+  <Dialog
+    v-model:visible="visible"
+    :draggable="false"
+    :pt="dialogPt"
+    :close-on-escape="openViewers === 0"
+    position="right"
+  >
     <div v-if="showLoader" class="inputs-loader">
       <Skeleton height="calc(100% - 20px)" />
     </div>
@@ -27,10 +33,11 @@ import TracesInputs from './inputs/TracesInputs.vue'
 import TracesModels from './models/TracesModels.vue'
 import EvalsTabs from './EvalsTabs.vue'
 import { useEvalsStore } from '@/store/evals'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { showReadErrorToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
 import { useMinLoading } from '@/hooks/useMinLoading'
 import { computed } from 'vue'
+import { provideNestedViewers } from '../../ui/nestedViewer'
 
 type Props = {
   modelsInfo: ModelsInfo
@@ -57,21 +64,28 @@ const dialogPt: DialogPassThroughOptions = {
 }
 
 const visible = defineModel<boolean>('visible')
+const openViewers = provideNestedViewers()
 
 const evalsStore = useEvalsStore()
 const showLoader = useMinLoading(computed(() => evalsStore.currentEvalDataLoading))
 
+let latestEvalRequest = 0
+
 async function onCurrentEvalIdUpdate(evalId: string) {
+  const request = ++latestEvalRequest
+  // A tab clicked later, or a dialog closed or opened for another eval meanwhile, wins.
+  const shown = evalsStore.currentEvalData
   try {
     evalsStore.setCurrentEvalDataLoading(true)
-    const artifactId = evalsStore.currentEvalData?.[0]?.modelId
+    const artifactId = shown?.[0]?.modelId
     if (!artifactId) return
     const evalData = await evalsStore.getProvider.getEvalById(artifactId, evalId)
+    if (request !== latestEvalRequest || evalsStore.currentEvalData !== shown) return
     evalsStore.setCurrentEvalData([evalData])
   } catch (error) {
-    toast.add(simpleErrorToast(getErrorMessage(error)))
+    showReadErrorToast(toast, error, getErrorMessage(error))
   } finally {
-    evalsStore.setCurrentEvalDataLoading(false)
+    if (request === latestEvalRequest) evalsStore.setCurrentEvalDataLoading(false)
   }
 }
 </script>

@@ -4,9 +4,13 @@ run with: uv run --with pyyaml python -m unittest discover -s .github/tests
 """
 
 import fnmatch
+import json
+import re
 import unittest
 
-from test_release_gates import load
+from test_release_gates import ROOT, WORKFLOWS, load
+
+PLAYWRIGHT_IMAGE = r"mcr\.microsoft\.com/playwright:v(?P<version>\d+\.\d+\.\d+)-noble@sha256:[0-9a-f]{64}"
 
 
 class FrontendCITests(unittest.TestCase):
@@ -52,6 +56,25 @@ class FrontendCITests(unittest.TestCase):
         self.assertNotIn("continue-on-error", lint_steps[0])
         self.assertNotIn("if", lint_steps[0])
 
+    def test_type_check_covers_the_browser_suites_and_blocks_the_job(self):
+        job = load("[frontend] tests-and-linters.yml")["jobs"]["unit"]
+        self.assertNotIn("continue-on-error", job)
+        for script in ("type-check", "type-check:tests"):
+            with self.subTest(script=script):
+                steps = [
+                    step
+                    for step in job["steps"]
+                    if step.get("run") == f"npm run {script}"
+                ]
+                self.assertEqual(len(steps), 1)
+                self.assertNotIn("continue-on-error", steps[0])
+                self.assertNotIn("if", steps[0])
+        scripts = json.loads((ROOT / "frontend/package.json").read_text())["scripts"]
+        for config in ("tsconfig.stack.json", "tsconfig.integration.json"):
+            with self.subTest(config=config):
+                self.assertIn(f"-p {config}", scripts["type-check:tests"])
+                self.assertNotIn(config, scripts["type-check"])
+
     def test_workspace_package_checks_run_once_outside_the_frontend_suite(self):
         commands = "\n".join(
             step.get("run", "")
@@ -87,6 +110,55 @@ class FrontendCITests(unittest.TestCase):
         self.assertNotIn("--fix", lint_steps[0]["run"])
         self.assertNotIn("npm run lint", lint_steps[0]["run"])
         self.assertNotIn("continue-on-error", lint_steps[0])
+
+    def test_browser_test_jobs_run_in_the_playwright_image(self):
+        # The full image holds chromium, firefox and webkit with their system
+        # packages, so these jobs neither install browsers nor touch apt.
+        for workflow, name in (
+            ("[frontend] tests-and-linters.yml", "integration"),
+            ("[extras-js] tests-and-linters.yml", "checks"),
+        ):
+            job = load(workflow)["jobs"][name]
+            commands = [step.get("run", "") for step in job["steps"]]
+            with self.subTest(workflow=workflow, job=name):
+                self.assertRegex(job["container"]["image"], f"^{PLAYWRIGHT_IMAGE}$")
+                self.assertIn("--user 1001", job["container"]["options"])
+                self.assertIn("--ipc=host", job["container"]["options"])
+                self.assertFalse(any("playwright install" in c for c in commands))
+
+    def test_playwright_images_match_the_locked_playwright_version(self):
+        lock = json.loads((ROOT / "package-lock.json").read_text())["packages"]
+        locked = {
+            lock[f"node_modules/{package}"]["version"]
+            for package in ("@playwright/test", "playwright", "playwright-core")
+        }
+        self.assertEqual(len(locked), 1)
+        found = 0
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            for name, job in load(path.name)["jobs"].items():
+                image = job.get("container", {}).get("image", "")
+                if "playwright" not in image:
+                    continue
+                found += 1
+                with self.subTest(workflow=path.name, job=name):
+                    match = re.fullmatch(PLAYWRIGHT_IMAGE, image)
+                    self.assertIsNotNone(match, image)
+                    self.assertEqual({match["version"]}, locked)
+        self.assertGreaterEqual(found, 2)
+
+    def test_jobs_that_install_playwright_browsers_pin_the_runner_image(self):
+        # Playwright ships browser builds per Ubuntu release, so a moving image
+        # breaks the install on the first browser cache miss.
+        found = 0
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            for name, job in load(path.name)["jobs"].items():
+                commands = [step.get("run", "") for step in job.get("steps", [])]
+                if not any("playwright install" in command for command in commands):
+                    continue
+                found += 1
+                with self.subTest(workflow=path.name, job=name):
+                    self.assertRegex(job["runs-on"], r"^ubuntu-\d+\.\d+$")
+        self.assertGreaterEqual(found, 1)
 
     def test_test_jobs_use_optional_dependencies_without_mutating_the_lockfile(self):
         jobs = {
