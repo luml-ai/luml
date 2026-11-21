@@ -1,4 +1,5 @@
 import asyncio
+import sys
 import threading
 from collections.abc import Callable
 from pathlib import Path
@@ -6,6 +7,7 @@ from typing import Any
 
 import pytest
 from lumlflow.flow.daemon import hub as hub_module
+from lumlflow.flow.daemon import watcher as watcher_module
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import FlowSession, Hub
 from lumlflow.flow.daemon.reconcile import MIXED_EDITING
@@ -27,6 +29,17 @@ from tests.helpers.daemon import (
 
 _DEBOUNCE_S = 0.05
 _DELIVERY_TIMEOUT_S = 10.0
+
+
+@pytest.fixture(autouse=True, params=["per-directory", "recursive"])
+def watching(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> str:
+    """Every test here against both placements. Off Linux only the recursive
+    one exists; on Linux it is the one macOS, Windows and the fallback use."""
+    if request.param == "per-directory" and not sys.platform.startswith("linux"):
+        pytest.skip("per-directory watches are Linux only")
+    if request.param == "recursive":
+        monkeypatch.setattr(watcher_module.platform, "is_linux", lambda: False)
+    return request.param
 
 
 def test_a_flow_watches_its_own_cells_and_its_workspaces_shared_code(tmp_path: Path):
@@ -589,6 +602,30 @@ async def test_moving_a_directory_away_and_back_reaches_the_tree(
             await _until(lambda: moved <= _tree_files(session))
         finally:
             await watcher.stop()
+
+
+async def test_a_vanished_directory_wakes_the_flows_that_scanned_files_below_it(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project", files=_HELPERS)
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+    write_file(root / "raw.csv", "id\n1\n")
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        watcher = Watcher(api.hub, debounce_s=600)
+        (root / "raw.csv").unlink()
+        watcher.vanished(root / "raw.csv")
+        data_woke = set(watcher._woken)
+        (root / "lib").rename(tmp_path / "outside")
+        watcher.vanished(root / "lib")
+        await watcher.flush()
+        await watcher.stop()
+        left = _tree_files(session)
+
+    assert data_woke == set()
+    assert not {"lib/io.py", "lib/metrics.py"} & left
 
 
 async def test_an_open_does_not_wait_for_another_workspaces_watch(

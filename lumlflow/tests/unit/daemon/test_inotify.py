@@ -294,6 +294,7 @@ def test_the_watcher_places_per_directory_watches_on_linux() -> None:
 
     placement = _placement(
         post=lambda path: None,
+        vanished=lambda path: None,
         wake=lambda root: None,
         submit=lambda root, work: None,
         stopping=threading.Event(),
@@ -522,6 +523,7 @@ def test_unusable_inotify_internals_fall_back_to_one_recursive_watch(
     with caplog.at_level(logging.WARNING):
         placement = _placement(
             post=lambda path: None,
+            vanished=lambda path: None,
             wake=lambda root: None,
             submit=lambda root, work: None,
             stopping=threading.Event(),

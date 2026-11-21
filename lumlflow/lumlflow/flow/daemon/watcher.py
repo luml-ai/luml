@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Protocol
 
 from watchdog.events import (
+    EVENT_TYPE_DELETED,
+    EVENT_TYPE_MOVED,
     DirCreatedEvent,
     DirDeletedEvent,
     DirModifiedEvent,
@@ -34,7 +36,7 @@ from lumlflow.flow.store.flowstore import CELLS_DIRNAME, FLOW_SUFFIX
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from lumlflow.flow.daemon.hub import Hub
+    from lumlflow.flow.daemon.hub import FlowSession, Hub
 
 DEBOUNCE_S = 2.0
 
@@ -183,6 +185,7 @@ class Watcher:
         self._stopping.clear()
         self._placement = _placement(
             post=self._post,
+            vanished=self._post_vanished,
             wake=self._post_wake,
             submit=self._submit,
             stopping=self._stopping,
@@ -218,6 +221,20 @@ class Watcher:
             return
         self._woken |= woken
         self._arm()
+
+    def vanished(self, path: Path) -> None:
+        """A path deleted or moved away. Where it was a directory, the files
+        it held may raise no event of their own — ReadDirectoryChangesW does
+        not even say it was a directory — so the flows whose last scan had
+        files below it are woken for another."""
+        woken = {
+            session.ref.path
+            for session in self.hub.opened()
+            if _scanned_below(session, path)
+        }
+        if woken:
+            self._woken |= woken
+            self._arm()
 
     async def flush(self) -> None:
         woken, self._woken = self._woken, set()
@@ -285,6 +302,13 @@ class Watcher:
             return
         with contextlib.suppress(RuntimeError):
             loop.call_soon_threadsafe(self.notice, Path(path))
+
+    def _post_vanished(self, path: str) -> None:
+        loop = self._loop
+        if loop is None:
+            return
+        with contextlib.suppress(RuntimeError):
+            loop.call_soon_threadsafe(self.vanished, Path(path))
 
     def _post_wake(self, root: Path) -> None:
         loop = self._loop
@@ -370,8 +394,11 @@ class _RecursiveWatches:
     (FSEvents, ReadDirectoryChangesW): the whole tree, with `classify`
     dropping what the scan prunes."""
 
-    def __init__(self, post: Callable[[str], None]) -> None:
+    def __init__(
+        self, post: Callable[[str], None], vanished: Callable[[str], None]
+    ) -> None:
         self._post = post
+        self._vanished = vanished
         self._observer = Observer()
         self._observer.start()
         self._scheduled: dict[Path, ObservedWatch] = {}
@@ -381,7 +408,10 @@ class _RecursiveWatches:
             return
         try:
             self._scheduled[root] = self._observer.schedule(
-                _Handler(self._post), str(root), recursive=True, event_filter=_CHANGES
+                _Handler(self._post, self._vanished),
+                str(root),
+                recursive=True,
+                event_filter=_CHANGES,
             )
         except OSError as unwatchable:
             logger.warning("not watching %s: %s", root, unwatchable)
@@ -400,18 +430,29 @@ class _RecursiveWatches:
 
 
 class _Handler(FileSystemEventHandler):
-    def __init__(self, post: Callable[[str], None]) -> None:
+    def __init__(
+        self, post: Callable[[str], None], vanished: Callable[[str], None]
+    ) -> None:
         self._post = post
+        self._vanished = vanished
 
     def on_any_event(self, event: FileSystemEvent) -> None:
         for path in (event.src_path, getattr(event, "dest_path", None)):
             if path:
                 self._post(str(path))
+        # By event type, not class: a removed directory comes as a file
+        # deletion on Windows. A cell file's own event already wakes its flow.
+        source = str(event.src_path)
+        if event.event_type in (EVENT_TYPE_DELETED, EVENT_TYPE_MOVED) and not (
+            source.endswith(CELL_SUFFIX)
+        ):
+            self._vanished(source)
 
 
 def _placement(
     *,
     post: Callable[[str], None],
+    vanished: Callable[[str], None],
     wake: Callable[[Path], None],
     submit: Callable[[Path, Callable[[], None]], None],
     stopping: threading.Event,
@@ -429,4 +470,16 @@ def _placement(
                 "directories included: per-directory watches are unavailable (%s)",
                 unusable,
             )
-    return _RecursiveWatches(post)
+    return _RecursiveWatches(post, vanished)
+
+
+def _scanned_below(session: "FlowSession", path: Path) -> bool:
+    try:
+        relative = path.resolve().relative_to(session.workspace_dir)
+    except (ValueError, OSError):
+        return False
+    tree = session.store.index.workspace_tree()
+    if tree is None:
+        return False
+    below = f"{relative.as_posix()}/" if relative.parts else ""
+    return any(name.startswith(below) for name in tree.files)
