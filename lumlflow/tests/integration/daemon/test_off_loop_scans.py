@@ -403,3 +403,24 @@ async def test_stopping_after_a_waiting_caller_left_stops_the_run_that_stayed(
     assert left["left"] == 1
     assert (outcome["abandoned"], outcome["executed"]) == (True, [])
     assert left_after["left"] == 0
+
+
+async def test_a_second_stop_does_not_count_a_run_already_stopped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        scan = _BlockedScan()
+        monkeypatch.setattr(hub_module, "scan_workspace", scan)
+        running = asyncio.create_task(api.run({"flow": "churn"}))
+        await scan.started()
+        first = await api.cancel({"flow": "churn"})
+        second = await api.cancel({"flow": "churn"})
+        scan.release.set()
+        outcome = await asyncio.wait_for(running, _PROMPT_S)
+
+    assert (first["left"], second["left"]) == (1, 0)
+    assert outcome["abandoned"]

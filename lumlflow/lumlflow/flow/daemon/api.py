@@ -1178,7 +1178,9 @@ class Api:
         pending = [
             run
             for run in self._pending_runs
-            if run.flow == session.ref.address and run.branch == branch
+            if run.flow == session.ref.address
+            and run.branch == branch
+            and not run.abandoned
         ]
         for run in pending:
             run.abandoned = True
