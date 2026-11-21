@@ -19,8 +19,10 @@ import MEmpty from '@/components/MEmpty.vue'
 import ReferenceProfileLoader from '@/components/reference-profile/ReferenceProfileLoader.vue'
 import ReferenceProfilePanel from '@/components/reference-profile/ReferenceProfilePanel.vue'
 
-const { data, loading, error, reload } = useMonitoringData((dims) =>
-  api.monitoring.getReferenceProfile(dims),
+const { data, loading, error, reload } = useMonitoringData(
+  (dims) => api.monitoring.getReferenceProfile(dims),
+  undefined,
+  { autoRefresh: false },
 )
 
 const emptyState = computed(() => (data.value ? getReferenceProfileEmptyState(data.value) : null))

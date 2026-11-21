@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { useIntervalFn } from '@vueuse/core'
+import { useDocumentVisibility, useIntervalFn } from '@vueuse/core'
+import { isSessionExpired } from '@/api'
 import {
   Compare,
   Granularity,
@@ -23,6 +24,7 @@ export const useFiltersStore = defineStore('filters', () => {
   const feature = ref<string | null>(null)
   const autoRefresh = ref<AutoRefresh>(AutoRefresh.OFF)
   const refreshKey = ref(0)
+  const manualRefreshKey = ref(0)
   const pendingRequests = ref(0)
 
   const isLoading = computed(() => pendingRequests.value > 0)
@@ -45,9 +47,20 @@ export const useFiltersStore = defineStore('filters', () => {
     compareEnd: compareEnd.value,
   }))
 
-  const autoRefreshTimer = useIntervalFn(refresh, () => autoRefresh.value * 1000, {
+  const visibility = useDocumentVisibility()
+
+  const autoRefreshTimer = useIntervalFn(autoRefreshTick, () => autoRefresh.value * 1000, {
     immediate: false,
   })
+
+  function autoRefreshTick() {
+    if (isSessionExpired.value) {
+      setAutoRefresh(AutoRefresh.OFF)
+      return
+    }
+    if (visibility.value === 'hidden') return
+    refreshKey.value += 1
+  }
 
   function setWindow(value: Window) {
     selectedWindow.value = value
@@ -101,6 +114,7 @@ export const useFiltersStore = defineStore('filters', () => {
 
   function refresh() {
     refreshKey.value += 1
+    manualRefreshKey.value += 1
   }
 
   async function trackRequest<T>(request: Promise<T>): Promise<T> {
@@ -125,6 +139,7 @@ export const useFiltersStore = defineStore('filters', () => {
     feature,
     autoRefresh,
     refreshKey,
+    manualRefreshKey,
     isLoading,
     isCustomRange,
     activeWindow,

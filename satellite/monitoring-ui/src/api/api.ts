@@ -6,6 +6,8 @@ import { MonitoringApi } from './monitoring'
 
 export const MONITORING_API_BASE = '/monitoring/api'
 
+export const REQUEST_TIMEOUT_MS = 60000
+
 export const isApiMockEnabled = () => import.meta.env.VITE_API_MOCK === 'true'
 
 export class ApiClass {
@@ -15,7 +17,7 @@ export class ApiClass {
   constructor(useMock = isApiMockEnabled()) {
     this.api = axios.create({
       baseURL: MONITORING_API_BASE,
-      timeout: 10000,
+      timeout: REQUEST_TIMEOUT_MS,
       withCredentials: true,
       headers: { Accept: 'application/json' },
       adapter: useMock ? mockAdapter : undefined,

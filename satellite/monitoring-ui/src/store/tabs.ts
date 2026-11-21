@@ -20,6 +20,7 @@ export const useTabsStore = defineStore('tabs', () => {
   }
 
   return {
+    selectedTab,
     tabs,
     activeTab,
     setActiveTab,
