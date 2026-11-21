@@ -1364,7 +1364,8 @@ class Api:
             "relative_path": path.relative_to(directory).as_posix() if inside else None,
             "inside": inside,
             "kernel": session.kernel.state,
-            "active_runs": session.queue.in_flight,
+            "active_runs": session.queue.in_flight
+            + self.waiting_runs(session.ref.address),
             "leased_sessions": self._leased_here(session),
             "stream_subscribers": _subscribers(session),
             "checked_out": session.worktree.bound() is not None,
@@ -1380,7 +1381,8 @@ class Api:
             "running_kernels": sum(
                 1 for session in sessions if session.kernel.state == "running"
             ),
-            "active_runs": sum(session.queue.in_flight for session in sessions),
+            "active_runs": self.waiting_runs()
+            + sum(session.queue.in_flight for session in sessions),
             "leased_sessions": sum(self._leased_here(session) for session in sessions),
         }
 

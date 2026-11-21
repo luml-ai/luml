@@ -531,3 +531,22 @@ async def test_a_stopped_run_still_waiting_for_its_scan_lets_the_daemon_idle_out
         await daemon.hub.close()
 
     assert idle["attached"]["active_runs"] == 0
+
+
+async def test_open_flows_count_a_run_waiting_for_its_scan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project")
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        scan = _BlockedScan()
+        monkeypatch.setattr(hub_module, "scan_workspace", scan)
+        running = asyncio.create_task(api.run({"flow": "churn"}))
+        await scan.started()
+        listed = await api.flows_open({})
+        scan.release.set()
+        await asyncio.wait_for(running, _PROMPT_S)
+
+    assert [flow["active_runs"] for flow in listed["flows"]] == [1]
+    assert listed["totals"]["active_runs"] == 1
