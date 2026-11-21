@@ -263,7 +263,7 @@ async def test_a_flow_opened_from_outside_runs_under_its_own_workspace(
         ran = await api.run({"flow": str(other / "sales.flow"), "target": "where"})
         session = api.hub.session(str(other / "sales.flow"))
         hosted = {
-            ref.name: api.hub.open(ref).workspace_dir
+            ref.name: (await api.hub.open(ref)).workspace_dir
             for ref in workspace.list_directory(root).flows
         }
 
@@ -1170,7 +1170,7 @@ async def test_cancelling_a_lane_run_does_not_start_its_next_leaf(
         )
 
     async with daemon_api(root) as api:
-        session = api.hub.open(workspace.select_flow(root, name="churn"))
+        session = await api.hub.open(workspace.select_flow(root, name="churn"))
         ensure_started = session.kernel.ensure_started
         starting = asyncio.Event()
         resume = asyncio.Event()
@@ -1272,7 +1272,7 @@ async def test_cancelling_during_kernel_start_never_runs_the_cell(
     )
 
     async with daemon_api(root) as api:
-        session = api.hub.open(workspace.select_flow(root, name="churn"))
+        session = await api.hub.open(workspace.select_flow(root, name="churn"))
         ensure_started = session.kernel.ensure_started
         starting = asyncio.Event()
         resume = asyncio.Event()

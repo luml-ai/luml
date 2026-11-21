@@ -13,7 +13,7 @@ from lumlflow.flow.dsl.accept import (
     CellReadError,
     cell_paths,
 )
-from lumlflow.flow.dsl.tree import WorkspaceTree, scan_workspace
+from lumlflow.flow.dsl.tree import WorkspaceTree
 from lumlflow.flow.hashing import hash_bytes
 from lumlflow.flow.store.models import (
     CellNoted,
@@ -129,11 +129,11 @@ def reconcile(
 
 
 def sync_workspace_code(
-    root: Path, sessions: Iterable["FlowSession"], *, actor: str = "system"
+    tree: WorkspaceTree, sessions: Iterable["FlowSession"], *, actor: str = "system"
 ) -> dict[Path, list[str]]:
-    tree = scan_workspace(root)
     changed: dict[Path, list[str]] = {}
     for session in sessions:
+        session.track(tree)
         known = session.store.index.workspace_tree()
         if known is not None and known.tree_hash == tree.tree_hash:
             continue

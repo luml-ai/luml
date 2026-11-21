@@ -1,9 +1,11 @@
 import os
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from pathspec import GitIgnoreSpec
 
+from lumlflow.flow.errors import FlowError
 from lumlflow.flow.hashing import hash_file, hash_json
 from lumlflow.flow.store.flowstore import (
     CELLS_DIRNAME,
@@ -92,12 +94,20 @@ class WorkspaceTree:
         )
 
 
-def scan_workspace(workspace_dir: Path) -> WorkspaceTree:
+class ScanStopped(FlowError):
+    pass
+
+
+def scan_workspace(
+    workspace_dir: Path, *, stopping: threading.Event | None = None
+) -> WorkspaceTree:
     root = workspace_dir.resolve()
     exclusions = WorkspaceExclusions(root)
     files: dict[str, str] = {}
     strays: list[str] = []
     for dirpath, dirnames, filenames in os.walk(root):
+        if stopping is not None and stopping.is_set():
+            raise ScanStopped(f"stopped scanning {root}")
         here = Path(dirpath)
         dirnames[:] = sorted(
             name

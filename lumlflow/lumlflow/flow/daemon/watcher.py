@@ -1,14 +1,32 @@
 import asyncio
 import contextlib
 import logging
-from collections import Counter
+import threading
+from collections import Counter, deque
 from collections.abc import Callable
+from concurrent.futures import Future
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal, Protocol
 
-from watchdog.events import FileSystemEvent, FileSystemEventHandler
+from watchdog.events import (
+    EVENT_TYPE_DELETED,
+    EVENT_TYPE_MOVED,
+    DirCreatedEvent,
+    DirDeletedEvent,
+    DirModifiedEvent,
+    DirMovedEvent,
+    FileClosedEvent,
+    FileCreatedEvent,
+    FileDeletedEvent,
+    FileModifiedEvent,
+    FileMovedEvent,
+    FileSystemEvent,
+    FileSystemEventHandler,
+)
 from watchdog.observers import Observer
+from watchdog.observers.api import ObservedWatch
 from watchdog.utils import UnsupportedLibcError, platform
 
 from lumlflow.flow.dsl.accept import CELL_SUFFIX
@@ -18,7 +36,7 @@ from lumlflow.flow.store.flowstore import CELLS_DIRNAME, FLOW_SUFFIX
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from lumlflow.flow.daemon.hub import Hub
+    from lumlflow.flow.daemon.hub import FlowSession, Hub
 
 DEBOUNCE_S = 2.0
 
@@ -26,6 +44,20 @@ _JOIN_TIMEOUT_S = 2.0
 _CELL_DEPTH = 3
 
 Watched = Literal["cell", "code"]
+
+# Only what can change a scan's result. Opens and reads are left out: a scan
+# reads every file it hashes, so reacting to reads would wake the next scan.
+_CHANGES: list[type[FileSystemEvent]] = [
+    FileCreatedEvent,
+    DirCreatedEvent,
+    FileModifiedEvent,
+    DirModifiedEvent,
+    FileClosedEvent,
+    FileMovedEvent,
+    DirMovedEvent,
+    FileDeletedEvent,
+    DirDeletedEvent,
+]
 
 
 @dataclass(frozen=True)
@@ -77,22 +109,27 @@ class Watches:
     The hub holds this and moves it; a watcher, when there is one, hangs its
     scheduling off the two hooks. A daemon with no watcher — every test that
     drives the API directly — moves the same counts and schedules nothing.
+    The hooks only queue the work and hand back its future, in order per
+    root, so `settled` waits for every hold and release of a root made so far.
     """
 
     def __init__(self) -> None:
         self._held: Counter[Path] = Counter()
-        self.observe: Callable[[Path], None] | None = None
-        self.forget: Callable[[Path], None] | None = None
+        self.observe: Callable[[Path], Future[None] | None] | None = None
+        self.forget: Callable[[Path], Future[None] | None] | None = None
+        self._pending: dict[Path, Future[None]] = {}
 
     def roots(self) -> list[Path]:
         return sorted(self._held)
 
     def hold(self, root: Path) -> None:
+        self._forget_settled()
         self._held[root] += 1
         if self._held[root] == 1 and self.observe is not None:
-            self.observe(root)
+            self._queued(root, self.observe(root))
 
     def release(self, root: Path) -> None:
+        self._forget_settled()
         held = self._held[root]
         if not held:
             return
@@ -101,7 +138,46 @@ class Watches:
             return
         del self._held[root]
         if self.forget is not None:
-            self.forget(root)
+            self._queued(root, self.forget(root))
+
+    def attach(
+        self,
+        observe: Callable[[Path], Future[None] | None],
+        forget: Callable[[Path], Future[None] | None],
+    ) -> None:
+        self.observe, self.forget = observe, forget
+        for root in self.roots():
+            self._queued(root, observe(root))
+
+    async def settled(self, root: Path | None = None) -> None:
+        """Wait for `root`'s watch work queued so far, or every root's."""
+        pending = (
+            list(self._pending.values())
+            if root is None
+            else [self._pending[root]]
+            if root in self._pending
+            else []
+        )
+        # `wait`, not `await`: a stopping watcher cancels what it had queued,
+        # and that must not read as this caller being cancelled. A job that
+        # failed was logged where it ran; its error is read here only so the
+        # wrapper does not log it a second time.
+        if pending:
+            waited = [asyncio.wrap_future(future) for future in pending]
+            await asyncio.wait(waited)
+            for future in waited:
+                if not future.cancelled():
+                    future.exception()
+        self._forget_settled()
+
+    def _queued(self, root: Path, future: Future[None] | None) -> None:
+        if future is not None:
+            self._pending[root] = future
+
+    def _forget_settled(self) -> None:
+        for root, future in list(self._pending.items()):
+            if root not in self._held and future.done():
+                del self._pending[root]
 
 
 class Watcher:
@@ -109,29 +185,39 @@ class Watcher:
         self.hub = hub
         self.debounce_s = debounce_s
         self._loop: asyncio.AbstractEventLoop | None = None
-        self._observer: Any = None
-        self._scheduled: dict[Path, Any] = {}
+        # Placing watches walks the tree, so the placement runs on `_placer`'s
+        # threads, each root's in the order it was asked for, and nowhere else.
+        self._placement: _Placement | None = None
+        self._placer: _RootQueues | None = None
+        self._stopping = threading.Event()
         self._woken: set[Path] = set()
         self._deadline: float | None = None
         self._timer: asyncio.Future[None] | None = None
 
-    def start(self) -> None:
+    async def start(self) -> None:
         self._loop = asyncio.get_running_loop()
-        self._observer = _observer()
-        self._observer.start()
-        self.hub.watches.observe = self._schedule
-        self.hub.watches.forget = self._unschedule
-        for root in self.hub.watches.roots():
-            self._schedule(root)
+        self._stopping.clear()
+        self._placement = _placement(
+            post=self._post,
+            vanished=self._post_vanished,
+            wake=self._post_wake,
+            submit=self._submit,
+            stopping=self._stopping,
+        )
+        self._placer = _RootQueues()
+        self.hub.watches.attach(self._schedule, self._unschedule)
+        await self.hub.watches.settled()
 
     async def stop(self) -> None:
         self.hub.watches.observe = None
         self.hub.watches.forget = None
-        self._scheduled.clear()
-        if self._observer is not None:
-            self._observer.stop()
-            await asyncio.to_thread(self._observer.join, _JOIN_TIMEOUT_S)
-            self._observer = None
+        self._stopping.set()
+        placer, self._placer = self._placer, None
+        if placer is not None:
+            await asyncio.to_thread(placer.stop)
+        placement, self._placement = self._placement, None
+        if placement is not None:
+            await asyncio.to_thread(placement.stop)
         timer, self._timer = self._timer, None
         self._deadline = None
         if timer is not None:
@@ -150,36 +236,70 @@ class Watcher:
         self._woken |= woken
         self._arm()
 
+    def vanished(self, path: Path) -> None:
+        """A path deleted or moved away. Where it was a directory, the files
+        it held may raise no event of their own — ReadDirectoryChangesW does
+        not even say it was a directory — so the flows whose last scan had
+        files below it are woken for another."""
+        woken = {
+            session.ref.path
+            for session in self.hub.opened()
+            if session.ref.path not in self._woken and _tracked_below(session, path)
+        }
+        if woken:
+            self._woken |= woken
+            self._arm()
+
     async def flush(self) -> None:
         woken, self._woken = self._woken, set()
+        # One scan per workspace, however many of its flows woke.
+        by_workspace: dict[Path, list[FlowSession]] = {}
         for path in sorted(woken):
             session = self.hub.attached(path)
-            if session is None:
-                continue
+            if session is not None:
+                by_workspace.setdefault(session.workspace_dir, []).append(session)
+        for workspace_dir, sessions in by_workspace.items():
             # One flow's broken file plane must not cost the rest of the batch
             # their wake: it is already swapped out and nothing re-delivers it.
             try:
-                await self.hub.quiesce(session, tier="live")
+                failures = await self.hub.quiesce_workspace(sessions, tier="live")
             except Exception:
-                logger.exception("reconciling %s after a file event failed", path)
+                logger.exception(
+                    "reconciling %s after a file event failed", workspace_dir
+                )
+                continue
+            for session, failure in failures:
+                logger.error(
+                    "reconciling %s after a file event failed",
+                    session.ref.path,
+                    exc_info=failure,
+                )
 
-    def _schedule(self, root: Path) -> None:
-        observer = self._observer
-        if observer is None or root in self._scheduled:
-            return
-        try:
-            self._scheduled[root] = observer.schedule(
-                _Handler(self._post), str(root), recursive=True
-            )
-        except OSError as unwatchable:
-            logger.warning("not watching %s: %s", root, unwatchable)
+    def _schedule(self, root: Path) -> Future[None] | None:
+        if self._placer is None or self._placement is None:
+            return None
+        return self._placer.submit(root, partial(self._placement.schedule, root))
 
-    def _unschedule(self, root: Path) -> None:
-        watch = self._scheduled.pop(root, None)
-        if watch is None or self._observer is None:
-            return
-        with contextlib.suppress(KeyError, OSError):
-            self._observer.unschedule(watch)
+    def _unschedule(self, root: Path) -> Future[None] | None:
+        if self._placer is None or self._placement is None:
+            return None
+        return self._placer.submit(root, partial(self._placement.unschedule, root))
+
+    def _submit(self, root: Path, work: Callable[[], None]) -> None:
+        """Any thread → `root`'s placing queue, for the watches' own upkeep."""
+        placer = self._placer
+        if placer is not None:
+            placer.submit(root, work)
+
+    def _wake(self, root: Path) -> None:
+        woken = {
+            session.ref.path
+            for session in self.hub.opened()
+            if session.watch.root == root
+        }
+        if woken:
+            self._woken |= woken
+            self._arm()
 
     def _arm(self) -> None:
         """Push the quiet-point out, and start waiting for it if nobody is.
@@ -202,28 +322,187 @@ class Watcher:
             await self.flush()
 
     def _post(self, path: str) -> None:
-        """Observer thread → loop thread. The only thread hop in the daemon."""
+        """Watching threads → loop thread: the only way an event reaches it."""
         loop = self._loop
         if loop is None:
             return
         with contextlib.suppress(RuntimeError):
             loop.call_soon_threadsafe(self.notice, Path(path))
 
+    def _post_vanished(self, path: str) -> None:
+        loop = self._loop
+        if loop is None:
+            return
+        with contextlib.suppress(RuntimeError):
+            loop.call_soon_threadsafe(self.vanished, Path(path))
+
+    def _post_wake(self, root: Path) -> None:
+        loop = self._loop
+        if loop is None:
+            return
+        with contextlib.suppress(RuntimeError):
+            loop.call_soon_threadsafe(self._wake, root)
+
+
+class _RootQueues:
+    """Watch work, one queue per root: a root's jobs run one at a time, in
+    the order they were asked for, on a thread that lives while its queue has
+    work. Roots do not wait for each other, so a long walk of one tree never
+    holds up the watch an open of another is waiting for."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._queues: dict[Path, deque[tuple[Callable[[], None], Future[None]]]] = {}
+        self._threads: set[threading.Thread] = set()
+        self._stopped = False
+
+    def submit(self, root: Path, work: Callable[[], None]) -> Future[None]:
+        done: Future[None] = Future()
+        with self._lock:
+            if self._stopped:
+                done.cancel()
+                return done
+            queue = self._queues.get(root)
+            if queue is not None:
+                queue.append((work, done))
+                return done
+            self._queues[root] = deque([(work, done)])
+            thread = threading.Thread(
+                target=self._drain, args=(root,), name="lumlflow-watch", daemon=True
+            )
+            self._threads.add(thread)
+            thread.start()
+        return done
+
+    def stop(self) -> None:
+        """Cancel what is queued and wait for what is running, which the
+        watcher's stop flag cuts short."""
+        with self._lock:
+            self._stopped = True
+            for queue in self._queues.values():
+                for _, done in queue:
+                    done.cancel()
+                queue.clear()
+            threads = list(self._threads)
+        for thread in threads:
+            thread.join()
+
+    def _drain(self, root: Path) -> None:
+        while True:
+            with self._lock:
+                queue = self._queues[root]
+                if not queue:
+                    del self._queues[root]
+                    self._threads.discard(threading.current_thread())
+                    return
+                work, done = queue.popleft()
+            if not done.set_running_or_notify_cancel():
+                continue
+            try:
+                work()
+            except Exception as failed:
+                logger.exception("watching %s failed", root)
+                done.set_exception(failed)
+            else:
+                done.set_result(None)
+
+
+class _Placement(Protocol):
+    def schedule(self, root: Path) -> None: ...
+
+    def unschedule(self, root: Path) -> None: ...
+
+    def stop(self) -> None: ...
+
+
+class _RecursiveWatches:
+    """Where one recursive watch is cheap and one per directory is not
+    (FSEvents, ReadDirectoryChangesW): the whole tree, with `classify`
+    dropping what the scan prunes."""
+
+    def __init__(
+        self, post: Callable[[str], None], vanished: Callable[[str], None]
+    ) -> None:
+        self._post = post
+        self._vanished = vanished
+        self._observer = Observer()
+        self._observer.start()
+        self._scheduled: dict[Path, ObservedWatch] = {}
+
+    def schedule(self, root: Path) -> None:
+        if root in self._scheduled:
+            return
+        try:
+            self._scheduled[root] = self._observer.schedule(
+                _Handler(self._post, self._vanished),
+                str(root),
+                recursive=True,
+                event_filter=_CHANGES,
+            )
+        except OSError as unwatchable:
+            logger.warning("not watching %s: %s", root, unwatchable)
+
+    def unschedule(self, root: Path) -> None:
+        watch = self._scheduled.pop(root, None)
+        if watch is None:
+            return
+        with contextlib.suppress(KeyError, OSError):
+            self._observer.unschedule(watch)
+
+    def stop(self) -> None:
+        self._scheduled.clear()
+        self._observer.stop()
+        self._observer.join(_JOIN_TIMEOUT_S)
+
 
 class _Handler(FileSystemEventHandler):
-    def __init__(self, post: Callable[[str], None]) -> None:
+    def __init__(
+        self, post: Callable[[str], None], vanished: Callable[[str], None]
+    ) -> None:
         self._post = post
+        self._vanished = vanished
 
     def on_any_event(self, event: FileSystemEvent) -> None:
         for path in (event.src_path, getattr(event, "dest_path", None)):
             if path:
                 self._post(str(path))
+        # By event type, not class: a removed directory comes as a file
+        # deletion on Windows. A cell file's own event already wakes its flow.
+        source = str(event.src_path)
+        if event.event_type in (EVENT_TYPE_DELETED, EVENT_TYPE_MOVED) and not (
+            source.endswith(CELL_SUFFIX)
+        ):
+            self._vanished(source)
 
 
-def _observer() -> Any:
+def _placement(
+    *,
+    post: Callable[[str], None],
+    vanished: Callable[[str], None],
+    wake: Callable[[Path], None],
+    submit: Callable[[Path, Callable[[], None]], None],
+    stopping: threading.Event,
+) -> _Placement:
     if platform.is_linux():
-        with contextlib.suppress(UnsupportedLibcError):
-            from lumlflow.flow.daemon.inotify import TolerantInotifyObserver
+        # The per-directory watches lean on watchdog internals that may move
+        # within a major version; one recursive watch still sees every change.
+        try:
+            from lumlflow.flow.daemon.inotify import InotifyTrees
 
-            return TolerantInotifyObserver()
-    return Observer()
+            return InotifyTrees(post=post, wake=wake, submit=submit, stopping=stopping)
+        except (ImportError, AttributeError, UnsupportedLibcError) as unusable:
+            logger.warning(
+                "watching each workspace with one recursive watch, excluded "
+                "directories included: per-directory watches are unavailable (%s)",
+                unusable,
+            )
+    return _RecursiveWatches(post, vanished)
+
+
+def _tracked_below(session: "FlowSession", path: Path) -> bool:
+    # One set lookup: `rm -rf node_modules` on a recursive watch sends one
+    # event per entry, and each lands here, on the loop.
+    if not path.is_relative_to(session.workspace_dir):
+        return False
+    relative = path.relative_to(session.workspace_dir)
+    return (relative.as_posix() if relative.parts else "") in session.tracked_dirs

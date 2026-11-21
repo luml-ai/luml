@@ -1,8 +1,10 @@
+import asyncio
 from pathlib import Path
 from typing import Any
 
 import pytest
 from lumlflow.flow.daemon.api import Api
+from lumlflow.flow.dsl.tree import WorkspaceTree
 from lumlflow.flow.errors import LaneMoved
 
 from tests.helpers.daemon import daemon_api, make_workspace
@@ -52,6 +54,47 @@ async def test_a_change_after_somebody_rewound_the_lane_is_refused_once(
     assert f"moved to step {first} by user" in message
     assert "Nothing was changed" in message
     assert "`new-lane`" in message
+
+
+@pytest.mark.parametrize("method", ["cells.new", "cells.edit"])
+async def test_a_rewind_while_a_fenced_change_waits_for_its_scan_refuses_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, method: str
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    async with daemon_api(root) as api:
+        first, _ = await _lane_with_two_steps(api)
+        await _agent_reads_context(api)
+        params = _as_agent(slug="first" if method == "cells.edit" else "third")
+        params["source"] = NOTE + "\n# changed\n"
+        rewind_scanning = asyncio.Event()
+        release_rewind = asyncio.Event()
+        fenced = asyncio.Event()
+        scan = api.hub._scan
+
+        async def rewind_scan_held(workspace_dir: Path) -> WorkspaceTree:
+            if not rewind_scanning.is_set():
+                rewind_scanning.set()
+                await release_rewind.wait()
+            return await scan(workspace_dir)
+
+        async def agent_change() -> dict[str, Any]:
+            api.fence(method, params)
+            fenced.set()
+            return await api.methods[method](params)
+
+        monkeypatch.setattr(api.hub, "_scan", rewind_scan_held)
+        rewind = asyncio.create_task(api.rewind({"flow": "churn", "to_step": first}))
+        await rewind_scanning.wait()
+        change = asyncio.create_task(agent_change())
+        await fenced.wait()
+        release_rewind.set()
+        await rewind
+
+        with pytest.raises(LaneMoved) as refused:
+            await change
+        assert refused.value.to_step == first
+        cells = await api.cells_list({"flow": "churn"})
+        assert "third" not in {cell["slug"] for cell in cells["cells"]}
 
 
 async def test_every_change_is_fenced_and_reading_or_moving_it_is_not(

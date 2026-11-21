@@ -51,7 +51,7 @@ async def test_a_write_then_run_never_waits_for_the_watcher(tmp_path: Path):
 
     async with daemon_api(root) as api:
         watcher = Watcher(api.hub, debounce_s=600)
-        watcher.start()
+        await watcher.start()
         try:
             await api.run({"flow": "churn", "target": "score"})
             write_cell(root / "churn.flow", "score", SCORE_CELL.replace("0.91", "0.93"))
@@ -84,7 +84,7 @@ async def test_cold_start_lands_offline_edits_as_one_coarse_transaction(
     write_cell(flow, "extra", SCORE_CELL.replace("Score", "Extra"))
 
     async with daemon_api(root) as api:
-        session = api.hub.open(workspace.select_flow(root, name="churn"))
+        session = await api.hub.open(workspace.select_flow(root, name="churn"))
         landed = transactions(session)[steps:]
         after = {
             slug: version.uid for slug, version in slice_of(session, "main").items()
@@ -647,7 +647,7 @@ async def test_a_user_verb_attributes_a_file_edit_to_the_one_registered_agent(
         await api.agent_begin({"flow": "churn", "label": "claude-1"})
         path = root / "churn.flow" / "cells" / "score.py"
         watcher = Watcher(api.hub, debounce_s=600)
-        watcher.start()
+        await watcher.start()
         try:
             write_cell(root / "churn.flow", "score", SCORE_CELL.replace("0.91", "0.93"))
             watcher.notice(path)

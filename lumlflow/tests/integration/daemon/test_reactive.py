@@ -8,6 +8,8 @@ from lumlflow.flow.daemon.hub import FlowSession, Hub
 from lumlflow.flow.daemon.reactive import AUTO_ACTOR
 from lumlflow.flow.daemon.stream import StateName, Streams
 from lumlflow.flow.errors import KernelError
+from lumlflow.flow.store.flowstore import FLOW_SUFFIX, JOURNAL_NAME, store_dir
+from lumlflow.flow.store.journal import Journal
 from lumlflow.flow.store.models import CellNoted, RunRecorded
 
 from tests.helpers.daemon import (
@@ -73,9 +75,10 @@ def cell_named(listed: dict[str, Any], slug: str) -> dict[str, Any]:
 
 
 def auto_runs(api: Api, flow: str = "churn") -> list[str]:
+    journal = Journal(store_dir(api.directory / f"{flow}{FLOW_SUFFIX}") / JOURNAL_NAME)
     return [
         op.uid
-        for entry in transactions(api.hub.session(flow))
+        for entry in journal.replay()
         if entry.actor == AUTO_ACTOR
         for op in entry.ops
         if isinstance(op, RunRecorded)
@@ -282,7 +285,7 @@ async def test_reading_a_slice_does_not_ask_reactivity_anything(tmp_path: Path):
     write_cell(root / "churn.flow", "report", REPORT_CELL)
 
     async with daemon_api(root) as api:
-        session = api.hub.open(workspace.select_flow(root, name="churn"))
+        session = await api.hub.open(workspace.select_flow(root, name="churn"))
         asked = 0
         verdicts = session.planner.auto_verdicts
 
@@ -465,7 +468,7 @@ async def test_kernel_start_failures_are_recorded_once_and_retried_after_restart
         first_steps = [entry.step for entry in failed_entries]
 
     async with daemon_api(root) as api:
-        session = api.hub.open(workspace.select_flow(root, name="churn"))
+        session = await api.hub.open(workspace.select_flow(root, name="churn"))
         await refuse_kernel_start(session, monkeypatch)
         reopened = session.planner.auto_verdicts("main")
 

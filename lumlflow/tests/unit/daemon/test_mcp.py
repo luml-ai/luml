@@ -658,7 +658,7 @@ def test_a_notification_is_not_answered(talk: Talk):
 
 
 def checked_out(talk: Talk, name: str, *, branch: str) -> FlowSession:
-    live = talk.hub.init_flow(talk.directory, name)
+    live = talk._loop.run_until_complete(talk.hub.init_flow(talk.directory, name))
     live.worktree.checkout(actor="user")
     live.acceptance.accept_source(
         "score", SCORE_CELL, branch="main", actor="user", intent="scored", fresh=True

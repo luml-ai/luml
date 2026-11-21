@@ -3,6 +3,7 @@ import contextlib
 import json
 from pathlib import Path
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 from lumlflow.flow.daemon.main import QUIET_AFTER_S, Daemon
@@ -45,7 +46,7 @@ async def _daemon(root: Path, monkeypatch: pytest.MonkeyPatch):
     daemon.clock = clock
     ready = asyncio.Event()
     monkeypatch.setattr(daemon.api, "sync_agents", lambda: [])
-    monkeypatch.setattr(daemon.watcher, "start", lambda: None)
+    monkeypatch.setattr(daemon.watcher, "start", AsyncMock(return_value=None))
     monkeypatch.setattr(daemon, "_serve_web", lambda listener: listener.close())
     serving = asyncio.create_task(
         daemon.serve(web_port=0, announce=lambda _record: ready.set())
