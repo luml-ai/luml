@@ -6,7 +6,8 @@
   "exports": {
     "./index.css": "./index.css",
     "./light-theme.css": "./light-theme.css",
-    "./dark-theme.css": "./dark-theme.css"
+    "./dark-theme.css": "./dark-theme.css",
+    "./config.mjs": "./config.mjs"
   },
   "scripts": {
     "build": "node build.mjs && prettier --write light-theme.css dark-theme.css"

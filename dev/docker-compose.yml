@@ -161,11 +161,12 @@ services:
       - sh
       - -c
       - |
-        if [ ! -d node_modules ] || [ ! -d frontend/node_modules ]; then
+        lock_hash=$$(sha256sum package-lock.json | cut -d' ' -f1)
+        if [ ! -d node_modules ] || [ ! -d frontend/node_modules ] || [ "$$(cat node_modules/.luml-lock-hash 2>/dev/null)" != "$$lock_hash" ]; then
           echo "Installing workspace dependencies..."
-          npm install --include=dev
+          npm install --include=dev && echo "$$lock_hash" > node_modules/.luml-lock-hash
         else
-          echo "node_modules present; skipping install (delete to force reinstall)"
+          echo "node_modules match package-lock.json; skipping install (delete to force reinstall)"
         fi
     restart: "no"
 

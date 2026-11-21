@@ -6,6 +6,7 @@ import {
 } from 'axios'
 import {
   Compare,
+  Granularity,
   ProfileStatus,
   SectionState,
   Severity,
@@ -55,9 +56,12 @@ interface MockDims {
   window: Window
   compare: Compare
   severity: SeverityFilter
+  granularity: Granularity
   feature: string | null
   start: Date | null
   end: Date | null
+  compareStart: Date | null
+  compareEnd: Date | null
 }
 
 const DEPLOYMENT_ID = 'mock-deployment-1'
@@ -181,10 +185,43 @@ const parseDims = (params: MockParams): MockDims => ({
   severity: Object.values(SeverityFilter).includes(params.severity as SeverityFilter)
     ? (params.severity as SeverityFilter)
     : SeverityFilter.ALL,
+  granularity: Object.values(Granularity).includes(params.granularity as Granularity)
+    ? (params.granularity as Granularity)
+    : Granularity.AUTO,
   feature: params.feature ?? null,
   start: parseDate(params.start),
   end: parseDate(params.end),
+  compareStart: parseDate(params.compare_start),
+  compareEnd: parseDate(params.compare_end),
 })
+
+const isCustomRange = (dims: MockDims) => dims.start !== null && dims.end !== null
+
+const comparisonPeriod = (dims: MockDims): { start: Date; end: Date } | null => {
+  if (dims.compare === Compare.PREVIOUS) {
+    const end = isCustomRange(dims)
+      ? (dims.start as Date)
+      : new Date(nowHour().getTime() - WINDOW_MS[dims.window])
+    const span = isCustomRange(dims)
+      ? (dims.end as Date).getTime() - (dims.start as Date).getTime()
+      : WINDOW_MS[dims.window]
+    return { start: new Date(end.getTime() - span), end }
+  }
+  if (dims.compare === Compare.CUSTOM && dims.compareStart && dims.compareEnd) {
+    return { start: dims.compareStart, end: dims.compareEnd }
+  }
+  return null
+}
+
+const periodKey = (dims: MockDims) => {
+  const period = comparisonPeriod(dims)
+  return period ? `${period.start.toISOString()}:${period.end.toISOString()}` : null
+}
+
+const periodScale = (dims: MockDims) => {
+  const key = periodKey(dims)
+  return key ? 0.85 + seeded(hash(key))() * 0.3 : 1
+}
 
 const nowHour = () => {
   const now = new Date()
@@ -196,8 +233,15 @@ const timeline = (dims: MockDims) => {
   const end = dims.end ?? nowHour()
   const start = dims.start ?? new Date(end.getTime() - WINDOW_MS[dims.window])
   const span = Math.max(end.getTime() - start.getTime(), HOUR_MS)
-  const step = span > 2 * DAY_MS ? DAY_MS : HOUR_MS
-  const count = Math.max(Math.round(span / step), 2)
+  const step =
+    dims.granularity === Granularity.HOUR
+      ? HOUR_MS
+      : dims.granularity === Granularity.DAY
+        ? DAY_MS
+        : span > 2 * DAY_MS
+          ? DAY_MS
+          : HOUR_MS
+  const count = Math.max(Math.ceil(span / Math.min(step, span)), 1)
   return Array.from({ length: count }, (_, index) =>
     new Date(end.getTime() - (count - 1 - index) * step).toISOString(),
   )
@@ -230,25 +274,28 @@ const makeSeries = (
   digits = 4,
 ): Series => {
   const times = timeline(dims)
+  const period = periodKey(dims)
   return {
     key,
     label,
     unit,
     points: makePoints(times, `${key}:${dims.window}`, base, amplitude, digits),
-    baseline:
-      dims.compare === Compare.OFF
-        ? null
-        : makePoints(times, `${key}:${dims.window}:baseline`, base * 0.92, amplitude * 0.6, digits),
+    baseline: period
+      ? makePoints(
+          times,
+          `${key}:${dims.window}:baseline:${period}`,
+          base * 0.92 * periodScale(dims),
+          amplitude * 0.6,
+          digits,
+        )
+      : null,
   }
 }
 
-const filterBySeverity = (alerts: AlertBanner[], filter: SeverityFilter) => {
-  const visible = alerts.filter((alert) => !acknowledged.has(alert.metric))
-  if (filter === SeverityFilter.ALL) return visible
-  if (filter === SeverityFilter.CRITICAL)
-    return visible.filter((alert) => alert.severity === Severity.CRITICAL)
-  return visible.filter((alert) => alert.severity !== Severity.OK)
-}
+const filterBySeverity = (alerts: AlertBanner[], filter: SeverityFilter) =>
+  filter === SeverityFilter.ALL
+    ? alerts
+    : alerts.filter((alert) => (alert.severity as string) === filter)
 
 const featureAlert = (dims: MockDims, feature: MockFeature): AlertBanner => {
   const severity = severityFor(feature.psi, 0.1, 0.25)
@@ -281,77 +328,88 @@ const featureAlert = (dims: MockDims, feature: MockFeature): AlertBanner => {
   }
 }
 
-const allAlerts = (dims: MockDims): AlertBanner[] => [
-  ...FEATURES.filter((feature) => feature.psi >= 0.1).map((feature) => featureAlert(dims, feature)),
-  {
-    group: 'runtime',
-    metric: 'runtime:latency_p95',
-    feature: null,
-    severity: Severity.WARNING,
-    current_value: 412,
-    threshold: 400,
-    message: 'Latency p95 412 ms vs threshold 400 ms',
-    first_seen: new Date(nowHour().getTime() - 2 * HOUR_MS).toISOString(),
-    last_seen: nowHour().toISOString(),
-    label: 'Latency p95',
-    unit: 'ms',
-    value_label: '412 ms',
-    threshold_label: '400 ms',
-    state: 'open',
-    duration_seconds: 2 * 3600,
-    threshold_source: 'custom',
-    history: makeSeries(dims, 'latency_p95', 'Latency p95', 380, 80, 'ms', 0),
-  },
-  {
-    group: 'data_quality',
-    metric: 'data_quality:missing_rate:region',
-    feature: 'region',
-    severity: Severity.CRITICAL,
-    current_value: 0.2,
-    threshold: 0.05,
-    message: 'Missing rate 20% vs threshold 5%',
-    first_seen: new Date(nowHour().getTime() - 12 * HOUR_MS).toISOString(),
-    last_seen: nowHour().toISOString(),
-    label: 'Missing rate',
-    unit: 'ratio',
-    value_label: '20%',
-    threshold_label: '5%',
-    state: 'open',
-    duration_seconds: 12 * 3600,
-    threshold_source: 'default',
-    history: makeSeries(dims, 'missing_region', 'Missing rate · region', 0.18, 0.06, 'ratio'),
-  },
-  {
-    group: 'output_drift',
-    metric: 'output_drift:prediction',
-    feature: null,
-    severity: Severity.CRITICAL,
-    current_value: 0.42,
-    threshold: 0.25,
-    message: 'PSI 0.42 vs threshold 0.25',
-    first_seen: new Date(nowHour().getTime() - 4 * HOUR_MS).toISOString(),
-    last_seen: nowHour().toISOString(),
-    label: 'PSI',
-    unit: 'score',
-    value_label: '0.42',
-    threshold_label: '0.25',
-    state: 'open',
-    duration_seconds: 4 * 3600,
-    threshold_source: 'default',
-    history: makeSeries(dims, 'output_psi', 'Output PSI', 0.38, 0.1, 'score'),
-  },
-]
+const withAckState = (alert: AlertBanner): AlertBanner => ({
+  ...alert,
+  state: acknowledged.has(alert.metric) ? 'acknowledged' : 'open',
+})
 
-const driftedFeatures = (dims: MockDims): DriftedFeature[] =>
-  [...FEATURES]
+const allAlerts = (dims: MockDims): AlertBanner[] =>
+  [
+    ...FEATURES.filter((feature) => feature.psi >= 0.1).map((feature) =>
+      featureAlert(dims, feature),
+    ),
+    {
+      group: 'runtime',
+      metric: 'runtime:latency_p95',
+      feature: null,
+      severity: Severity.WARNING,
+      current_value: 412,
+      threshold: 400,
+      message: 'Latency p95 412 ms vs threshold 400 ms',
+      first_seen: new Date(nowHour().getTime() - 2 * HOUR_MS).toISOString(),
+      last_seen: nowHour().toISOString(),
+      label: 'Latency p95',
+      unit: 'ms',
+      value_label: '412 ms',
+      threshold_label: '400 ms',
+      state: 'open',
+      duration_seconds: 2 * 3600,
+      threshold_source: 'custom',
+      history: makeSeries(dims, 'latency_p95', 'Latency p95', 380, 80, 'ms', 0),
+    },
+    {
+      group: 'data_quality',
+      metric: 'data_quality:missing_rate:region',
+      feature: 'region',
+      severity: Severity.CRITICAL,
+      current_value: 0.2,
+      threshold: 0.05,
+      message: 'Missing rate 20% vs threshold 5%',
+      first_seen: new Date(nowHour().getTime() - 12 * HOUR_MS).toISOString(),
+      last_seen: nowHour().toISOString(),
+      label: 'Missing rate',
+      unit: 'ratio',
+      value_label: '20%',
+      threshold_label: '5%',
+      state: 'open',
+      duration_seconds: 12 * 3600,
+      threshold_source: 'default',
+      history: makeSeries(dims, 'missing_region', 'Missing rate · region', 0.18, 0.06, 'ratio'),
+    },
+    {
+      group: 'output_drift',
+      metric: 'output_drift:prediction',
+      feature: null,
+      severity: Severity.CRITICAL,
+      current_value: 0.42,
+      threshold: 0.25,
+      message: 'PSI 0.42 vs threshold 0.25',
+      first_seen: new Date(nowHour().getTime() - 4 * HOUR_MS).toISOString(),
+      last_seen: nowHour().toISOString(),
+      label: 'PSI',
+      unit: 'score',
+      value_label: '0.42',
+      threshold_label: '0.25',
+      state: 'open',
+      duration_seconds: 4 * 3600,
+      threshold_source: 'default',
+      history: makeSeries(dims, 'output_psi', 'Output PSI', 0.38, 0.1, 'score'),
+    },
+  ].map(withAckState)
+
+const driftedFeatures = (dims: MockDims): DriftedFeature[] => {
+  const hasPeriod = periodKey(dims) !== null
+  const scale = periodScale(dims)
+  return [...FEATURES]
     .sort((a, b) => b.psi - a.psi)
     .map((feature) => ({
       feature: feature.name,
       psi: feature.psi,
       severity: severityFor(feature.psi, 0.1, 0.25),
-      baseline_psi: dims.compare === Compare.OFF ? null : round(feature.psi * 0.7),
-      psi_delta: dims.compare === Compare.OFF ? null : round(feature.psi * 0.3),
+      baseline_psi: hasPeriod ? round(feature.psi * 0.7 * scale) : null,
+      psi_delta: hasPeriod ? round(feature.psi - feature.psi * 0.7 * scale) : null,
     }))
+}
 
 const distributionFor = (feature: MockFeature): FeatureDistribution => {
   const random = seeded(hash(`dist:${feature.name}`))
@@ -380,8 +438,8 @@ const distributionFor = (feature: MockFeature): FeatureDistribution => {
   }
 }
 
-const findFeature = (name: string | null): MockFeature =>
-  FEATURES.find((feature) => feature.name === name) ?? (FEATURES[0] as MockFeature)
+const findFeature = (name: string | null): MockFeature | null =>
+  FEATURES.find((feature) => feature.name === name) ?? null
 
 const ellipse = (cx: number, cy: number, rx: number, ry: number): PcaPoint[] =>
   Array.from({ length: 33 }, (_, index) => {
@@ -399,10 +457,13 @@ const cloud = (seed: string, cx: number, cy: number, spread: number, count: numb
 
 const TRACE_TOTAL = 137
 
+const TRACE_ANCHOR_MS = Date.now()
+
 const traceRows = (dims: MockDims): TraceRow[] => {
-  const random = seeded(hash(`traces:${dims.window}`))
-  const end = (dims.end ?? new Date()).getTime()
-  const span = WINDOW_MS[dims.window]
+  const custom = isCustomRange(dims)
+  const end = custom ? (dims.end as Date).getTime() : TRACE_ANCHOR_MS
+  const span = custom ? end - (dims.start as Date).getTime() : WINDOW_MS[dims.window]
+  const random = seeded(hash(`traces:${dims.window}:${end}:${span}`))
   return Array.from({ length: TRACE_TOTAL }, (_, index) => {
     const roll = random()
     const status = roll > 0.95 ? 'error' : roll > 0.93 ? 'timeout' : 'success'
@@ -410,7 +471,9 @@ const traceRows = (dims: MockDims): TraceRow[] => {
     const age = Math.round(random() * 40)
     return {
       event_id: `evt-${String(index + 1).padStart(5, '0')}`,
-      ts: new Date(end - (index / TRACE_TOTAL) * span - random() * 60_000).toISOString(),
+      ts: new Date(
+        end - (index / TRACE_TOTAL) * span - random() * Math.min(60_000, span / TRACE_TOTAL),
+      ).toISOString(),
       features_summary: `age=${18 + age}, bmi=${round(18 + random() * 20, 1)}, smoker=${random() > 0.7 ? 'yes' : 'no'}`,
       prediction: status === 'success' ? round(2000 + random() * 40000, 2).toString() : null,
       latency_ms: Math.round(status === 'timeout' ? 5000 : 30 + random() * 400),
@@ -422,11 +485,21 @@ const traceRows = (dims: MockDims): TraceRow[] => {
 
 const sortRows = (rows: TraceRow[], sort: TraceSortKey, order: SortOrder) => {
   const direction = order === 'asc' ? 1 : -1
-  const value = (row: TraceRow) =>
-    sort === 'latency' ? row.latency_ms : sort === 'status' ? row.status : row.ts
-  return [...rows].sort((a, b) =>
-    value(a) > value(b) ? direction : value(a) < value(b) ? -direction : 0,
-  )
+  const keys = (row: TraceRow): (number | string)[] =>
+    sort === 'latency'
+      ? [row.latency_ms, row.ts]
+      : sort === 'status'
+        ? [row.status_code ?? 0, row.ts]
+        : [row.ts]
+  const compare = (a: (number | string)[], b: (number | string)[]): number => {
+    for (const [index, left] of a.entries()) {
+      const right = b[index] as number | string
+      if (left > right) return direction
+      if (left < right) return -direction
+    }
+    return 0
+  }
+  return [...rows].sort((a, b) => compare(keys(a), keys(b)) || compare([a.event_id], [b.event_id]))
 }
 
 const traceSpans = (row: TraceRow): TraceSpan[] => {
@@ -492,13 +565,14 @@ const header = (): HeaderResponse => ({
 const overview = (dims: MockDims): OverviewResponse => {
   const alerts = filterBySeverity(allAlerts(dims), dims.severity)
   const drifted = driftedFeatures(dims).filter((feature) => feature.severity !== Severity.OK)
-  const delta = dims.compare === Compare.OFF ? null : dims.compare
+  const delta = periodKey(dims) ? dims.compare : null
+  const scale = periodScale(dims)
   const cards: Card[] = [
     {
       key: 'requests',
       label: 'Requests',
       value: 12430,
-      delta: delta ? 340 : null,
+      delta: delta ? Math.round(12430 - 12090 * scale) : null,
       delta_kind: delta,
     },
     {
@@ -506,7 +580,7 @@ const overview = (dims: MockDims): OverviewResponse => {
       label: 'Error rate',
       value: 0.0484,
       unit: 'ratio',
-      delta: delta ? 0.006 : null,
+      delta: delta ? round(0.0484 - 0.0398 * scale) : null,
       delta_kind: delta,
       severity: Severity.WARNING,
     },
@@ -515,7 +589,7 @@ const overview = (dims: MockDims): OverviewResponse => {
       label: 'Latency p95',
       value: 412,
       unit: 'ms',
-      delta: delta ? 38 : null,
+      delta: delta ? Math.round(412 - 374 * scale) : null,
       delta_kind: delta,
       severity: Severity.WARNING,
     },
@@ -550,6 +624,24 @@ const overview = (dims: MockDims): OverviewResponse => {
   }
 }
 
+const runtimeBaseline = (dims: MockDims): RuntimeResponse['baseline'] => {
+  const period = comparisonPeriod(dims)
+  if (!period) return null
+  const scale = periodScale(dims)
+  return {
+    start: period.start.toISOString(),
+    end: period.end.toISOString(),
+    request_count: Math.round(12090 * scale),
+    success_rate: round(Math.min(1 - 0.0398 * scale, 1)),
+    error_rate: round(0.0398 * scale),
+    latency_p50_ms: Math.round(40 * scale),
+    latency_p95_ms: Math.round(374 * scale),
+    latency_max_ms: Math.round(4200 * scale),
+    timeout_count: Math.round(22 * scale),
+    failed_inference_count: Math.round(98 * scale),
+  }
+}
+
 const runtime = (dims: MockDims): RuntimeResponse => ({
   state: SectionState.OK,
   profile_status: ProfileStatus.READY,
@@ -569,21 +661,7 @@ const runtime = (dims: MockDims): RuntimeResponse => ({
     { status: 'failed_inference', status_code: 500, count: 120, share: 0.0097 },
     { status: 'timeout', status_code: 504, count: 31, share: 0.0024 },
   ],
-  baseline:
-    dims.compare === Compare.OFF
-      ? null
-      : {
-          start: new Date(nowHour().getTime() - 2 * WINDOW_MS[dims.window]).toISOString(),
-          end: new Date(nowHour().getTime() - WINDOW_MS[dims.window]).toISOString(),
-          request_count: 12090,
-          success_rate: 0.9602,
-          error_rate: 0.0398,
-          latency_p50_ms: 40,
-          latency_p95_ms: 374,
-          latency_max_ms: 4200,
-          timeout_count: 22,
-          failed_inference_count: 98,
-        },
+  baseline: runtimeBaseline(dims),
   series: [
     makeSeries(dims, 'requests', 'Requests', 520, 180, null, 0),
     makeSeries(dims, 'error_rate', 'Error rate', 0.045, 0.03, 'ratio'),
@@ -595,7 +673,7 @@ const runtime = (dims: MockDims): RuntimeResponse => ({
   ),
 })
 
-const dataQualityRow = (feature: MockFeature): DataQualityFeatureRow => {
+const dataQualityRow = (feature: MockFeature, scale: number | null): DataQualityFeatureRow => {
   const checked = 12430
   const worst = Math.max(feature.missingRate, feature.typeErrorRate, feature.rangeRate)
   const unseen = feature.kind === 'categorical' ? feature.rangeRate : 0
@@ -609,9 +687,9 @@ const dataQualityRow = (feature: MockFeature): DataQualityFeatureRow => {
     unseen_category_rate: feature.kind === 'categorical' ? unseen : null,
     checked,
     status: severityFor(worst, 0.02, 0.1),
-    missing_delta: round(feature.missingRate * 0.2),
-    type_error_delta: round(feature.typeErrorRate * 0.1),
-    range_unseen_delta: round(feature.rangeRate * 0.15),
+    missing_delta: scale === null ? null : round(feature.missingRate * 0.2 * scale),
+    type_error_delta: scale === null ? null : round(feature.typeErrorRate * 0.1 * scale),
+    range_unseen_delta: scale === null ? null : round(feature.rangeRate * 0.15 * scale),
     invalid: {
       missing_count: Math.round(checked * feature.missingRate),
       type_mismatch_count: Math.round(checked * feature.typeErrorRate),
@@ -640,15 +718,31 @@ const dataQualityRow = (feature: MockFeature): DataQualityFeatureRow => {
   }
 }
 
+const dataQualityTrends = (dims: MockDims, feature: MockFeature | null): Series[] => {
+  if (!feature) return []
+  const times = timeline(dims)
+  const trend = (key: string, label: string, rate: number): Series => ({
+    key,
+    label,
+    unit: 'ratio',
+    points: makePoints(times, `quality:${key}:${feature.name}:${dims.window}`, rate, rate * 0.6),
+  })
+  return [
+    trend('missing', 'Missing', feature.missingRate),
+    trend('type_mismatch', 'Type errors', feature.typeErrorRate),
+    feature.kind === 'numeric'
+      ? trend('range_violation', 'Out of range', feature.rangeRate)
+      : trend('unseen_category', 'Unseen categories', feature.rangeRate),
+  ]
+}
+
 const dataQuality = (dims: MockDims): DataQualityResponse => ({
   state: SectionState.OK,
   profile_status: ProfileStatus.READY,
-  features: FEATURES.map(dataQualityRow),
-  trends: [
-    makeSeries(dims, 'missing_rate', 'Missing rate', 0.03, 0.02, 'ratio'),
-    makeSeries(dims, 'type_error_rate', 'Type error rate', 0.008, 0.006, 'ratio'),
-    makeSeries(dims, 'range_unseen_rate', 'Out of range / unseen', 0.02, 0.015, 'ratio'),
-  ],
+  features: FEATURES.filter(
+    (feature) => dims.feature === null || feature.name === dims.feature,
+  ).map((feature) => dataQualityRow(feature, periodKey(dims) ? periodScale(dims) : null)),
+  trends: dims.feature === null ? [] : dataQualityTrends(dims, findFeature(dims.feature)),
   alerts: filterBySeverity(allAlerts(dims), dims.severity).filter(
     (alert) => alert.group === 'data_quality',
   ),
@@ -673,11 +767,12 @@ const featureDriftDetail = (dims: MockDims, feature: MockFeature): FeatureDriftD
 
 const featureDrift = (dims: MockDims): FeatureDriftResponse => {
   const features = driftedFeatures(dims)
+  const selected = findFeature(dims.feature)
   return {
     state: SectionState.OK,
     profile_status: ProfileStatus.READY,
     features,
-    selected: featureDriftDetail(dims, findFeature(dims.feature ?? features[0]?.feature ?? null)),
+    selected: selected ? featureDriftDetail(dims, selected) : null,
     multivariate: {
       state: SectionState.OK,
       status: Severity.WARNING,
@@ -707,8 +802,8 @@ const outputDrift = (dims: MockDims): OutputDriftResponse => ({
   name: 'charges',
   kind: 'numeric',
   psi: 0.42,
-  baseline_psi: dims.compare === Compare.OFF ? null : 0.18,
-  psi_delta: dims.compare === Compare.OFF ? null : 0.24,
+  baseline_psi: periodKey(dims) ? round(0.18 * periodScale(dims)) : null,
+  psi_delta: periodKey(dims) ? round(0.42 - 0.18 * periodScale(dims)) : null,
   severity: Severity.CRITICAL,
   count: 11828,
   distribution: distributionFor({
@@ -779,7 +874,7 @@ const referenceProfile = (dims: MockDims): ReferenceProfileResponse => {
     baseline_label: 'training set (2026-01-05)',
     computed_at: '2026-01-05T12:00:00Z',
     features: FEATURES.map((item) => item.name),
-    feature: referenceFeature(feature),
+    feature: feature ? referenceFeature(feature) : null,
     document: {
       profile_status: 'ready',
       task_type: 'regression',
