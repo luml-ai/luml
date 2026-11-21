@@ -140,7 +140,7 @@ async def test_settings_write_what_a_panel_renders_without_journaling(
         threshold = await api.settings_set({"eager_cost_threshold_s": 30})
 
         after = len(transactions(session))
-        reread = api.hub.open(session.ref).store.manifest.settings
+        reread = (await api.hub.open(session.ref)).store.manifest.settings
 
     assert written["settings"] == {
         "reactivity": "lazy",

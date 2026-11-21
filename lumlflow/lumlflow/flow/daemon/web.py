@@ -199,12 +199,14 @@ async def _read(
         if not isinstance(message, dict):
             continue
         try:
-            subscription.replay(_subscribed(hub, api, streams, subscription, message))
+            subscription.replay(
+                await _subscribed(hub, api, streams, subscription, message)
+            )
         except FlowError as failure:
             subscription.offer({"type": "error", "message": str(failure)})
 
 
-def _subscribed(
+async def _subscribed(
     hub: Hub,
     api: Api,
     streams: Streams,
@@ -225,7 +227,7 @@ def _subscribed(
     try:
         session = hub.session(named)
     except FlowNotFound:
-        session = hub.open(api.resolve(named))
+        session = await hub.open(api.resolve(named))
     session.touch()
     flow = session.ref.address
     if channel == "logs":

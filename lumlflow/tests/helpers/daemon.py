@@ -212,6 +212,10 @@ async def daemon_api(
         await hub.close()
 
 
+async def opened(api: Api, name: str) -> FlowSession:
+    return await api.hub.open(api.resolve(name))
+
+
 def transactions(session: FlowSession) -> list[Transaction]:
     return list(session.store.journal.replay())
 

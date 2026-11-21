@@ -1,11 +1,16 @@
 import asyncio
+import threading
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
+import pytest
+from lumlflow.flow.daemon import hub as hub_module
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import FlowSession, Hub
 from lumlflow.flow.daemon.reconcile import MIXED_EDITING
 from lumlflow.flow.daemon.watcher import Watcher, Watches, WatchSet
+from lumlflow.flow.dsl.tree import WorkspaceTree, scan_workspace
 from lumlflow.flow.store.flowstore import manifest_path, store_dir
 from lumlflow.flow.store.models import FlagSet
 
@@ -13,6 +18,7 @@ from tests.helpers.daemon import (
     SCORE_CELL,
     daemon_api,
     make_workspace,
+    opened,
     slice_of,
     transactions,
     write_cell,
@@ -151,7 +157,7 @@ async def test_a_second_flow_in_the_workspace_adds_no_second_watch(tmp_path: Pat
     async with daemon_api(root) as api:
         await api.flow_open({"flow": "churn"})
         watcher = Watcher(api.hub, debounce_s=_DEBOUNCE_S)
-        watcher.start()
+        await watcher.start()
         try:
             await api.flow_open({"flow": "sales"})
             shared = list(api.hub.watches.roots())
@@ -171,10 +177,10 @@ async def test_an_edit_to_one_flow_leaves_its_neighbour_alone(tmp_path: Path):
 
     async with daemon_api(root) as api:
         await api.status({})
-        churn, sales = api.hub.session("churn"), api.hub.session("sales")
+        churn, sales = await opened(api, "churn"), await opened(api, "sales")
         before = len(transactions(sales))
         watcher = Watcher(api.hub, debounce_s=_DEBOUNCE_S)
-        watcher.start()
+        await watcher.start()
         try:
             write_cell(root / "churn.flow", "score", SCORE_CELL.replace("0.91", "0.93"))
             await _until(lambda: "0.93" in _stored(churn))
@@ -192,10 +198,10 @@ async def test_a_data_file_nobody_declared_wakes_nobody(tmp_path: Path):
 
     async with daemon_api(root) as api:
         await api.status({})
-        sessions = [api.hub.session(name) for name in FLOWS]
+        sessions = [await opened(api, name) for name in FLOWS]
         before = [len(transactions(session)) for session in sessions]
         watcher = Watcher(api.hub, debounce_s=_DEBOUNCE_S)
-        watcher.start()
+        await watcher.start()
         try:
             write_file(root / "raw.csv", "id,label\n1,0\n")
             write_file(root / "notes.txt", "nothing to do with any flow")
@@ -217,7 +223,8 @@ async def test_a_broken_flow_yaml_does_not_cost_its_neighbour_its_wake(
 
     async with daemon_api(root) as api:
         await api.status({})
-        sales = api.hub.session("sales")
+        await opened(api, "churn")
+        sales = await opened(api, "sales")
         watcher = Watcher(api.hub, debounce_s=600)
         write_file(
             manifest_path(root / "churn.flow"),
@@ -241,7 +248,7 @@ async def test_a_flow_nobody_opened_is_not_opened_by_an_event(tmp_path: Path):
     async with daemon_api(root) as api:
         await api.flow_open({"flow": "churn"})
         watcher = Watcher(api.hub, debounce_s=_DEBOUNCE_S)
-        watcher.start()
+        await watcher.start()
         try:
             write_cell(root / "sales.flow", "score", SCORE_CELL.replace("0.91", "0.93"))
             await asyncio.sleep(_DEBOUNCE_S * 10)
@@ -263,7 +270,7 @@ async def test_an_outside_flows_own_cell_edit_reaches_its_session(tmp_path: Path
         session = api.hub.attached(outside)
         assert session is not None
         watcher = Watcher(api.hub, debounce_s=_DEBOUNCE_S)
-        watcher.start()
+        await watcher.start()
         try:
             write_cell(outside, "score", SCORE_CELL.replace("0.91", "0.93"))
             await _until(lambda: "0.93" in _stored(session))
@@ -288,7 +295,7 @@ async def test_an_outside_flow_takes_its_own_helpers_and_not_the_launch_ones(
         session = api.hub.attached(outside)
         assert session is not None
         watcher = Watcher(api.hub, debounce_s=_DEBOUNCE_S)
-        watcher.start()
+        await watcher.start()
         try:
             write_file(root / "helpers.py", "AUC = 2")
             await _until(lambda: _code_changes(api, "churn") == [["helpers.py"]])
@@ -313,7 +320,7 @@ async def test_an_edit_burst_lands_as_one_transaction_once_it_quiets(
         session = api.hub.session("churn")
         before = len(transactions(session))
         watcher = Watcher(api.hub, debounce_s=_DEBOUNCE_S)
-        watcher.start()
+        await watcher.start()
         try:
             for slug in ("alpha", "beta", "gamma"):
                 write_cell(flow, slug, SCORE_CELL.replace("Score", slug.title()))
@@ -342,7 +349,7 @@ async def test_a_real_event_reaches_the_store_without_anyone_asking(
         await api.flow_open({"flow": "churn"})
         session = api.hub.session("churn")
         watcher = Watcher(api.hub, debounce_s=_DEBOUNCE_S)
-        watcher.start()
+        await watcher.start()
         try:
             write_cell(flow, "score", SCORE_CELL.replace("0.91", "0.93"))
             await _until(lambda: "0.93" in _stored(session))
@@ -366,7 +373,7 @@ async def test_a_watched_helper_edit_reaches_every_flow_in_the_workspace(
         for name in FLOWS:
             await api.flow_open({"flow": name, "worktree": False})
         watcher = Watcher(api.hub, debounce_s=_DEBOUNCE_S)
-        watcher.start()
+        await watcher.start()
         try:
             write_file(root / "helpers.py", "AUC = 2")
             await _until(lambda: all(_code_changes(api, name) for name in FLOWS))
@@ -390,7 +397,7 @@ async def test_a_watched_edit_during_an_agent_session_is_flagged_uncertain(
         session = api.hub.session("churn")
         before = len(transactions(session))
         watcher = Watcher(api.hub, debounce_s=_DEBOUNCE_S)
-        watcher.start()
+        await watcher.start()
         try:
             write_cell(flow, "score", SCORE_CELL.replace("0.91", "0.93"))
             await _until(lambda: len(transactions(session)) > before)
@@ -419,7 +426,7 @@ async def test_a_watched_edit_with_two_registered_agents_belongs_to_user(
         session = api.hub.session("churn")
         before = len(transactions(session))
         watcher = Watcher(api.hub, debounce_s=_DEBOUNCE_S)
-        watcher.start()
+        await watcher.start()
         try:
             write_cell(flow, "score", SCORE_CELL.replace("0.91", "0.93"))
             await _until(lambda: len(transactions(session)) > before)
@@ -437,7 +444,7 @@ async def test_reading_the_workspace_wakes_nobody(tmp_path: Path) -> None:
     async with daemon_api(root) as api:
         await api.flow_open({"flow": "churn"})
         watcher = _CountingWatcher(api.hub, debounce_s=_DEBOUNCE_S)
-        watcher.start()
+        await watcher.start()
         try:
             for path in sorted(root.rglob("*.py")):
                 path.read_bytes()
@@ -456,7 +463,7 @@ async def test_a_scan_does_not_wake_the_next_scan(tmp_path: Path) -> None:
         await api.flow_open({"flow": "churn"})
         session = api.hub.session("churn")
         watcher = _CountingWatcher(api.hub, debounce_s=_DEBOUNCE_S)
-        watcher.start()
+        await watcher.start()
         try:
             await api.hub.quiesce(session)
             await _barrier(watcher, root)
@@ -473,7 +480,7 @@ async def test_a_write_wakes_exactly_one_flush(tmp_path: Path) -> None:
     async with daemon_api(root) as api:
         await api.flow_open({"flow": "churn"})
         watcher = _CountingWatcher(api.hub, debounce_s=_DEBOUNCE_S)
-        watcher.start()
+        await watcher.start()
         try:
             write_file(root / "helpers.py", "AUC = 2")
             await _until(lambda: watcher.flushes == 1 and _settled(watcher))
@@ -482,6 +489,43 @@ async def test_a_write_wakes_exactly_one_flush(tmp_path: Path) -> None:
             await watcher.stop()
 
     assert (watcher.flushes, watcher.woken) == (1, set())
+
+
+async def test_an_edit_during_a_scan_brings_exactly_one_more_scan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project", files=_HELPERS)
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+    entered, release = threading.Event(), threading.Event()
+    scans: list[Path] = []
+
+    def held_scan(workspace_dir: Path, **kwargs: Any) -> WorkspaceTree:
+        scans.append(workspace_dir)
+        entered.set()
+        release.wait(_DELIVERY_TIMEOUT_S)
+        return scan_workspace(workspace_dir, **kwargs)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        watcher = _CountingWatcher(api.hub, debounce_s=_DEBOUNCE_S)
+        await watcher.start()
+        monkeypatch.setattr(hub_module, "scan_workspace", held_scan)
+        try:
+            write_file(root / "helpers.py", "AUC = 2")
+            assert await asyncio.to_thread(entered.wait, _DELIVERY_TIMEOUT_S)
+            write_file(root / "helpers.py", "AUC = 3")
+            write_file(root / "lib/io.py", "N = 2")
+            await _barrier(watcher, root, settled=False)
+            release.set()
+            await _until(lambda: len(scans) == 2 and _settled(watcher))
+            await _barrier(watcher, root)
+        finally:
+            release.set()
+            await watcher.stop()
+        changes = _code_changes(api, "churn")
+
+    assert (len(scans), watcher.flushes) == (2, 2)
+    assert changes == [["helpers.py", "lib/io.py"]]
 
 
 FLOWS = ("churn", "sales")
@@ -511,11 +555,17 @@ def _settled(watcher: Watcher) -> bool:
     return watcher._timer is None or watcher._timer.done()
 
 
-async def _barrier(watcher: _CountingWatcher, root: Path) -> None:
+async def _barrier(
+    watcher: _CountingWatcher, root: Path, *, settled: bool = True
+) -> None:
     """Wait until an event written now has been noticed: inotify delivers in
     order, so everything the steps before it caused has been noticed too."""
     marker = write_file(root / f"barrier-{len(watcher.noticed)}.txt", "-")
-    await _until(lambda: marker.resolve() in watcher.noticed and _settled(watcher))
+    await _until(
+        lambda: (
+            marker.resolve() in watcher.noticed and (not settled or _settled(watcher))
+        )
+    )
 
 
 def _outside_flow(

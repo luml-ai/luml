@@ -1,8 +1,12 @@
 import asyncio
+import contextlib
 import logging
 import shutil
+import threading
 import time
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +24,7 @@ from lumlflow.flow.daemon.stream import StateName, Streams
 from lumlflow.flow.daemon.watcher import Watches, WatchSet
 from lumlflow.flow.daemon.workspace import FlowRef
 from lumlflow.flow.dsl.accept import Acceptance
+from lumlflow.flow.dsl.tree import WorkspaceTree, scan_workspace
 from lumlflow.flow.errors import (
     FlowAlreadyExists,
     FlowAmbiguous,
@@ -151,6 +156,12 @@ class Hub:
             self._experiment_deleted
         )
         self.watches = Watches()
+        # A scan runs on `_scanner`'s threads and touches nothing but the disk;
+        # what it found is applied here, on the loop, under the workspace's lock.
+        self._scanner = ThreadPoolExecutor(thread_name_prefix="lumlflow-scan")
+        self._scan_locks: dict[Path, asyncio.Lock] = {}
+        self._stopping = threading.Event()
+        self._opening: dict[Path, asyncio.Event] = {}
 
     def flows(self) -> list[FlowRef]:
         return sorted(
@@ -238,7 +249,7 @@ class Hub:
                 and _is_flow(ref.path)
             ]
             if len(refs) == 1:
-                return self.open(refs[0])
+                raise FlowNotFound(f"`{name}` is not open")
             if len(refs) > 1:
                 # Not found rather than ambiguous: a caller with a directory to
                 # resolve against can still tell these apart.
@@ -251,11 +262,13 @@ class Hub:
             raise FlowError(f"`{name}` names more than one open flow: {paths}")
         return matches[0]
 
-    def open(self, ref: FlowRef, *, actor: str | None = None) -> FlowSession:
+    async def open(self, ref: FlowRef, *, actor: str | None = None) -> FlowSession:
         self._remember_loop()
         session = self._sessions.get(ref.path)
         if session is not None:
             session.touch()
+            if (opening := self._opening.get(ref.path)) is not None:
+                await opening.wait()
             return session
         store = (
             FlowStore.open(ref.path)
@@ -266,10 +279,11 @@ class Hub:
         # its order, and flow.yaml starts mirroring the root lane's.
         store.ensure_lane_orders_fixed()
         session = self._session(ref, store)
-        reconciliation.sync_workspace_code(session.workspace_dir, [session])
-        envs.sync(session.workspace_dir, [session])
-        session.reconcile(tier="cold", actor=actor)
-        session.reactor.arm()
+        async with self._first_scan(session) as tree:
+            reconciliation.sync_workspace_code(tree, [session])
+            envs.sync(session.workspace_dir, [session])
+            session.reconcile(tier="cold", actor=actor)
+            session.reactor.arm()
         return session
 
     def attached(self, path: Path) -> FlowSession | None:
@@ -324,28 +338,54 @@ class Hub:
         materialization imports it, or the cache is poisoned with a value
         computed from code the hash no longer describes.
         """
-        workspace_changed = bool(
-            reconciliation.sync_workspace_code(session.workspace_dir, [session])
-        )
-        if workspace_changed:
-            session.kernel.evict_workspace_modules()
-        # For a cell that did not opt in, the env is recorded, never acted on:
-        # a run that starts after an install records the pins it ran under, and
-        # the kernel keeps the modules it already imported until somebody
-        # restarts it. An env-sensitive cell is the exception: it goes stale.
-        env_changed = envs.sync(session.workspace_dir, [session])
-        moved = session.reconcile(tier=tier, actor=actor).moved
-        if workspace_changed or env_changed or moved:
-            session.reactor.arm()
+        async with self._scan_lock(session.workspace_dir):
+            tree = await self._scan(session.workspace_dir)
+            workspace_changed = bool(
+                reconciliation.sync_workspace_code(tree, [session])
+            )
+            if workspace_changed:
+                session.kernel.evict_workspace_modules()
+            # For a cell that did not opt in, the env is recorded, never acted
+            # on: a run that starts after an install records the pins it ran
+            # under, and the kernel keeps the modules it already imported until
+            # somebody restarts it. An env-sensitive cell is the exception: it
+            # goes stale.
+            env_changed = envs.sync(session.workspace_dir, [session])
+            moved = session.reconcile(tier=tier, actor=actor).moved
+            if workspace_changed or env_changed or moved:
+                session.reactor.arm()
 
-    def init_flow(self, directory: Path, name: str) -> FlowSession:
+    async def init_flow(self, directory: Path, name: str) -> FlowSession:
         ref = _new_flow_ref(directory.resolve(), name)
         if ref.path.exists():
             raise FlowAlreadyExists(f"`{ref.relpath}` already exists")
         store = FlowStore.init(ref.path, name=ref.name)
         session = self._session(ref, store)
-        reconciliation.sync_workspace_code(session.workspace_dir, [session])
+        async with self._first_scan(session) as tree:
+            reconciliation.sync_workspace_code(tree, [session])
         return session
+
+    @contextlib.asynccontextmanager
+    async def _first_scan(self, session: FlowSession) -> AsyncGenerator[WorkspaceTree]:
+        """A new session's first look at its workspace, once its watch is in
+        place; anyone opening it meanwhile waits for the look to finish."""
+        path = session.ref.path
+        opening = self._opening[path] = asyncio.Event()
+        try:
+            async with self._scan_lock(session.workspace_dir):
+                await self.watches.settled()
+                yield await self._scan(session.workspace_dir)
+        finally:
+            del self._opening[path]
+            opening.set()
+
+    def _scan_lock(self, workspace_dir: Path) -> asyncio.Lock:
+        return self._scan_locks.setdefault(workspace_dir, asyncio.Lock())
+
+    async def _scan(self, workspace_dir: Path) -> WorkspaceTree:
+        return await asyncio.wrap_future(
+            self._scanner.submit(scan_workspace, workspace_dir, stopping=self._stopping)
+        )
 
     def _session(self, ref: FlowRef, store: FlowStore) -> FlowSession:
         self._remember_loop()
@@ -443,6 +483,10 @@ class Hub:
 
     async def close(self) -> None:
         self._closed = True
+        self._stopping.set()
+        await asyncio.to_thread(
+            partial(self._scanner.shutdown, wait=True, cancel_futures=True)
+        )
         self._unsubscribe_tracker()
         for session in list(self._sessions.values()):
             self.watches.release(session.watch.root)

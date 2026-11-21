@@ -98,7 +98,7 @@ async def test_the_hub_stamps_state_without_journaling_it(tmp_path: Path) -> Non
     streams = Streams()
     hub = Hub(streams=streams)
     try:
-        session = hub.init_flow(tmp_path, "churn")
+        session = await hub.init_flow(tmp_path, "churn")
         watching = streams.subscribe()
         watching.journals.add(session.ref.address)
         journal_before = list(session.store.journal.replay())

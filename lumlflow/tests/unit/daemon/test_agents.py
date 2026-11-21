@@ -2,6 +2,7 @@ import json
 import stat
 from pathlib import Path
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 from lumlflow import __version__
@@ -372,7 +373,7 @@ async def test_daemon_start_runs_the_agent_sync_pass(
         return []
 
     monkeypatch.setattr(daemon.api, "sync_agents", sync_agents)
-    monkeypatch.setattr(daemon.watcher, "start", lambda: None)
+    monkeypatch.setattr(daemon.watcher, "start", AsyncMock(return_value=None))
     monkeypatch.setattr(daemon, "_serve_web", lambda listener: listener.close())
 
     await daemon.serve(web_port=0, announce=lambda _record: daemon.stop())

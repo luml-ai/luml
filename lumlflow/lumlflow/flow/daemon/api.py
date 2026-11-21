@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 import os
 import shutil
@@ -23,6 +24,7 @@ from lumlflow.flow.errors import (
     CellClaimed,
     EditConflict,
     FlowError,
+    FlowNotFound,
     LaneMoved,
     ValueNotStored,
 )
@@ -338,14 +340,14 @@ class Api:
 
     async def flow_init(self, params: dict[str, Any]) -> dict[str, Any]:
         name = str(params.get("name") or "")
-        session = self.hub.init_flow(self._directory(params), name)
+        session = await self.hub.init_flow(self._directory(params), name)
         return await self._flow_brief(session) | {
             "warnings": list(session.store.warnings)
         }
 
     async def flow_open(self, params: dict[str, Any]) -> dict[str, Any]:
         ref = self.resolve(_flow_name(params), directory=self._directory(params))
-        session = self.hub.open(ref, actor=_actor(params))
+        session = await self.hub.open(ref, actor=_actor(params))
         session.experiment_states.clear()
         if params.get("worktree", True):
             await self.hub.quiesce(session, actor=_actor(params))
@@ -355,7 +357,7 @@ class Api:
 
     async def flow_checkout(self, params: dict[str, Any]) -> dict[str, Any]:
         actor = _actor(params)
-        session = self._session(params, actor=actor)
+        session = await self._session(params, actor=actor)
         await self.hub.quiesce(session, actor=actor)
         projection = session.worktree.checkout(
             params.get("branch"),
@@ -376,7 +378,7 @@ class Api:
 
     async def flow_duplicate(self, params: dict[str, Any]) -> dict[str, Any]:
         actor = _actor(params)
-        session = self._session(params, actor=actor)
+        session = await self._session(params, actor=actor)
         await self.hub.quiesce(session, actor=actor)
         duplicated = await self.hub.duplicate_flow(
             session.ref, str(params.get("name") or "")
@@ -547,7 +549,7 @@ class Api:
         source = str(params.get("source") or "")
         if not source.strip():
             raise FlowError(f"`{slug}` cannot be edited with empty source")
-        session = self._session(params, actor=_actor(params))
+        session = await self._session(params, actor=_actor(params))
         await self.hub.quiesce(session, actor=_actor(params))
         branch = _branch(session, params)
         head = queries.head(session, branch, slug)
@@ -917,7 +919,7 @@ class Api:
 
     async def switch(self, params: dict[str, Any]) -> dict[str, Any]:
         actor = _actor(params)
-        session = self._session(params, actor=actor)
+        session = await self._session(params, actor=actor)
         await self.hub.quiesce(session, actor=actor)
         projection = session.worktree.checkout(
             str(params.get("branch") or ""),
@@ -928,7 +930,7 @@ class Api:
 
     async def rewind(self, params: dict[str, Any]) -> dict[str, Any]:
         actor = _actor(params)
-        session = self._session(params, actor=actor)
+        session = await self._session(params, actor=actor)
         await self.hub.quiesce(session, actor=actor)
         branch = _branch(session, params)
         result = session.store.branches.rewind(
@@ -983,7 +985,7 @@ class Api:
 
     async def adopt(self, params: dict[str, Any]) -> dict[str, Any]:
         actor = _actor(params)
-        session = self._session(params, actor=actor)
+        session = await self._session(params, actor=actor)
         await self.hub.quiesce(session, actor=actor)
         branch = _branch(session, params)
         force = bool(params.get("force"))
@@ -1015,7 +1017,7 @@ class Api:
         } | _projection(self._reproject(session, branch))
 
     async def agent_begin(self, params: dict[str, Any]) -> dict[str, Any]:
-        session = self._session(params)
+        session = await self._session(params)
         label = str(params.get("label") or params.get("actor") or "agent")
         actor = str(params.get("actor") or label)
         if params.get("lease"):
@@ -1036,7 +1038,7 @@ class Api:
 
     async def agent_end(self, params: dict[str, Any]) -> dict[str, Any]:
         actor = str(params.get("actor") or "")
-        session = self._session(
+        session = await self._session(
             params,
             actor=actor if actor not in {"", "user"} else None,
         )
@@ -1069,11 +1071,11 @@ class Api:
         )
 
     async def settings_get(self, params: dict[str, Any]) -> dict[str, Any]:
-        session = self._session(params, actor=_actor(params))
+        session = await self._session(params, actor=_actor(params))
         return _settings_report(session)
 
     async def settings_set(self, params: dict[str, Any]) -> dict[str, Any]:
-        session = self._session(params, actor=_actor(params))
+        session = await self._session(params, actor=_actor(params))
         settings = session.store.manifest.settings
         reactivity = params.get("reactivity")
         threshold = params.get("eager_cost_threshold_s")
@@ -1151,7 +1153,7 @@ class Api:
         return _preflight(session.planner.preflight(*targets, branch=branch))
 
     async def cancel(self, params: dict[str, Any]) -> dict[str, Any]:
-        session = self._session(params, actor=_actor(params))
+        session = await self._session(params, actor=_actor(params))
         branch = _branch(session, params)
         left = session.queue.abandon(branch)
         return {
@@ -1162,7 +1164,7 @@ class Api:
         }
 
     async def kernel_restart(self, params: dict[str, Any]) -> dict[str, Any]:
-        session = self._session(params, actor=_actor(params))
+        session = await self._session(params, actor=_actor(params))
         handshake = await session.kernel.restart()
         session.kernel_epoch_step = session.store.next_step
         session.reactor.arm()
@@ -1172,7 +1174,7 @@ class Api:
         }
 
     async def journal_since(self, params: dict[str, Any]) -> dict[str, Any]:
-        session = self._session(params, actor=_actor(params))
+        session = await self._session(params, actor=_actor(params))
         entries = [
             entry.model_dump(mode="json")
             for entry in session.store.journal.since(
@@ -1248,16 +1250,30 @@ class Api:
             and not _subscribers(session)
         )
 
-    def _session(
+    async def _session(
         self,
         params: dict[str, Any],
         *,
         actor: str | None = None,
     ) -> FlowSession:
         ref = self.resolve(_flow_name(params), directory=self._directory(params))
-        session = self.hub.open(ref, actor=actor)
+        session = await self.hub.open(ref, actor=actor)
         session.store.refresh_manifest()
         return session
+
+    def _attached_session(self, params: dict[str, Any]) -> FlowSession:
+        ref = self.resolve(_flow_name(params), directory=self._directory(params))
+        session = self.hub.attached(ref.path)
+        if session is None:
+            raise FlowNotFound(f"`{ref.name}` is not open")
+        session.store.refresh_manifest()
+        return session
+
+    async def attach(self, params: dict[str, Any]) -> None:
+        """Open the flow a call names before the hooks around it look for it:
+        opening scans, so it cannot happen inside them."""
+        with contextlib.suppress(FlowError):
+            await self._session(params, actor=_actor(params))
 
     def _directory(self, params: dict[str, Any]) -> Path:
         asked = params.get("directory")
@@ -1267,12 +1283,14 @@ class Api:
         return directory
 
     async def _read(self, params: dict[str, Any]) -> tuple[FlowSession, str]:
-        session = self._session(params, actor=_actor(params))
+        session = await self._session(params, actor=_actor(params))
         await self.hub.quiesce(session, actor=_actor(params))
         return session, _branch(session, params)
 
     async def _flow_status(self, ref: FlowRef, *, actor: str) -> dict[str, Any]:
-        return await self._session_status(self.hub.open(ref, actor=actor), actor=actor)
+        return await self._session_status(
+            await self.hub.open(ref, actor=actor), actor=actor
+        )
 
     async def _listed_status(self, ref: FlowRef, *, actor: str) -> dict[str, Any]:
         """A flow as a listing reports it: in full if it is open, and only by
@@ -1385,7 +1403,7 @@ class Api:
             return
         actor = _actor(params)
         try:
-            session = self._session(params, actor=actor)
+            session = self._attached_session(params)
             branch = _branch(session, params)
             row = session.store.branches.get(branch)
         except FlowError:
@@ -1418,7 +1436,7 @@ class Api:
             return
         actor = _actor(params)
         try:
-            session = self._session(params, actor=actor)
+            session = self._attached_session(params)
             row = session.store.branches.get(_branch(session, params))
         except FlowError:
             return
@@ -1437,7 +1455,7 @@ class Api:
             return
         actor = _actor(params)
         try:
-            session = self._session(params, actor=actor)
+            session = self._attached_session(params)
             branch = _branch(session, params)
             row = session.store.branches.get(branch)
         except FlowError:
@@ -1490,7 +1508,7 @@ class Api:
             return
         actor = _actor(params)
         try:
-            session = self._session(params, actor=actor)
+            session = self._attached_session(params)
             row = session.store.branches.get(_branch(session, params))
         except FlowError:
             return

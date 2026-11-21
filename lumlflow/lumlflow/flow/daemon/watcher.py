@@ -3,7 +3,9 @@ import contextlib
 import logging
 from collections import Counter
 from collections.abc import Callable
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -103,12 +105,15 @@ class Watches:
     The hub holds this and moves it; a watcher, when there is one, hangs its
     scheduling off the two hooks. A daemon with no watcher — every test that
     drives the API directly — moves the same counts and schedules nothing.
+    The hooks only queue the work and hand back its future, in order, so
+    `settled` waits for every hold and release made so far.
     """
 
     def __init__(self) -> None:
         self._held: Counter[Path] = Counter()
-        self.observe: Callable[[Path], None] | None = None
-        self.forget: Callable[[Path], None] | None = None
+        self.observe: Callable[[Path], Future[None] | None] | None = None
+        self.forget: Callable[[Path], Future[None] | None] | None = None
+        self._pending: Future[None] | None = None
 
     def roots(self) -> list[Path]:
         return sorted(self._held)
@@ -116,7 +121,7 @@ class Watches:
     def hold(self, root: Path) -> None:
         self._held[root] += 1
         if self._held[root] == 1 and self.observe is not None:
-            self.observe(root)
+            self._pending = self.observe(root)
 
     def release(self, root: Path) -> None:
         held = self._held[root]
@@ -127,7 +132,22 @@ class Watches:
             return
         del self._held[root]
         if self.forget is not None:
-            self.forget(root)
+            self._pending = self.forget(root)
+
+    def attach(
+        self,
+        observe: Callable[[Path], Future[None] | None],
+        forget: Callable[[Path], Future[None] | None],
+    ) -> None:
+        self.observe, self.forget = observe, forget
+        for root in self.roots():
+            self._pending = observe(root)
+
+    async def settled(self) -> None:
+        # `wait`, not `await`: a stopping watcher cancels what it had queued,
+        # and that must not read as this caller being cancelled.
+        if self._pending is not None:
+            await asyncio.wait([asyncio.wrap_future(self._pending)])
 
 
 class Watcher:
@@ -136,23 +156,32 @@ class Watcher:
         self.debounce_s = debounce_s
         self._loop: asyncio.AbstractEventLoop | None = None
         self._observer: Any = None
+        # Scheduling walks the tree, so it runs on `_placer`'s one thread, in
+        # the order the loop asked; `_scheduled` belongs to that thread.
+        self._placer: ThreadPoolExecutor | None = None
         self._scheduled: dict[Path, Any] = {}
         self._woken: set[Path] = set()
         self._deadline: float | None = None
         self._timer: asyncio.Future[None] | None = None
 
-    def start(self) -> None:
+    async def start(self) -> None:
         self._loop = asyncio.get_running_loop()
         self._observer = _observer()
         self._observer.start()
-        self.hub.watches.observe = self._schedule
-        self.hub.watches.forget = self._unschedule
-        for root in self.hub.watches.roots():
-            self._schedule(root)
+        self._placer = ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="lumlflow-watch"
+        )
+        self.hub.watches.attach(self._schedule, self._unschedule)
+        await self.hub.watches.settled()
 
     async def stop(self) -> None:
         self.hub.watches.observe = None
         self.hub.watches.forget = None
+        placer, self._placer = self._placer, None
+        if placer is not None:
+            await asyncio.to_thread(
+                partial(placer.shutdown, wait=True, cancel_futures=True)
+            )
         self._scheduled.clear()
         if self._observer is not None:
             self._observer.stop()
@@ -189,7 +218,13 @@ class Watcher:
             except Exception:
                 logger.exception("reconciling %s after a file event failed", path)
 
-    def _schedule(self, root: Path) -> None:
+    def _schedule(self, root: Path) -> Future[None] | None:
+        return None if self._placer is None else self._placer.submit(self._place, root)
+
+    def _unschedule(self, root: Path) -> Future[None] | None:
+        return None if self._placer is None else self._placer.submit(self._drop, root)
+
+    def _place(self, root: Path) -> None:
         observer = self._observer
         if observer is None or root in self._scheduled:
             return
@@ -200,7 +235,7 @@ class Watcher:
         except OSError as unwatchable:
             logger.warning("not watching %s: %s", root, unwatchable)
 
-    def _unschedule(self, root: Path) -> None:
+    def _drop(self, root: Path) -> None:
         watch = self._scheduled.pop(root, None)
         if watch is None or self._observer is None:
             return

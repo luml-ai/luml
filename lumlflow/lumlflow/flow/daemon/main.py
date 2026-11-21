@@ -144,7 +144,7 @@ class Daemon:
             )
             self._serve_web(listener)
             try:
-                self.watcher.start()
+                await self.watcher.start()
             except OSError as unwatchable:
                 logger.warning("not watching flows: %s", unwatchable)
             self._sweeper = asyncio.create_task(self._sweep_quiet())
@@ -513,6 +513,7 @@ class Daemon:
         announced = False
         try:
             if activity is not None:
+                await self.api.attach(params)
                 self.api.fence(str(message["method"]), params)
                 self.api.claim(str(message["method"]), params, label=activity[2])
                 self._announce_activity(activity, "started")
