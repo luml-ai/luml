@@ -1,5 +1,10 @@
+import asyncio
+import logging
+from concurrent.futures import Future
+from pathlib import Path
+
 import pytest
-from lumlflow.flow.daemon.watcher import _Handler
+from lumlflow.flow.daemon.watcher import Watches, _Handler
 from watchdog.events import (
     DirCreatedEvent,
     DirDeletedEvent,
@@ -54,3 +59,41 @@ def test_other_events_report_nothing_vanished(shape: str) -> None:
 
     assert vanished == []
     assert event.src_path in posted
+
+
+async def test_a_failed_watch_job_is_not_reported_again_by_its_waiter(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    root = Path("/w")
+    failed: Future[None] = Future()
+    failed.set_exception(OSError("placement broke"))
+    watches = Watches()
+    watches.attach(lambda root: failed, lambda root: None)
+    watches.hold(root)
+
+    with caplog.at_level(logging.ERROR, logger="asyncio"):
+        await asyncio.wait_for(watches.settled(root), 1.0)
+        await asyncio.sleep(0)
+
+    assert [record for record in caplog.records if record.name == "asyncio"] == []
+
+
+def test_a_released_root_is_forgotten_once_its_work_is_done() -> None:
+    first, second = Path("/a"), Path("/b")
+    jobs: list[Future[None]] = []
+
+    def queued(root: Path) -> Future[None]:
+        jobs.append(Future())
+        return jobs[-1]
+
+    watches = Watches()
+    watches.attach(queued, queued)
+    watches.hold(first)
+    watches.release(first)
+    while_running = set(watches._pending)
+    for job in jobs:
+        job.set_result(None)
+    watches.hold(second)
+
+    assert while_running == {first}
+    assert set(watches._pending) == {second}

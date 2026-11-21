@@ -123,11 +123,13 @@ class Watches:
         return sorted(self._held)
 
     def hold(self, root: Path) -> None:
+        self._forget_settled()
         self._held[root] += 1
         if self._held[root] == 1 and self.observe is not None:
             self._queued(root, self.observe(root))
 
     def release(self, root: Path) -> None:
+        self._forget_settled()
         held = self._held[root]
         if not held:
             return
@@ -157,13 +159,25 @@ class Watches:
             else []
         )
         # `wait`, not `await`: a stopping watcher cancels what it had queued,
-        # and that must not read as this caller being cancelled.
+        # and that must not read as this caller being cancelled. A job that
+        # failed was logged where it ran; its error is read here only so the
+        # wrapper does not log it a second time.
         if pending:
-            await asyncio.wait([asyncio.wrap_future(future) for future in pending])
+            waited = [asyncio.wrap_future(future) for future in pending]
+            await asyncio.wait(waited)
+            for future in waited:
+                if not future.cancelled():
+                    future.exception()
+        self._forget_settled()
 
     def _queued(self, root: Path, future: Future[None] | None) -> None:
         if future is not None:
             self._pending[root] = future
+
+    def _forget_settled(self) -> None:
+        for root, future in list(self._pending.items()):
+            if root not in self._held and future.done():
+                del self._pending[root]
 
 
 class Watcher:
