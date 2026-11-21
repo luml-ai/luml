@@ -535,8 +535,12 @@ class Daemon:
             _reply(writer, request_id, result=result)
             name = str(message["method"])
             if activity is not None:
+                # A call that waited may have acted on a lane other than the
+                # one checked out now: acknowledge the lane it reports.
+                lane = result.get("branch") if isinstance(result, dict) else None
+                acted = params | {"branch": lane} if lane else params
                 with contextlib.suppress(FlowError, OSError):
-                    self.api.observed(name, params)
+                    self.api.observed(name, acted)
                     self.api.settled(name, params)
             _leased(leased, name, params, result)
             if name == "agent.begin" and caller:

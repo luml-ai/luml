@@ -1,9 +1,11 @@
 import asyncio
+import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from lumlflow.flow.daemon.api import Api
+from lumlflow.flow.daemon.main import Daemon, Leases
 from lumlflow.flow.dsl.tree import WorkspaceTree
 from lumlflow.flow.errors import LaneMoved
 
@@ -186,3 +188,74 @@ async def test_a_run_waiting_for_its_scan_is_fenced_on_its_own_lane_after_a_chec
         with pytest.raises(LaneMoved) as refused:
             await running
         assert refused.value.to_step == first
+
+
+class _Socket:
+    """The writer end of a client connection: keeps each reply sent to it."""
+
+    def __init__(self) -> None:
+        self.replies: list[dict[str, Any]] = []
+
+    def write(self, data: bytes) -> None:
+        self.replies.append(json.loads(data))
+
+    def is_closing(self) -> bool:
+        return False
+
+    async def drain(self) -> None:
+        return None
+
+
+async def test_a_leased_run_that_waited_out_a_checkout_acknowledges_its_own_lane(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    daemon = Daemon(root)
+    api = daemon.api
+    socket = _Socket()
+    leased: Leases = set()
+
+    async def call(method: str, params: dict[str, Any]) -> dict[str, Any]:
+        line = json.dumps({"id": 1, "method": method, "params": params}).encode()
+        await daemon._handle(line, cast(asyncio.StreamWriter, socket), leased)
+        return socket.replies.pop()
+
+    try:
+        await _lane_with_two_steps(api)
+        await api.fork({"flow": "churn", "name": "sweep"})
+        for slug in ("on_sweep", "later_on_sweep"):
+            await api.cells_new(
+                {"flow": "churn", "branch": "sweep", "slug": slug, "source": NOTE}
+            )
+        shown = await api.cells_show(
+            {"flow": "churn", "branch": "sweep", "slug": "on_sweep"}
+        )
+        await api.flow_checkout({"flow": "churn", "branch": "main"})
+        await call("agent.begin", _as_agent(label="codex", lease=True))
+        await call("context", _as_agent(branch="sweep"))
+        await call("context", _as_agent())
+        session = api.hub.session("churn")
+        run_scanning = asyncio.Event()
+        release_run = asyncio.Event()
+        scan = api.hub._scan
+
+        async def run_scan_held(workspace_dir: Path) -> WorkspaceTree:
+            run_scanning.set()
+            await release_run.wait()
+            return await scan(workspace_dir)
+
+        monkeypatch.setattr(api.hub, "_scan", run_scan_held)
+        running = asyncio.create_task(call("run", _as_agent()))
+        await run_scanning.wait()
+        session.store.branches.rewind(
+            "sweep", to_step=int(shown["created_step"]), actor="user"
+        )
+        session.worktree.checkout("sweep", actor="user")
+        release_run.set()
+        ran = await running
+        edited = await call("cells.new", _as_agent(slug="third", source=NOTE))
+    finally:
+        await daemon.hub.close()
+
+    assert ran["result"]["branch"] == "main"
+    assert edited["error"]["data"]["kind"] == "LaneMoved"
