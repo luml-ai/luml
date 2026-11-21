@@ -255,6 +255,37 @@ async def test_a_broken_flow_yaml_does_not_cost_its_neighbour_its_wake(
     assert "0.93" in observed
 
 
+async def test_flows_of_one_workspace_woken_together_share_one_scan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project", flows=FLOWS)
+    for name in FLOWS:
+        write_cell(root / f"{name}.flow", "score", SCORE_CELL)
+    scanned: list[Path] = []
+
+    def counted(workspace_dir: Path, **kwargs: Any) -> WorkspaceTree:
+        scanned.append(workspace_dir)
+        return scan_workspace(workspace_dir, **kwargs)
+
+    async with daemon_api(root) as api:
+        await api.status({})
+        sessions = [await opened(api, name) for name in FLOWS]
+        watcher = Watcher(api.hub, debounce_s=600)
+        for name in FLOWS:
+            write_cell(
+                root / f"{name}.flow", "score", SCORE_CELL.replace("0.91", "0.94")
+            )
+        monkeypatch.setattr(hub_module, "scan_workspace", counted)
+        for name in FLOWS:
+            watcher.notice(root / f"{name}.flow" / "cells" / "score.py")
+        await watcher.flush()
+        await watcher.stop()
+        observed = [_stored(session) for session in sessions]
+
+    assert len(scanned) == 1
+    assert all("0.94" in stored for stored in observed)
+
+
 async def test_a_flow_nobody_opened_is_not_opened_by_an_event(tmp_path: Path):
     root = make_workspace(tmp_path / "project", flows=FLOWS)
     write_cell(root / "sales.flow", "score", SCORE_CELL)

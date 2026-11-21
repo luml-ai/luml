@@ -252,16 +252,28 @@ class Watcher:
 
     async def flush(self) -> None:
         woken, self._woken = self._woken, set()
+        # One scan per workspace, however many of its flows woke.
+        by_workspace: dict[Path, list[FlowSession]] = {}
         for path in sorted(woken):
             session = self.hub.attached(path)
-            if session is None:
-                continue
+            if session is not None:
+                by_workspace.setdefault(session.workspace_dir, []).append(session)
+        for workspace_dir, sessions in by_workspace.items():
             # One flow's broken file plane must not cost the rest of the batch
             # their wake: it is already swapped out and nothing re-delivers it.
             try:
-                await self.hub.quiesce(session, tier="live")
+                failures = await self.hub.quiesce_workspace(sessions, tier="live")
             except Exception:
-                logger.exception("reconciling %s after a file event failed", path)
+                logger.exception(
+                    "reconciling %s after a file event failed", workspace_dir
+                )
+                continue
+            for session, failure in failures:
+                logger.error(
+                    "reconciling %s after a file event failed",
+                    session.ref.path,
+                    exc_info=failure,
+                )
 
     def _schedule(self, root: Path) -> Future[None] | None:
         if self._placer is None or self._placement is None:

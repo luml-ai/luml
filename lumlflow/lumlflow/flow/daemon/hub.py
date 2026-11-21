@@ -364,29 +364,42 @@ class Hub:
         materialization imports it, or the cache is poisoned with a value
         computed from code the hash no longer describes.
         """
-        if (opening := self._opening.get(session.ref.path)) is not None:
-            await opening.wait()
-        if not self._live(session):
-            return
-        async with self._scan_lock(session.workspace_dir):
-            tree = await self._scan(session.workspace_dir)
-            # Closed while the scan ran: its store is no longer there to take it.
-            if not self._live(session):
-                return
-            workspace_changed = bool(
-                reconciliation.sync_workspace_code(tree, [session])
-            )
-            if workspace_changed:
-                session.kernel.evict_workspace_modules()
-            # For a cell that did not opt in, the env is recorded, never acted
-            # on: a run that starts after an install records the pins it ran
-            # under, and the kernel keeps the modules it already imported until
-            # somebody restarts it. An env-sensitive cell is the exception: it
-            # goes stale.
-            env_changed = envs.sync(session.workspace_dir, [session])
-            moved = session.reconcile(tier=tier, actor=actor).moved
-            if workspace_changed or env_changed or moved:
-                session.reactor.arm()
+        for _, failure in await self.quiesce_workspace(
+            [session], tier=tier, actor=actor
+        ):
+            raise failure
+
+    async def quiesce_workspace(
+        self,
+        sessions: list[FlowSession],
+        *,
+        tier: Tier = "quiesce",
+        actor: str | None = None,
+    ) -> list[tuple[FlowSession, Exception]]:
+        """`quiesce` for several sessions of one workspace, off one scan of it.
+
+        What a session's own reconciliation raises is handed back rather than
+        raised, so it costs the others nothing; a failed scan is raised.
+        """
+        for session in sessions:
+            if (opening := self._opening.get(session.ref.path)) is not None:
+                await opening.wait()
+        live = [session for session in sessions if self._live(session)]
+        if not live:
+            return []
+        workspace_dir = live[0].workspace_dir
+        failures: list[tuple[FlowSession, Exception]] = []
+        async with self._scan_lock(workspace_dir):
+            tree = await self._scan(workspace_dir)
+            for session in live:
+                # Closed while the scan ran: its store is no longer there.
+                if not self._live(session):
+                    continue
+                try:
+                    _reconcile_against(session, tree, tier=tier, actor=actor)
+                except Exception as failure:
+                    failures.append((session, failure))
+        return failures
 
     async def init_flow(self, directory: Path, name: str) -> FlowSession:
         ref = _new_flow_ref(directory.resolve(), name)
@@ -658,6 +671,22 @@ def _relative_to(ref: FlowRef, directory: Path) -> FlowRef:
     else:
         relpath = ref.path.as_posix()
     return FlowRef(name=ref.name, path=ref.path, relpath=relpath)
+
+
+def _reconcile_against(
+    session: FlowSession, tree: WorkspaceTree, *, tier: Tier, actor: str | None
+) -> None:
+    workspace_changed = bool(reconciliation.sync_workspace_code(tree, [session]))
+    if workspace_changed:
+        session.kernel.evict_workspace_modules()
+    # For a cell that did not opt in, the env is recorded, never acted on: a
+    # run that starts after an install records the pins it ran under, and the
+    # kernel keeps the modules it already imported until somebody restarts it.
+    # An env-sensitive cell is the exception: it goes stale.
+    env_changed = envs.sync(session.workspace_dir, [session])
+    moved = session.reconcile(tier=tier, actor=actor).moved
+    if workspace_changed or env_changed or moved:
+        session.reactor.arm()
 
 
 def _is_flow(path: Path) -> bool:
