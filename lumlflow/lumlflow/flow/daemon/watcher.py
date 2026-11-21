@@ -417,8 +417,16 @@ def _placement(
     stopping: threading.Event,
 ) -> _Placement:
     if platform.is_linux():
-        with contextlib.suppress(UnsupportedLibcError):
+        # The per-directory watches lean on watchdog internals that may move
+        # within a major version; one recursive watch still sees every change.
+        try:
             from lumlflow.flow.daemon.inotify import InotifyTrees
 
             return InotifyTrees(post=post, wake=wake, submit=submit, stopping=stopping)
+        except (ImportError, AttributeError, UnsupportedLibcError) as unusable:
+            logger.warning(
+                "watching each workspace with one recursive watch, excluded "
+                "directories included: per-directory watches are unavailable (%s)",
+                unusable,
+            )
     return _RecursiveWatches(post)

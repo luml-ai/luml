@@ -495,3 +495,44 @@ def test_a_failing_event_is_logged_and_watching_goes_on(
         for record in caplog.records
         if record.exc_text
     )
+
+
+def _break_import(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(sys.modules, "lumlflow.flow.daemon.inotify", None)
+
+
+def _break_construction(monkeypatch: pytest.MonkeyPatch) -> None:
+    from lumlflow.flow.daemon import inotify
+
+    def moved(*args: Any, **kwargs: Any) -> Any:
+        raise AttributeError("InotifyFD has no attribute 'start'")
+
+    monkeypatch.setattr(inotify, "InotifyFD", moved)
+
+
+@pytest.mark.parametrize("breaking", [_break_import, _break_construction])
+def test_unusable_inotify_internals_fall_back_to_one_recursive_watch(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    breaking: Callable[[pytest.MonkeyPatch], None],
+) -> None:
+    from lumlflow.flow.daemon.watcher import _placement, _RecursiveWatches
+
+    breaking(monkeypatch)
+    with caplog.at_level(logging.WARNING):
+        placement = _placement(
+            post=lambda path: None,
+            wake=lambda root: None,
+            submit=lambda root, work: None,
+            stopping=threading.Event(),
+        )
+    try:
+        assert isinstance(placement, _RecursiveWatches)
+    finally:
+        placement.stop()
+    (warning,) = [
+        record.getMessage()
+        for record in caplog.records
+        if "recursive watch" in record.getMessage()
+    ]
+    assert "unavailable" in warning
