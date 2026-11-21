@@ -152,3 +152,37 @@ async def test_an_agent_that_was_shown_nothing_is_held_to_nothing(
         api.fence("cells.new", _as_agent(slug="third"))
         api.forget_agent(AGENT)
         api.fence("cells.new", _as_agent(slug="third"))
+
+
+async def test_a_run_waiting_for_its_scan_is_fenced_on_its_own_lane_after_a_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    async with daemon_api(root) as api:
+        first, _ = await _lane_with_two_steps(api)
+        await api.fork({"flow": "churn", "name": "sweep"})
+        await _agent_reads_context(api)
+        session = api.hub.session("churn")
+        run_scanning = asyncio.Event()
+        release_run = asyncio.Event()
+        scan = api.hub._scan
+
+        async def run_scan_held(workspace_dir: Path) -> WorkspaceTree:
+            run_scanning.set()
+            await release_run.wait()
+            return await scan(workspace_dir)
+
+        async def agent_run() -> dict[str, Any]:
+            api.fence("run", _as_agent())
+            return await api.run(_as_agent())
+
+        monkeypatch.setattr(api.hub, "_scan", run_scan_held)
+        running = asyncio.create_task(agent_run())
+        await run_scanning.wait()
+        session.store.branches.rewind("main", to_step=first, actor="user")
+        session.worktree.checkout("sweep", actor="user")
+        release_run.set()
+
+        with pytest.raises(LaneMoved) as refused:
+            await running
+        assert refused.value.to_step == first

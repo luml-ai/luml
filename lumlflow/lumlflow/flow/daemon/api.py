@@ -1108,7 +1108,9 @@ class Api:
         pending = _PendingRun(flow=session.ref.address, branch=branch)
         self.pending_runs.append(pending)
         try:
-            await self._quiesce(session, params)
+            # The lane checked out may change during the scan; the fence holds
+            # the run to the lane it will run on.
+            await self._quiesce(session, params | {"branch": branch})
         finally:
             self.pending_runs.remove(pending)
         target = _named(params.get("target"))
