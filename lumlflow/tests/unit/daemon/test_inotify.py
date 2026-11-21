@@ -459,3 +459,39 @@ def test_moving_a_directory_away_wakes_the_root(
     (root / "lib").rename(root / target)
 
     _until(lambda: root in recorder.woken)
+
+
+def test_a_failing_event_is_logged_and_watching_goes_on(
+    root: Path,
+    tmp_path: Path,
+    recorder: _Recorder,
+    trees: Any,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    other = tmp_path / "other"
+    other.mkdir()
+    poison = root / "poison.py"
+    post = recorder.post
+
+    def failing(path: str) -> None:
+        if Path(path) == poison:
+            raise RuntimeError("a handler broke")
+        post(path)
+
+    trees._post = failing
+    trees.schedule(root)
+    trees.schedule(other)
+
+    with caplog.at_level(logging.ERROR):
+        poison.write_text("X = 1\n")
+        (root / "after.py").write_text("X = 2\n")
+        (other / "after.py").write_text("X = 3\n")
+        _until(
+            lambda: recorder.saw(root / "after.py") and recorder.saw(other / "after.py")
+        )
+
+    assert any(
+        "a handler broke" in record.exc_text
+        for record in caplog.records
+        if record.exc_text
+    )

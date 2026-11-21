@@ -164,6 +164,26 @@ class TreeWatch:
             self._wake()
 
     def on_event(self, event: InotifyEvent) -> None:
+        # The inotify reader thread is every root's: an error escaping here
+        # would end it, and all watching with it.
+        try:
+            self._handle(event)
+        except Exception:
+            logger.exception("handling a file event under %s failed", self.root)
+
+    def on_watch_deleted(self, wd: WatchDescriptor) -> None:
+        with self._lock:
+            path = self._paths.pop(wd, None)
+            if path is not None and self._wds.get(path) == wd:
+                del self._wds[path]
+
+    def on_queue_overflow(self) -> None:
+        try:
+            self._queue_resync()
+        except Exception:
+            logger.exception("recovering the watches of %s failed", self.root)
+
+    def _handle(self, event: InotifyEvent) -> None:
         with self._lock:
             base = self._paths.get(event.wd)
         if base is None:
@@ -180,15 +200,6 @@ class TreeWatch:
             # and its path names no module: only a scan sees them go.
             self._wake()
         self._post(path)
-
-    def on_watch_deleted(self, wd: WatchDescriptor) -> None:
-        with self._lock:
-            path = self._paths.pop(wd, None)
-            if path is not None and self._wds.get(path) == wd:
-                del self._wds[path]
-
-    def on_queue_overflow(self) -> None:
-        self._queue_resync()
 
     def _queue_resync(self) -> None:
         with self._lock:
