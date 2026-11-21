@@ -197,6 +197,27 @@ def test_a_deleted_subtree_takes_its_watches_with_it(root: Path, trees: Any) -> 
     _until(lambda: _kernel_watches(trees) == len(left))
 
 
+def test_a_directory_replaced_while_held_open_watches_the_replacement(
+    root: Path, trees: Any, recorder: _Recorder
+) -> None:
+    _workspace(root)
+    trees.schedule(root)
+    tree = trees.trees[root]
+    held = root / "src" / "held"
+    held.mkdir()
+    _until(lambda: held in tree.watched())
+    descriptor = os.open(held, os.O_RDONLY)
+    try:
+        held.rmdir()
+        _until(lambda: held not in tree.watched())
+        held.mkdir()
+        _until(lambda: held in tree.watched())
+        (held / "helpers.py").write_text("X = 1\n")
+        _until(lambda: recorder.saw(held / "helpers.py"))
+    finally:
+        os.close(descriptor)
+
+
 def test_renaming_into_and_out_of_an_excluded_name_moves_the_watches(
     root: Path, trees: Any
 ) -> None:

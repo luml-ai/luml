@@ -190,7 +190,10 @@ class TreeWatch:
         path = os.path.join(base, os.fsdecode(event.name)) if event.name else base
         if event.is_directory and (event.is_create or event.is_moved_to):
             self._submit(lambda: self.place(path, announce=True))
-        elif event.is_directory and event.is_moved_from:
+        elif event.is_directory and (event.is_moved_from or event.is_delete):
+            # Not left to the watch's own removal: a directory something still
+            # holds open keeps its watch until that lets go, and the watch would
+            # stand in for a replacement made at the same path meanwhile.
             self._submit(lambda: self.drop(path))
         elif event.name in _PRUNING_FILES:
             self._queue_resync()
