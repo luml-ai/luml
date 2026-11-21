@@ -8,11 +8,13 @@ import type { ApexOptions } from 'apexcharts'
 import type { Series } from '@/api/monitoring/interfaces'
 import { getLineChartOptions } from '@/lib/apex-charts'
 import { useCssVariables } from '@/composables/useCssVariables'
-import { CHART_HEIGHT, MULTI_SERIES_CHART_COLORS } from '@/constants/charts'
+import { CHART_HEIGHT, CHART_LEGEND_HEIGHT, MULTI_SERIES_CHART_COLORS } from '@/constants/charts'
 import {
   escapeChartLabel,
   formatChartValue,
-  hasIsolatedPoints,
+  formatPreciseValue,
+  getChartLegend,
+  getMarkerSize,
   toChartPoints,
 } from '@/utils/charts'
 import MApexChart from '@/components/MApexChart.vue'
@@ -46,9 +48,7 @@ const chartSeries = computed(() =>
 
 const unit = computed(() => props.series[0]?.unit ?? null)
 
-const markerSize = computed(() =>
-  props.series.some((entry) => hasIsolatedPoints(entry.points)) ? 4 : 0,
-)
+const markerSize = computed(() => props.series.map((entry) => getMarkerSize(entry.points)))
 
 const options = computed<ApexOptions>(() => {
   const base = getLineChartOptions({
@@ -62,13 +62,17 @@ const options = computed<ApexOptions>(() => {
   return {
     ...base,
     colors: MULTI_SERIES_CHART_COLORS.map((_, index) => values[`color${index}`]),
-    legend: { show: true, position: 'top', horizontalAlign: 'right', fontSize: '12px' },
+    legend: getChartLegend(props.series.map((entry) => entry.label)),
+    grid: { ...base.grid, padding: { ...base.grid?.padding, top: CHART_LEGEND_HEIGHT } },
     markers: { size: markerSize.value, strokeWidth: 0, hover: { sizeOffset: 2 } },
     yaxis: {
       ...base.yaxis,
       labels: { ...(Array.isArray(base.yaxis) ? {} : base.yaxis?.labels), formatter },
     },
-    tooltip: { ...base.tooltip, y: { formatter } },
+    tooltip: {
+      ...base.tooltip,
+      y: { formatter: (value: number | null) => formatPreciseValue(value, unit.value) },
+    },
   }
 })
 </script>

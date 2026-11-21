@@ -7,8 +7,8 @@
       </div>
       <div class="rows">
         <div v-for="(row, index) in rows" :key="`${index}:${row.label}`" class="row">
-          <span class="cell label">{{ row.label }}</span>
-          <span class="cell detail">{{ row.detail }}</span>
+          <MEllipsis class="cell label" :text="row.label" />
+          <MEllipsis class="cell detail" :text="row.detail" />
           <span class="cell value" :class="`value--${row.severity}`">{{ row.value }}</span>
         </div>
       </div>
@@ -19,6 +19,7 @@
 <script setup lang="ts">
 import Card from 'primevue/card'
 import type { ClassDriftRow } from '@/types/output-drift'
+import MEllipsis from '@/components/MEllipsis.vue'
 
 interface Props {
   title: string

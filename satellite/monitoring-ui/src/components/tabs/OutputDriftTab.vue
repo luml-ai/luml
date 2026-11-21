@@ -20,6 +20,15 @@
           :rows="horizonRows"
         />
         <OutputDriftConfidence v-if="data.confidence" :confidence="data.confidence" />
+        <MCard
+          v-if="nearThreshold"
+          label="NEAR DECISION THRESHOLD"
+          :content="formatPercent(nearThreshold.rate)"
+        >
+          <template #footer>
+            <span class="footer">{{ formatNearThresholdDetail(nearThreshold) }}</span>
+          </template>
+        </MCard>
         <OutputDriftClassList
           v-if="probabilityRows.length"
           title="Probability drift by class"
@@ -47,7 +56,9 @@
 import { computed, useTemplateRef } from 'vue'
 import { api } from '@/api'
 import { useMonitoringData } from '@/composables/useMonitoringData'
+import { formatPercent } from '@/utils/format'
 import {
+  formatNearThresholdDetail,
   getHorizonRows,
   getOutputDriftEmptyState,
   getProbabilityRows,
@@ -57,6 +68,7 @@ import MErrorState from '@/components/MErrorState.vue'
 import MEmpty from '@/components/MEmpty.vue'
 import MStaleNotice from '@/components/MStaleNotice.vue'
 import MAlerts from '@/components/MAlerts.vue'
+import MCard from '@/components/MCard.vue'
 import AlertDialogHost from '@/components/alerts/AlertDialogHost.vue'
 import OutputDriftLoader from '@/components/output-drift/OutputDriftLoader.vue'
 import OutputDriftPsiCard from '@/components/output-drift/OutputDriftPsiCard.vue'
@@ -74,6 +86,8 @@ const probabilityRows = computed(() =>
   getProbabilityRows(data.value?.probabilities?.per_class ?? []),
 )
 
+const nearThreshold = computed(() => data.value?.probabilities?.near_threshold ?? null)
+
 const horizonRows = computed(() => getHorizonRows(data.value?.horizons ?? []))
 
 const topChangedRows = computed(() => getTopChangedRows(data.value?.top_changed ?? []))
@@ -86,5 +100,9 @@ const alertDialog = useTemplateRef('alertDialog')
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.footer {
+  color: var(--p-text-muted-color);
 }
 </style>

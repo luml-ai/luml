@@ -23,25 +23,49 @@
           </button>
         </template>
       </Column>
-      <Column header="Missing" :style="getColumnStyle(DATA_QUALITY_COLUMN_WIDTHS.missing)">
+      <Column
+        field="missing_rate"
+        header="Missing"
+        sortable
+        :style="getColumnStyle(DATA_QUALITY_COLUMN_WIDTHS.missing)"
+      >
         <template #body="{ data: row }">
-          <MEllipsis :text="formatRate(row.missing_rate)" />
+          <MEllipsis
+            :text="formatRate(row.missing_rate)"
+            :style="{ color: getCheckColor(row.missing_rate, QualityCheck.MISSING) }"
+          />
           <span v-if="formatRateDelta(row.missing_delta)" class="delta">
             {{ formatRateDelta(row.missing_delta) }}
           </span>
         </template>
       </Column>
-      <Column header="Type errors" :style="getColumnStyle(DATA_QUALITY_COLUMN_WIDTHS.typeErrors)">
+      <Column
+        field="type_error_rate"
+        header="Type errors"
+        sortable
+        :style="getColumnStyle(DATA_QUALITY_COLUMN_WIDTHS.typeErrors)"
+      >
         <template #body="{ data: row }">
-          <MEllipsis :text="formatRate(row.type_error_rate)" />
+          <MEllipsis
+            :text="formatRate(row.type_error_rate)"
+            :style="{ color: getCheckColor(row.type_error_rate, QualityCheck.TYPE_MISMATCH) }"
+          />
           <span v-if="formatRateDelta(row.type_error_delta)" class="delta">
             {{ formatRateDelta(row.type_error_delta) }}
           </span>
         </template>
       </Column>
-      <Column header="Range / unseen" :style="getColumnStyle(DATA_QUALITY_COLUMN_WIDTHS.range)">
+      <Column
+        field="range_unseen_rate"
+        header="Range / unseen"
+        sortable
+        :style="getColumnStyle(DATA_QUALITY_COLUMN_WIDTHS.range)"
+      >
         <template #body="{ data: row }">
-          <MEllipsis :text="getRangeLabel(row)" />
+          <MEllipsis
+            :text="getRangeLabel(row)"
+            :style="{ color: getCheckColor(row.range_unseen_rate, getRangeCheck(row)) }"
+          />
           <span v-if="formatRateDelta(row.range_unseen_delta)" class="delta">
             {{ formatRateDelta(row.range_unseen_delta) }}
           </span>
@@ -67,11 +91,13 @@
 <script setup lang="ts">
 import { Column, DataTable, Tag } from 'primevue'
 import type { DataQualityFeatureRow } from '@/api/monitoring/interfaces'
-import { DATA_QUALITY_COLUMN_WIDTHS } from '@/constants/data-quality'
+import { DATA_QUALITY_COLUMN_WIDTHS, QualityCheck } from '@/constants/data-quality'
 import { getSeverityLabel, getSeverityTagSeverity } from '@/utils/alerts'
 import {
   formatRate,
   formatRateDelta,
+  getCheckColor,
+  getRangeCheck,
   getRangeLabel,
   getStatusSortValue,
 } from '@/utils/data-quality'

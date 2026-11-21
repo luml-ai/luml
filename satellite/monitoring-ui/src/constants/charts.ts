@@ -8,6 +8,16 @@ export const CHART_HEIGHT = 200
 
 export const DEFAULT_CHART_COLOR = '--p-primary-color'
 
+export const CHART_MARKER_SIZE = 4
+
+export const CHART_LEGEND_HEIGHT = 32
+
+export const CHART_LEGEND_LABEL_LENGTH = 24
+
+export const FLAT_ZERO_RATIO_MAX = 0.01
+
+export const COMPARED_PERIOD_LABEL = 'Compared period'
+
 export const MULTI_SERIES_CHART_COLORS = [
   '--p-primary-color',
   '--p-orange-500',

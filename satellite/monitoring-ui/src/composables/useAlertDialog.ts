@@ -4,6 +4,7 @@ import { api } from '@/api'
 import type { AlertBanner } from '@/api/monitoring/interfaces'
 import { useFiltersStore } from '@/store/filters'
 import { useTabsStore } from '@/store/tabs'
+import { useDataQualityStore } from '@/store/data-quality'
 import { TabKey } from '@/types/tabs'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { findAlert, getAlertKey, getAlertName, getAlertTargetTab } from '@/utils/alerts'
@@ -17,6 +18,7 @@ export function useAlertDialog(
   const toast = useToast()
   const filtersStore = useFiltersStore()
   const tabsStore = useTabsStore()
+  const dataQualityStore = useDataQualityStore()
 
   const selection = shallowRef<{ key: string; alert: AlertBanner } | null>(null)
   const opened = ref(false)
@@ -55,6 +57,7 @@ export function useAlertDialog(
     const tab = getAlertTargetTab(alert)
     if (!tab) return
     if (tab === TabKey.FEATURE_DRIFT) filtersStore.setFeature(alert.feature ?? null)
+    if (tab === TabKey.DATA_QUALITY) dataQualityStore.inspect(alert.feature ?? null)
     tabsStore.setActiveTab(tab)
   }
 

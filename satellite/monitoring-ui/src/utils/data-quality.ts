@@ -1,13 +1,16 @@
 import {
   SectionState,
+  Severity,
   type DataQualityFeatureRow,
   type DataQualityResponse,
   type InvalidValueSummary,
 } from '@/api/monitoring/interfaces'
 import { SEVERITY_ORDER, UNKNOWN_SEVERITY_ORDER } from '@/constants/alerts'
+import { DATA_QUALITY_THRESHOLDS, QualityCheck } from '@/constants/data-quality'
 import type { EmptyStateContent } from '@/types/empty'
 import type { AlertStatsRow } from '@/types/alerts'
-import { formatChartValue } from '@/utils/charts'
+import { getAlertValueColor } from '@/utils/alerts'
+import { formatPreciseValue } from '@/utils/charts'
 import {
   formatInteger,
   formatOptional,
@@ -25,6 +28,31 @@ export function getRangeLabel(row: DataQualityFeatureRow): string {
     return `${formatPercent(row.range_violation_rate)} out of range`
   if (row.unseen_category_rate != null) return `${formatPercent(row.unseen_category_rate)} unseen`
   return formatRate(row.range_unseen_rate)
+}
+
+export function getRangeCheck(row: DataQualityFeatureRow): QualityCheck {
+  if (row.range_violation_rate != null) return QualityCheck.RANGE_VIOLATION
+  if (row.unseen_category_rate != null) return QualityCheck.UNSEEN_CATEGORY
+  return row.kind === 'categorical' ? QualityCheck.UNSEEN_CATEGORY : QualityCheck.RANGE_VIOLATION
+}
+
+export function getCheckSeverity(
+  rate: number | null | undefined,
+  check: QualityCheck,
+): Severity | null {
+  if (rate == null) return null
+  const { warning, critical } = DATA_QUALITY_THRESHOLDS[check]
+  if (rate > critical) return Severity.CRITICAL
+  if (rate > warning) return Severity.WARNING
+  return null
+}
+
+export function getCheckColor(
+  rate: number | null | undefined,
+  check: QualityCheck,
+): string | undefined {
+  const severity = getCheckSeverity(rate, check)
+  return severity ? getAlertValueColor(severity) : undefined
 }
 
 export function getStatusSortValue(row: DataQualityFeatureRow): string {
@@ -78,21 +106,25 @@ export function getDataQualityCheckRows(row: DataQualityFeatureRow): AlertStatsR
     {
       label: 'Missing',
       value: formatCheckShare(row, row.missing_rate, invalid?.missing_count),
+      color: getCheckColor(row.missing_rate, QualityCheck.MISSING),
     },
     {
       label: 'Type errors',
       value: formatCheckShare(row, row.type_error_rate, invalid?.type_mismatch_count),
+      color: getCheckColor(row.type_error_rate, QualityCheck.TYPE_MISMATCH),
     },
   ]
   if (row.kind === 'categorical') {
     rows.push({
       label: 'Unseen categories',
       value: formatCheckShare(row, row.unseen_category_rate, invalid?.unseen_category_count),
+      color: getCheckColor(row.unseen_category_rate, QualityCheck.UNSEEN_CATEGORY),
     })
   } else {
     rows.push({
       label: 'Out of range',
       value: formatCheckShare(row, row.range_violation_rate, invalid?.range_violation_count),
+      color: getCheckColor(row.range_violation_rate, QualityCheck.RANGE_VIOLATION),
     })
   }
   return rows
@@ -102,11 +134,11 @@ export function getRangeViolationRows(invalid: InvalidValueSummary): AlertStatsR
   return [
     {
       label: 'Reference bounds',
-      value: `${formatChartValue(invalid.reference_min)} … ${formatChartValue(invalid.reference_max)}`,
+      value: `${formatPreciseValue(invalid.reference_min)} … ${formatPreciseValue(invalid.reference_max)}`,
     },
     {
       label: 'Observed extremes',
-      value: `${formatChartValue(invalid.observed_min)} … ${formatChartValue(invalid.observed_max)}`,
+      value: `${formatPreciseValue(invalid.observed_min)} … ${formatPreciseValue(invalid.observed_max)}`,
     },
     { label: 'Below minimum', value: formatInteger(invalid.below_min) },
     { label: 'Above maximum', value: formatInteger(invalid.above_max) },

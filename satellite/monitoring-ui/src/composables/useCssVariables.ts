@@ -14,7 +14,7 @@ export function useCssVariables<T extends string>(variables: MaybeRefOrGetter<Re
 
   const values = computed(() => {
     void themeVersion.value
-    const styles = getComputedStyle(document.documentElement)
+    const styles = getComputedStyle(document.body)
     return Object.fromEntries(
       Object.entries<string>(toValue(variables)).map(([key, variable]) => [
         key,

@@ -4,7 +4,9 @@ import {
   type ClassShift,
   type ConfidenceBlock,
   type HorizonDrift,
+  type NearThreshold,
   type OutputDriftResponse,
+  type Series,
 } from '@/api/monitoring/interfaces'
 import {
   CLASS_SHIFT_CRITICAL_THRESHOLD,
@@ -96,4 +98,17 @@ export function getOutputDriftEmptyState(
     }
   }
   return null
+}
+
+export function findTrendSeries(trend: Series[], key: string): Series | undefined {
+  return trend.find((entry) => entry.key === key)
+}
+
+export function formatNearThresholdDetail(nearThreshold: NearThreshold): string {
+  const target = nearThreshold.positive_class ? ` for ${nearThreshold.positive_class}` : ''
+  const training =
+    nearThreshold.reference_rate != null
+      ? ` · training ${formatPercent(nearThreshold.reference_rate)}`
+      : ''
+  return `predictions near the ${formatDecimal(nearThreshold.threshold)} decision threshold${target}${training}`
 }

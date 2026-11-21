@@ -23,10 +23,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, useTemplateRef } from 'vue'
+import { computed, shallowRef, useTemplateRef } from 'vue'
 import type { DataQualityFeatureRow } from '@/api/monitoring/interfaces'
 import { api } from '@/api'
 import { useMonitoringData } from '@/composables/useMonitoringData'
+import { useDataQualityStore } from '@/store/data-quality'
 import { getDataQualityEmptyState } from '@/utils/data-quality'
 import MErrorState from '@/components/MErrorState.vue'
 import MEmpty from '@/components/MEmpty.vue'
@@ -41,21 +42,30 @@ const { data, loading, error, reload } = useMonitoringData((dims) =>
   api.monitoring.getDataQuality({ ...dims, feature: null }),
 )
 
-const inspectedFeature = ref<string | null>(null)
+const dataQualityStore = useDataQualityStore()
+
+const lastInspectedRow = shallowRef<DataQualityFeatureRow | null>(null)
 
 const isInspecting = computed({
   get: () => inspectedRow.value !== null,
   set: (value: boolean) => {
-    if (!value) inspectedFeature.value = null
+    if (value) return
+    dataQualityStore.inspect(null)
+    lastInspectedRow.value = null
   },
 })
 
-const inspectedRow = computed(
-  () => data.value?.features.find((row) => row.feature === inspectedFeature.value) ?? null,
-)
+const inspectedRow = computed(() => {
+  const feature = dataQualityStore.inspectedFeature
+  if (!feature) return null
+  const row = data.value?.features.find((item) => item.feature === feature)
+  if (row) return row
+  return lastInspectedRow.value?.feature === feature ? lastInspectedRow.value : null
+})
 
 function inspect(row: DataQualityFeatureRow) {
-  inspectedFeature.value = row.feature
+  lastInspectedRow.value = row
+  dataQualityStore.inspect(row.feature)
 }
 
 const emptyState = computed(() => (data.value ? getDataQualityEmptyState(data.value) : null))

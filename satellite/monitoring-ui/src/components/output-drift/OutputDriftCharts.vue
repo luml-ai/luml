@@ -31,7 +31,7 @@
       empty-text="No prediction history yet — a trend needs a second materialized window."
       :is-empty="!hasPoints(data.trend)"
     >
-      <MMultiSeriesChart :series="data.trend" height="100%" />
+      <OutputDriftPredictionTrend :trend="data.trend" height="100%" />
     </FeatureDriftChart>
     <FeatureDriftChart
       v-if="data.class_share_trend.length"
@@ -51,6 +51,7 @@
 import type { OutputDriftResponse, Series } from '@/api/monitoring/interfaces'
 import MSeriesChart from '@/components/MSeriesChart.vue'
 import MMultiSeriesChart from '@/components/MMultiSeriesChart.vue'
+import OutputDriftPredictionTrend from '@/components/output-drift/OutputDriftPredictionTrend.vue'
 import FeatureDistributionChart from '@/components/feature-drift/FeatureDistributionChart.vue'
 import FeatureDriftChart from '@/components/feature-drift/FeatureDriftChart.vue'
 import { OUTPUT_DRIFT_CHART_HEIGHT } from '@/constants/output-drift'
