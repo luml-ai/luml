@@ -284,6 +284,7 @@ class Hub:
 
     async def open(self, ref: FlowRef, *, actor: str | None = None) -> FlowSession:
         self._remember_loop()
+        waited = False
         while (session := self._sessions.get(ref.path)) is not None:
             session.touch()
             if (opening := self._opening.get(ref.path)) is None:
@@ -291,6 +292,10 @@ class Hub:
             # Looked up again after: a first sync that did not finish takes
             # its session with it, and this open starts over.
             await opening.wait()
+            waited = True
+        # A delete waiting behind the same first open may have gone first.
+        if waited and not _is_flow(ref.path):
+            raise FlowNotFound(f"`{ref.relpath}` is not a flow")
         store = (
             FlowStore.open(ref.path)
             if store_dir(ref.path).is_dir()

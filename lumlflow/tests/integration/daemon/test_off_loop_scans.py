@@ -7,6 +7,7 @@ from lumlflow.flow.daemon import hub as hub_module
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import Hub
 from lumlflow.flow.dsl.tree import ScanStopped, WorkspaceTree, scan_workspace
+from lumlflow.flow.errors import FlowNotFound
 from lumlflow.flow.store.models import RunRecorded
 
 from tests.helpers.daemon import (
@@ -244,6 +245,49 @@ async def test_deleting_a_flow_mid_first_open_waits_for_the_open(
 
     assert not deleted_early
     assert left == (None, [])
+    assert not ref.path.exists()
+
+
+class _FirstScanFails(_BlockedScan):
+    """The first scan is held until released and then finds the tree
+    unreadable; every later one reads it."""
+
+    def __call__(
+        self, workspace_dir: Path, *, stopping: threading.Event | None = None
+    ) -> WorkspaceTree:
+        if self.calls:
+            return scan_workspace(workspace_dir, stopping=stopping)
+        self.calls += 1
+        self.entered.set()
+        self.release.wait(_PROMPT_S * 5)
+        raise PermissionError(13, "permission denied", str(workspace_dir))
+
+
+async def test_an_open_waiting_behind_a_delete_does_not_recreate_the_flow(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project", files={"helpers.py": "AUC = 1"})
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        ref = api.resolve("churn")
+        scan = _FirstScanFails()
+        monkeypatch.setattr(hub_module, "scan_workspace", scan)
+        opening = asyncio.create_task(api.hub.open(ref))
+        await scan.started()
+        deleting = asyncio.create_task(api.hub.delete_flow(ref))
+        reading = asyncio.create_task(api.hub.open(ref))
+        for _ in range(_YIELDS):
+            await asyncio.sleep(0)
+        scan.release.set()
+        with pytest.raises(PermissionError):
+            await asyncio.wait_for(opening, _PROMPT_S)
+        await asyncio.wait_for(deleting, _PROMPT_S)
+        with pytest.raises(FlowNotFound):
+            await asyncio.wait_for(reading, _PROMPT_S)
+        left = api.hub.attached(ref.path)
+
+    assert left is None
     assert not ref.path.exists()
 
 
