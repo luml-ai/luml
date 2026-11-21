@@ -569,6 +569,69 @@ async def test_a_helper_in_a_directory_made_after_the_watch_wakes_the_flow(
             await watcher.stop()
 
 
+async def test_an_open_does_not_wait_for_another_workspaces_watch(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project", files=_HELPERS)
+    outside = _outside_flow(tmp_path / "elsewhere")
+
+    async with daemon_api(root) as api:
+        watcher = Watcher(api.hub, debounce_s=_DEBOUNCE_S)
+        await watcher.start()
+        held = _HeldPlacement(watcher, root)
+        try:
+            slow = asyncio.create_task(api.flow_open({"flow": "churn"}))
+            await asyncio.to_thread(held.entered.wait, _DELIVERY_TIMEOUT_S)
+            await asyncio.wait_for(
+                api.flow_open({"flow": str(outside)}), _DELIVERY_TIMEOUT_S
+            )
+            waited = not slow.done()
+            held.release.set()
+            await asyncio.wait_for(slow, _DELIVERY_TIMEOUT_S)
+        finally:
+            held.release.set()
+            await watcher.stop()
+
+    assert waited
+
+
+async def test_stopping_the_watcher_mid_placement_ends_the_wait(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project", files=_HELPERS)
+
+    async with daemon_api(root) as api:
+        watcher = Watcher(api.hub, debounce_s=_DEBOUNCE_S)
+        await watcher.start()
+        held = _HeldPlacement(watcher, root)
+        slow = asyncio.create_task(api.flow_open({"flow": "churn"}))
+        await asyncio.to_thread(held.entered.wait, _DELIVERY_TIMEOUT_S)
+
+        await asyncio.wait_for(watcher.stop(), _DELIVERY_TIMEOUT_S)
+        await asyncio.wait_for(slow, _DELIVERY_TIMEOUT_S)
+
+
+class _HeldPlacement:
+    """Holds the placement of `root`'s watch, the way a walk of a very large
+    tree would, until released or the watcher stops."""
+
+    def __init__(self, watcher: Watcher, root: Path) -> None:
+        placement = watcher._placement
+        assert placement is not None
+        schedule = placement.schedule
+        self.entered, self.release = threading.Event(), threading.Event()
+
+        def held(scheduled: Path) -> None:
+            if scheduled == root:
+                self.entered.set()
+                while not self.release.wait(0.01):
+                    if watcher._stopping.is_set():
+                        return
+            schedule(scheduled)
+
+        placement.schedule = held  # type: ignore[method-assign]
+
+
 FLOWS = ("churn", "sales")
 _HELPERS = {"helpers.py": "AUC = 1", "lib/metrics.py": "K = 3", "lib/io.py": "N = 1"}
 

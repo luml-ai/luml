@@ -2,9 +2,9 @@ import asyncio
 import contextlib
 import logging
 import threading
-from collections import Counter
+from collections import Counter, deque
 from collections.abc import Callable
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import Future
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
@@ -107,15 +107,15 @@ class Watches:
     The hub holds this and moves it; a watcher, when there is one, hangs its
     scheduling off the two hooks. A daemon with no watcher — every test that
     drives the API directly — moves the same counts and schedules nothing.
-    The hooks only queue the work and hand back its future, in order, so
-    `settled` waits for every hold and release made so far.
+    The hooks only queue the work and hand back its future, in order per
+    root, so `settled` waits for every hold and release of a root made so far.
     """
 
     def __init__(self) -> None:
         self._held: Counter[Path] = Counter()
         self.observe: Callable[[Path], Future[None] | None] | None = None
         self.forget: Callable[[Path], Future[None] | None] | None = None
-        self._pending: Future[None] | None = None
+        self._pending: dict[Path, Future[None]] = {}
 
     def roots(self) -> list[Path]:
         return sorted(self._held)
@@ -123,7 +123,7 @@ class Watches:
     def hold(self, root: Path) -> None:
         self._held[root] += 1
         if self._held[root] == 1 and self.observe is not None:
-            self._pending = self.observe(root)
+            self._queued(root, self.observe(root))
 
     def release(self, root: Path) -> None:
         held = self._held[root]
@@ -134,7 +134,7 @@ class Watches:
             return
         del self._held[root]
         if self.forget is not None:
-            self._pending = self.forget(root)
+            self._queued(root, self.forget(root))
 
     def attach(
         self,
@@ -143,13 +143,25 @@ class Watches:
     ) -> None:
         self.observe, self.forget = observe, forget
         for root in self.roots():
-            self._pending = observe(root)
+            self._queued(root, observe(root))
 
-    async def settled(self) -> None:
+    async def settled(self, root: Path | None = None) -> None:
+        """Wait for `root`'s watch work queued so far, or every root's."""
+        pending = (
+            list(self._pending.values())
+            if root is None
+            else [self._pending[root]]
+            if root in self._pending
+            else []
+        )
         # `wait`, not `await`: a stopping watcher cancels what it had queued,
         # and that must not read as this caller being cancelled.
-        if self._pending is not None:
-            await asyncio.wait([asyncio.wrap_future(self._pending)])
+        if pending:
+            await asyncio.wait([asyncio.wrap_future(future) for future in pending])
+
+    def _queued(self, root: Path, future: Future[None] | None) -> None:
+        if future is not None:
+            self._pending[root] = future
 
 
 class Watcher:
@@ -158,9 +170,9 @@ class Watcher:
         self.debounce_s = debounce_s
         self._loop: asyncio.AbstractEventLoop | None = None
         # Placing watches walks the tree, so the placement runs on `_placer`'s
-        # one thread, in the order it was asked for, and nowhere else.
+        # threads, each root's in the order it was asked for, and nowhere else.
         self._placement: _Placement | None = None
-        self._placer: ThreadPoolExecutor | None = None
+        self._placer: _RootQueues | None = None
         self._stopping = threading.Event()
         self._woken: set[Path] = set()
         self._deadline: float | None = None
@@ -175,9 +187,7 @@ class Watcher:
             submit=self._submit,
             stopping=self._stopping,
         )
-        self._placer = ThreadPoolExecutor(
-            max_workers=1, thread_name_prefix="lumlflow-watch"
-        )
+        self._placer = _RootQueues()
         self.hub.watches.attach(self._schedule, self._unschedule)
         await self.hub.watches.settled()
 
@@ -187,9 +197,7 @@ class Watcher:
         self._stopping.set()
         placer, self._placer = self._placer, None
         if placer is not None:
-            await asyncio.to_thread(
-                partial(placer.shutdown, wait=True, cancel_futures=True)
-            )
+            await asyncio.to_thread(placer.stop)
         placement, self._placement = self._placement, None
         if placement is not None:
             await asyncio.to_thread(placement.stop)
@@ -227,19 +235,18 @@ class Watcher:
     def _schedule(self, root: Path) -> Future[None] | None:
         if self._placer is None or self._placement is None:
             return None
-        return self._placer.submit(self._placement.schedule, root)
+        return self._placer.submit(root, partial(self._placement.schedule, root))
 
     def _unschedule(self, root: Path) -> Future[None] | None:
         if self._placer is None or self._placement is None:
             return None
-        return self._placer.submit(self._placement.unschedule, root)
+        return self._placer.submit(root, partial(self._placement.unschedule, root))
 
-    def _submit(self, work: Callable[[], None]) -> None:
-        """Any thread → the placing thread, for the watches' own upkeep."""
+    def _submit(self, root: Path, work: Callable[[], None]) -> None:
+        """Any thread → `root`'s placing queue, for the watches' own upkeep."""
         placer = self._placer
         if placer is not None:
-            with contextlib.suppress(RuntimeError):
-                placer.submit(work)
+            placer.submit(root, work)
 
     def _wake(self, root: Path) -> None:
         woken = {
@@ -285,6 +292,69 @@ class Watcher:
             return
         with contextlib.suppress(RuntimeError):
             loop.call_soon_threadsafe(self._wake, root)
+
+
+class _RootQueues:
+    """Watch work, one queue per root: a root's jobs run one at a time, in
+    the order they were asked for, on a thread that lives while its queue has
+    work. Roots do not wait for each other, so a long walk of one tree never
+    holds up the watch an open of another is waiting for."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._queues: dict[Path, deque[tuple[Callable[[], None], Future[None]]]] = {}
+        self._threads: set[threading.Thread] = set()
+        self._stopped = False
+
+    def submit(self, root: Path, work: Callable[[], None]) -> Future[None]:
+        done: Future[None] = Future()
+        with self._lock:
+            if self._stopped:
+                done.cancel()
+                return done
+            queue = self._queues.get(root)
+            if queue is not None:
+                queue.append((work, done))
+                return done
+            self._queues[root] = deque([(work, done)])
+            thread = threading.Thread(
+                target=self._drain, args=(root,), name="lumlflow-watch", daemon=True
+            )
+            self._threads.add(thread)
+            thread.start()
+        return done
+
+    def stop(self) -> None:
+        """Cancel what is queued and wait for what is running, which the
+        watcher's stop flag cuts short."""
+        with self._lock:
+            self._stopped = True
+            for queue in self._queues.values():
+                for _, done in queue:
+                    done.cancel()
+                queue.clear()
+            threads = list(self._threads)
+        for thread in threads:
+            thread.join()
+
+    def _drain(self, root: Path) -> None:
+        while True:
+            with self._lock:
+                queue = self._queues[root]
+                if not queue:
+                    del self._queues[root]
+                    self._threads.discard(threading.current_thread())
+                    return
+                work, done = queue.popleft()
+            if not done.set_running_or_notify_cancel():
+                continue
+            try:
+                work()
+            except Exception as failed:
+                logger.exception("watching %s failed", root)
+                done.set_exception(failed)
+            else:
+                done.set_result(None)
 
 
 class _Placement(Protocol):
@@ -343,7 +413,7 @@ def _placement(
     *,
     post: Callable[[str], None],
     wake: Callable[[Path], None],
-    submit: Callable[[Callable[[], None]], None],
+    submit: Callable[[Path, Callable[[], None]], None],
     stopping: threading.Event,
 ) -> _Placement:
     if platform.is_linux():

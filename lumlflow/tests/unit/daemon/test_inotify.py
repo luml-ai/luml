@@ -73,7 +73,7 @@ def trees(recorder: _Recorder) -> Iterator[Any]:
     watching = InotifyTrees(
         post=recorder.post,
         wake=recorder.wake,
-        submit=placer.submit,
+        submit=lambda root, work: placer.submit(work),
         stopping=threading.Event(),
     )
     yield watching
@@ -295,10 +295,155 @@ def test_the_watcher_places_per_directory_watches_on_linux() -> None:
     placement = _placement(
         post=lambda path: None,
         wake=lambda root: None,
-        submit=lambda work: None,
+        submit=lambda root, work: None,
         stopping=threading.Event(),
     )
     try:
         assert isinstance(placement, InotifyTrees)
     finally:
         placement.stop()
+
+
+class _Jobs:
+    """A placing queue nobody drains until the test says so."""
+
+    def __init__(self) -> None:
+        self.queued: list[Callable[[], None]] = []
+        self._lock = threading.Lock()
+
+    def submit(self, root: Path, work: Callable[[], None]) -> None:
+        with self._lock:
+            self.queued.append(work)
+
+    def count(self, wanted: Callable[[], None]) -> int:
+        with self._lock:
+            return self.queued.count(wanted)
+
+    def drain(self) -> None:
+        while True:
+            with self._lock:
+                if not self.queued:
+                    return
+                work = self.queued.pop(0)
+            work()
+
+
+@pytest.fixture
+def jobs() -> _Jobs:
+    return _Jobs()
+
+
+@pytest.fixture
+def held(recorder: _Recorder, jobs: _Jobs) -> Iterator[Any]:
+    from lumlflow.flow.daemon.inotify import InotifyTrees
+
+    watching = InotifyTrees(
+        post=recorder.post,
+        wake=recorder.wake,
+        submit=jobs.submit,
+        stopping=threading.Event(),
+    )
+    yield watching
+    watching.stop()
+
+
+def test_upkeep_queued_before_a_release_puts_no_watch_back(
+    root: Path, held: Any, jobs: _Jobs
+) -> None:
+    _workspace(root)
+    held.schedule(root)
+    tree = held.trees[root]
+    (root / "src" / "fresh").mkdir()
+    _until(lambda: bool(jobs.queued))
+    tree.on_queue_overflow()
+
+    held.unschedule(root)
+    jobs.drain()
+
+    assert tree.watched() == set()
+    assert _kernel_watches(held) == 0
+
+
+def test_a_burst_of_pruning_edits_queues_one_resync_and_one_more_while_it_runs(
+    root: Path, held: Any, jobs: _Jobs, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _workspace(root)
+    held.schedule(root)
+    tree = held.trees[root]
+    (root / ".gitignore").write_text("ignored/\nbuild/\n", encoding="utf-8")
+    for _ in range(3):
+        tree.on_queue_overflow()
+    _until(lambda: jobs.count(tree.resync) >= 1)
+    _barrier_queued(root, jobs)
+    queued_by_burst = jobs.count(tree.resync)
+    place = tree.place
+
+    def triggering(top: str, *, announce: bool) -> None:
+        tree.on_queue_overflow()
+        tree.on_queue_overflow()
+        place(top, announce=announce)
+
+    monkeypatch.setattr(tree, "place", triggering)
+    jobs.queued.remove(tree.resync)
+    tree.resync()
+
+    assert (queued_by_burst, jobs.count(tree.resync)) == (1, 1)
+
+
+def _barrier_queued(root: Path, jobs: _Jobs) -> None:
+    """Every event raised so far has been handled once a directory made now
+    has queued its placement: the reader handles events in order."""
+    before = len(jobs.queued)
+    (root / "barrier").mkdir()
+    _until(lambda: len(jobs.queued) > before)
+
+
+def test_a_resync_drops_every_newly_ignored_directory_in_one_pass(
+    root: Path, held: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from lumlflow.flow.daemon.inotify import TreeWatch
+
+    entered = _workspace(root)
+    for index in range(50):
+        (root / "generated" / f"run{index}" / "out").mkdir(parents=True)
+    held.schedule(root)
+    tree = held.trees[root]
+    (root / ".gitignore").write_text("ignored/\ngenerated/\n", encoding="utf-8")
+    drops: list[tuple[str, ...]] = []
+    drop = TreeWatch.drop
+
+    def counted(self: Any, *tops: str) -> None:
+        drops.append(tops)
+        drop(self, *tops)
+
+    monkeypatch.setattr(TreeWatch, "drop", counted)
+
+    tree.resync()
+
+    assert drops == [(str(root / "generated"),)]
+    assert tree.watched() == entered
+    assert _kernel_watches(held) == len(entered)
+
+
+def test_a_stopping_watcher_cuts_a_resync_short(
+    root: Path, recorder: _Recorder, jobs: _Jobs
+) -> None:
+    from lumlflow.flow.daemon.inotify import InotifyTrees
+
+    _workspace(root)
+    stopping = threading.Event()
+    watching = InotifyTrees(
+        post=recorder.post, wake=recorder.wake, submit=jobs.submit, stopping=stopping
+    )
+    try:
+        watching.schedule(root)
+        tree = watching.trees[root]
+        tree.drop(str(root / "src"))
+        stopping.set()
+
+        tree.resync()
+
+        assert not any(path.is_relative_to(root / "src") for path in tree.watched())
+        assert recorder.woken == []
+    finally:
+        watching.stop()

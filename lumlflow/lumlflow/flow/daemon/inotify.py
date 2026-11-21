@@ -3,6 +3,7 @@ import logging
 import os
 import threading
 from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 
 from watchdog.observers.inotify_c import (
@@ -36,17 +37,18 @@ _VANISHED = {errno.ENOENT, errno.ENOTDIR}
 _JOIN_TIMEOUT_S = 2.0
 
 Post = Callable[[str], None]
-Submit = Callable[[Callable[[], None]], None]
+Job = Callable[[], None]
+Submit = Callable[[Path, Job], None]
 
 
 class TreeWatch:
     """One root's watches: a non-recursive watch on every directory the
     workspace scan would enter, and on none it prunes.
 
-    Placing walks the tree, so it runs on the watcher's placing thread
-    (`submit`). Events arrive on the inotify reader thread, which only reads
-    the bookkeeping and hands directory changes over to the placing thread;
-    `_lock` guards the two maps between them.
+    Placing walks the tree, so it runs on the root's placing queue (`submit`),
+    one job at a time. Events arrive on the inotify reader thread, which only
+    reads the bookkeeping and hands directory changes over to that queue;
+    `_lock` guards the bookkeeping between them.
     """
 
     def __init__(
@@ -56,7 +58,7 @@ class TreeWatch:
         *,
         post: Post,
         wake: Callable[[], None],
-        submit: Submit,
+        submit: Callable[[Job], None],
         stopping: threading.Event,
     ) -> None:
         self.root = root
@@ -70,6 +72,8 @@ class TreeWatch:
         self._paths: dict[WatchDescriptor, str] = {}
         self._wds: dict[str, WatchDescriptor] = {}
         self._warned = False
+        self._dropped = False
+        self._resync_queued = False
 
     def watched(self) -> set[Path]:
         with self._lock:
@@ -86,11 +90,15 @@ class TreeWatch:
         exclusions = WorkspaceExclusions(self.root)
         root = str(self.root)
         pending = [top]
-        while pending and not self._stopping.is_set():
+        while pending and not self._stopping.is_set() and not self._dropped:
             directory = pending.pop()
             try:
-                if directory != root and exclusions.matches(
-                    Path(directory), directory=True
+                # One watched already passed this check when it was placed, and
+                # a resync checks again what it keeps before it walks.
+                if (
+                    directory != root
+                    and not self._watching(directory)
+                    and exclusions.matches(Path(directory), directory=True)
                 ):
                     continue
                 self._add(directory)
@@ -107,14 +115,18 @@ class TreeWatch:
                 if unreadable.errno not in _VANISHED:
                     self._incomplete(unreadable)
 
-    def drop(self, top: str | None = None) -> None:
-        """Stop watching `top` and everything below it; everything if None."""
-        below = (top or "") + os.sep
+    def drop(self, *tops: str) -> None:
+        """Stop watching each of `tops` and everything below it, in one pass
+        over the watches. With none given, everything, for good: upkeep queued
+        before the root was let go of finds it dropped and places nothing."""
+        wanted = set(tops)
         with self._lock:
+            if not wanted:
+                self._dropped = True
             gone = [
                 (path, wd)
                 for path, wd in self._wds.items()
-                if top is None or path == top or path.startswith(below)
+                if not wanted or _within(path, wanted)
             ]
             for path, wd in gone:
                 del self._wds[path]
@@ -129,14 +141,27 @@ class TreeWatch:
         keeps its watch descriptor, and dropping its old path after placing
         the new one would take the new one's watch with it.
         """
+        with self._lock:
+            # Cleared first: a trigger landing while this runs queues one more.
+            self._resync_queued = False
+            if self._dropped:
+                return
         exclusions = WorkspaceExclusions(self.root)
-        for path in self.watched():
+        stale: set[str] = set()
+        for path in sorted(self.watched(), key=lambda watched: len(watched.parts)):
+            if self._stopping.is_set():
+                return
+            if _within(str(path), stale):
+                continue
             if not path.is_dir() or (
                 path != self.root and exclusions.matches(path, directory=True)
             ):
-                self.drop(str(path))
+                stale.add(str(path))
+        if stale:
+            self.drop(*stale)
         self.place(str(self.root), announce=False)
-        self._wake()
+        if not self._stopping.is_set() and not self._dropped:
+            self._wake()
 
     def on_event(self, event: InotifyEvent) -> None:
         with self._lock:
@@ -149,7 +174,7 @@ class TreeWatch:
         elif event.is_directory and event.is_moved_from:
             self._submit(lambda: self.drop(path))
         elif event.name in _PRUNING_FILES:
-            self._submit(self.resync)
+            self._queue_resync()
         self._post(path)
 
     def on_watch_deleted(self, wd: WatchDescriptor) -> None:
@@ -159,7 +184,18 @@ class TreeWatch:
                 del self._wds[path]
 
     def on_queue_overflow(self) -> None:
+        self._queue_resync()
+
+    def _queue_resync(self) -> None:
+        with self._lock:
+            if self._resync_queued:
+                return
+            self._resync_queued = True
         self._submit(self.resync)
+
+    def _watching(self, directory: str) -> bool:
+        with self._lock:
+            return directory in self._wds
 
     def _add(self, directory: str) -> None:
         with self._lock:
@@ -198,7 +234,9 @@ class TreeWatch:
 
 class InotifyTrees:
     """A watcher's Linux watches: one inotify instance, one `TreeWatch` per
-    root. Everything but `stop` runs on the watcher's placing thread."""
+    root. Everything but `stop` runs on the watcher's placing queues, whose
+    roots run side by side: `_lock` guards `trees`, and the inotify instance
+    guards its own."""
 
     def __init__(
         self,
@@ -214,31 +252,45 @@ class InotifyTrees:
         self._wake = wake
         self._submit = submit
         self._stopping = stopping
+        self._lock = threading.Lock()
         self.trees: dict[Path, TreeWatch] = {}
 
     def schedule(self, root: Path) -> None:
-        if root in self.trees:
-            return
-        tree = TreeWatch(
-            self._inotify,
-            root,
-            post=self._post,
-            wake=lambda: self._wake(root),
-            submit=self._submit,
-            stopping=self._stopping,
-        )
-        self.trees[root] = tree
+        with self._lock:
+            if root in self.trees:
+                return
+            tree = TreeWatch(
+                self._inotify,
+                root,
+                post=self._post,
+                wake=lambda: self._wake(root),
+                submit=partial(self._submit, root),
+                stopping=self._stopping,
+            )
+            self.trees[root] = tree
         tree.place(str(root), announce=False)
 
     def unschedule(self, root: Path) -> None:
-        tree = self.trees.pop(root, None)
+        with self._lock:
+            tree = self.trees.pop(root, None)
         if tree is not None:
             tree.drop()
 
     def stop(self) -> None:
-        self.trees.clear()
+        with self._lock:
+            self.trees.clear()
         self._inotify.stop()
         self._inotify.join(_JOIN_TIMEOUT_S)
+
+
+def _within(path: str, tops: set[str]) -> bool:
+    """Whether `path` is one of `tops` or lies below one."""
+    while path not in tops:
+        parent = os.path.dirname(path)
+        if parent == path:
+            return False
+        path = parent
+    return True
 
 
 class _Unwatchable(Exception):

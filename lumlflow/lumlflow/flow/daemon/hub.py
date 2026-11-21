@@ -385,7 +385,7 @@ class Hub:
         opening = self._opening[path] = asyncio.Event()
         try:
             async with self._scan_lock(session.workspace_dir):
-                await self.watches.settled()
+                await self.watches.settled(session.watch.root)
                 yield await self._scan(session.workspace_dir)
         except BaseException:
             await self._discard(session)
