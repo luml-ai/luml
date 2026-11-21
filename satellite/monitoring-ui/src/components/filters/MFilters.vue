@@ -6,9 +6,9 @@
       <MSeverityFilter />
       <MCompareFilter class="compare" />
     </div>
-    <div v-if="customRangeLabel || compareRangeLabel" class="filters-row tags-row">
-      <Tag v-if="customRangeLabel" :value="customRangeLabel" />
-      <Tag v-if="compareRangeLabel" :value="compareRangeLabel" severity="warn" />
+    <div v-if="customRangeLabel || compareLabel" class="filters-row tags-row">
+      <Tag v-if="customRangeLabel" :value="`Period: ${customRangeLabel}`" />
+      <Tag v-if="compareLabel" :value="`Compared with: ${compareLabel}`" severity="warn" />
     </div>
   </div>
 </template>
@@ -34,13 +34,14 @@ const dateTimeFormatter = new Intl.DateTimeFormat('en-US', {
 })
 
 const customRangeLabel = computed(() => {
-  const { isCustomMode, customStart, customEnd } = filtersStore
-  if (!isCustomMode) return null
+  const { isCustomRange, customStart, customEnd } = filtersStore
+  if (!isCustomRange) return null
   return formatRange(customStart, customEnd)
 })
 
-const compareRangeLabel = computed(() => {
+const compareLabel = computed(() => {
   const { compare, compareStart, compareEnd } = filtersStore
+  if (compare === Compare.PREVIOUS) return 'previous period'
   if (compare !== Compare.CUSTOM) return null
   return formatRange(compareStart, compareEnd)
 })

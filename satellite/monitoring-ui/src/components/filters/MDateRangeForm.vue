@@ -13,6 +13,7 @@
             show-icon
             icon-display="input"
             append-to="self"
+            aria-label="From date"
             :min-date="minDate"
             :max-date="maxDate"
             :pt="rangePt"
@@ -20,8 +21,8 @@
             @date-select="onFromSelect"
             @hide="onFromHide"
           >
-            <template #inputicon>
-              <ChevronDown :size="12.25" class="date-field-chevron" />
+            <template #inputicon="{ clickCallback }">
+              <ChevronDown :size="12.25" class="date-field-chevron" @click="clickCallback" />
             </template>
           </DatePicker>
         </div>
@@ -31,6 +32,7 @@
           time-only
           hour-format="12"
           placeholder="06:02 PM"
+          aria-label="From time"
           fluid
         />
       </div>
@@ -46,13 +48,14 @@
             show-icon
             icon-display="input"
             append-to="self"
+            aria-label="To date"
             :min-date="fromDate ?? minDate"
             :max-date="maxDate"
             :pt="rangePt"
             fluid
           >
-            <template #inputicon>
-              <ChevronDown :size="12.25" class="date-field-chevron" />
+            <template #inputicon="{ clickCallback }">
+              <ChevronDown :size="12.25" class="date-field-chevron" @click="clickCallback" />
             </template>
           </DatePicker>
         </div>
@@ -62,10 +65,21 @@
           time-only
           hour-format="12"
           placeholder="06:02 PM"
+          aria-label="To time"
           fluid
         />
       </div>
     </div>
+    <Message
+      v-if="rangeNotice"
+      :severity="rangeNotice.severity"
+      size="small"
+      variant="simple"
+      class="range-notice"
+      role="status"
+    >
+      {{ rangeNotice.text }}
+    </Message>
     <Button
       class="apply-button"
       label="Apply"
@@ -81,6 +95,7 @@
 import { computed, ref, useTemplateRef } from 'vue'
 import Button from 'primevue/button'
 import DatePicker from 'primevue/datepicker'
+import Message from 'primevue/message'
 import { RETENTION_DAYS } from '@/constants/filters'
 import { Calendar, ChevronDown } from 'lucide-vue-next'
 
@@ -114,6 +129,13 @@ const shouldFocusTo = ref(false)
 const maxDate = new Date()
 const minDate = new Date(maxDate.getTime() - RETENTION_DAYS * 24 * 60 * 60 * 1000)
 
+const boundFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+})
+
 const rangeBounds = computed(() => {
   if (!fromDate.value) return null
   const start = toDayKey(fromDate.value)
@@ -137,11 +159,40 @@ const rangePt = computed(() => ({
   },
 }))
 
-const draftRange = computed(() => {
+const enteredRange = computed(() => {
   if (!fromDate.value || !toDate.value) return null
-  const start = clampDate(combineDateTime(fromDate.value, fromTime.value, [0, 0, 0, 0]))
-  const end = clampDate(combineDateTime(toDate.value, toTime.value, [23, 59, 59, 999]))
+  return {
+    start: combineDateTime(fromDate.value, fromTime.value, 'start'),
+    end: combineDateTime(toDate.value, toTime.value, 'end'),
+  }
+})
+
+const draftRange = computed(() => {
+  if (!enteredRange.value) return null
+  const start = clampDate(enteredRange.value.start)
+  const end = clampDate(enteredRange.value.end)
   return start < end ? { start, end } : null
+})
+
+const rangeNotice = computed<{ severity: 'error' | 'secondary'; text: string } | null>(() => {
+  const entered = enteredRange.value
+  if (!entered) return null
+  if (entered.end <= entered.start) {
+    return { severity: 'error', text: 'End must be later than start' }
+  }
+  if (!draftRange.value) {
+    return { severity: 'error', text: `Pick a period within the last ${RETENTION_DAYS} days` }
+  }
+  if (entered.start < minDate) {
+    return {
+      severity: 'secondary',
+      text: `Start will be moved to ${formatBound(minDate)}, the oldest retained data`,
+    }
+  }
+  if (entered.end > maxDate) {
+    return { severity: 'secondary', text: `End will be moved to now (${formatBound(maxDate)})` }
+  }
+  return null
 })
 
 function toDayKey(date: Date) {
@@ -159,15 +210,17 @@ function onFromHide() {
   toField.value?.querySelector('input')?.focus()
 }
 
-function combineDateTime(
-  date: Date,
-  time: Date | null,
-  fallback: [number, number, number, number],
-) {
+function combineDateTime(date: Date, time: Date | null, edge: 'start' | 'end') {
   const result = new Date(date)
-  if (time) result.setHours(time.getHours(), time.getMinutes(), 0, 0)
-  else result.setHours(...fallback)
+  const hours = time ? time.getHours() : edge === 'start' ? 0 : 23
+  const minutes = time ? time.getMinutes() : edge === 'start' ? 0 : 59
+  if (edge === 'start') result.setHours(hours, minutes, 0, 0)
+  else result.setHours(hours, minutes, 59, 999)
   return result
+}
+
+function formatBound(date: Date) {
+  return boundFormatter.format(date)
 }
 
 function clampDate(date: Date) {
@@ -212,6 +265,12 @@ function onApply() {
 
 .date-field-chevron {
   color: var(--p-surface-400);
+  cursor: pointer;
+}
+
+.range-notice {
+  max-width: 290px;
+  margin-block: -8px;
 }
 
 .date-field-icon {

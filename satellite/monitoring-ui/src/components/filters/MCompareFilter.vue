@@ -16,13 +16,14 @@
       @hide="isCustomPending = false"
     >
       <div class="compare-body">
-        <span class="compare-title">Select comparison mode</span>
+        <span :id="titleId" class="compare-title">Select comparison mode</span>
         <SelectButton
           :model-value="selectedMode"
           :options="COMPARE_OPTIONS"
           option-label="label"
           option-value="value"
           :allow-empty="false"
+          :aria-labelledby="titleId"
           fluid
           @update:model-value="onModeChange"
         />
@@ -38,7 +39,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, useTemplateRef } from 'vue'
+import { computed, ref, useId, useTemplateRef } from 'vue'
 import SelectButton from 'primevue/selectbutton'
 import Button from 'primevue/button'
 import Popover from 'primevue/popover'
@@ -51,6 +52,8 @@ import MDateRangeForm from './MDateRangeForm.vue'
 const filtersStore = useFiltersStore()
 
 const comparePopover = useTemplateRef<InstanceType<typeof Popover>>('comparePopover')
+
+const titleId = useId()
 
 const isCustomPending = ref(false)
 

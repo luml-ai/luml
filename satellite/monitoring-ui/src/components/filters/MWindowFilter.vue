@@ -1,13 +1,14 @@
 <template>
   <div class="item">
-    <span class="label">Window:</span>
+    <span :id="labelId" class="label">Window:</span>
     <div class="controls">
       <SelectButton
-        :model-value="filtersStore.activeWindow"
+        :model-value="activeWindow"
         :options="WINDOW_OPTIONS"
         option-label="label"
         option-value="value"
         :allow-empty="false"
+        :aria-labelledby="labelId"
         @update:model-value="filtersStore.setWindow"
       />
       <ToggleButton
@@ -38,7 +39,7 @@
 </template>
 
 <script setup lang="ts">
-import { useTemplateRef } from 'vue'
+import { computed, useId, useTemplateRef } from 'vue'
 import SelectButton from 'primevue/selectbutton'
 import ToggleButton from 'primevue/togglebutton'
 import Popover from 'primevue/popover'
@@ -48,6 +49,12 @@ import { WINDOW_OPTIONS } from '@/constants/filters'
 import MDateRangeForm from './MDateRangeForm.vue'
 
 const filtersStore = useFiltersStore()
+
+const labelId = useId()
+
+const activeWindow = computed(() =>
+  filtersStore.isCustomRange ? null : filtersStore.selectedWindow,
+)
 
 const rangePopover = useTemplateRef<InstanceType<typeof Popover>>('rangePopover')
 

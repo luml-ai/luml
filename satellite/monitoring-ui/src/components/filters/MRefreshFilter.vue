@@ -8,6 +8,7 @@
         option-label="label"
         option-value="value"
         :allow-empty="false"
+        aria-label="Auto-refresh"
         @update:model-value="filtersStore.setAutoRefresh"
       />
       <Button
