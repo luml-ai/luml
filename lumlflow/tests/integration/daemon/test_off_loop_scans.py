@@ -380,6 +380,24 @@ async def test_a_symlink_and_its_target_opened_together_share_one_session(
     assert first.ref.name == "alias"
 
 
+async def test_renaming_a_flow_through_its_symlink_closes_the_open_session(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+    (root / "alias.flow").symlink_to(root / "churn.flow", target_is_directory=True)
+    alias = FlowRef(name="alias", path=root / "alias.flow", relpath="alias.flow")
+
+    async with daemon_api(root) as api:
+        await api.hub.open(alias)
+        renamed = await api.hub.rename_flow(alias, "other")
+        opened = api.hub.opened()
+
+    assert opened == []
+    assert renamed.path == root / "other.flow"
+    assert renamed.path.is_symlink()
+
+
 async def test_stopping_after_a_waiting_caller_left_stops_the_run_that_stayed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

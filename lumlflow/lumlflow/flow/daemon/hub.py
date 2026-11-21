@@ -536,7 +536,7 @@ class Hub:
             raise FlowNotFound(f"`{ref.relpath}` is not a flow")
         self._known.pop(ref.path, None)
         self._found.pop(ref.path, None)
-        while (session := self._sessions.get(ref.path)) is not None:
+        while (session := self.attached(ref.path)) is not None:
             await self.close_session(session)
         shutil.rmtree(ref.path)
 
@@ -550,7 +550,7 @@ class Hub:
             raise FlowAlreadyExists(f"`{renamed.relpath}` already exists")
         self._known.pop(ref.path, None)
         self._found.pop(ref.path, None)
-        while (session := self._sessions.get(ref.path)) is not None:
+        while (session := self.attached(ref.path)) is not None:
             await self.close_session(session)
         ref.path.rename(renamed.path)
         self._found[renamed.path] = renamed
