@@ -85,6 +85,15 @@ _TOUCHES = frozenset(
 
 
 @dataclass
+class _PendingRun:
+    """A run still waiting for its scan, before it reaches the queue."""
+
+    flow: str
+    branch: str
+    abandoned: bool = False
+
+
+@dataclass
 class _Claim:
     flow: str
     branch: str
@@ -141,6 +150,7 @@ class Api:
         self._lane_seen: dict[tuple[str, str, str], int] = {}
         self._moved_by: dict[tuple[str, str], str] = {}
         self._claims: dict[tuple[str, str, str], _Claim] = {}
+        self._pending_runs: list[_PendingRun] = []
         self.clock: Callable[[], float] = time.time
         self.kernel_idle_s = _idle_seconds(KERNEL_IDLE_ENV, KERNEL_IDLE_S)
         self.session_idle_s = _idle_seconds(SESSION_IDLE_ENV, SESSION_IDLE_S)
@@ -1093,9 +1103,18 @@ class Api:
         return _settings_report(session)
 
     async def run(self, params: dict[str, Any]) -> dict[str, Any]:
-        session, branch = await self._read(params)
+        session = await self._session(params, actor=_actor(params))
+        branch = _branch(session, params)
+        pending = _PendingRun(flow=session.ref.address, branch=branch)
+        self._pending_runs.append(pending)
+        try:
+            await self._quiesce(session, params)
+        finally:
+            self._pending_runs.remove(pending)
         target = _named(params.get("target"))
-        if target is None:
+        if pending.abandoned:
+            result = _abandoned_run(branch, target)
+        elif target is None:
             result = await self._run_leaves(session, branch, params)
         else:
             outcome = await session.queue.submit(
@@ -1156,9 +1175,16 @@ class Api:
         session = await self._session(params, actor=_actor(params))
         branch = _branch(session, params)
         left = session.queue.abandon(branch)
+        pending = [
+            run
+            for run in self._pending_runs
+            if run.flow == session.ref.address and run.branch == branch
+        ]
+        for run in pending:
+            run.abandoned = True
         return {
             "branch": branch,
-            "left": left.left,
+            "left": left.left + len(pending),
             "stopped": left.stopped,
             "awaiting": left.awaiting,
         }
@@ -1284,10 +1310,13 @@ class Api:
 
     async def _read(self, params: dict[str, Any]) -> tuple[FlowSession, str]:
         session = await self._session(params, actor=_actor(params))
+        await self._quiesce(session, params)
+        return session, _branch(session, params)
+
+    async def _quiesce(self, session: FlowSession, params: dict[str, Any]) -> None:
         await self.hub.quiesce(session, actor=_actor(params))
         if (fenced := _fenced_call.get()) is not None:
             self.fence(fenced, params)
-        return session, _branch(session, params)
 
     async def _flow_status(self, ref: FlowRef, *, actor: str) -> dict[str, Any]:
         return await self._session_status(
@@ -1843,6 +1872,13 @@ async def _kernel(
         "python": handshake.get("python"),
         "kinds": [kind.get("kind") for kind in handshake.get("kinds") or []],
     }
+
+
+def _abandoned_run(branch: str, target: str | None) -> dict[str, Any]:
+    left = _outcome(RunOutcome(branch=branch, target=target or "", abandoned=True))
+    if target is None:
+        left |= {"targets": [], "failures": [], "unplanned": []}
+    return left
 
 
 def _outcome(outcome: RunOutcome) -> dict[str, Any]:

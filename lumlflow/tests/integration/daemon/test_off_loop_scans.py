@@ -7,11 +7,13 @@ from lumlflow.flow.daemon import hub as hub_module
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import Hub
 from lumlflow.flow.dsl.tree import ScanStopped, WorkspaceTree, scan_workspace
+from lumlflow.flow.store.models import RunRecorded
 
 from tests.helpers.daemon import (
     SCORE_CELL,
     daemon_api,
     make_workspace,
+    ops_of,
     slice_of,
     write_cell,
 )
@@ -263,3 +265,41 @@ async def test_closing_the_hub_mid_first_open_ends_the_open(
     with pytest.raises(ScanStopped):
         await opening
     assert (hub.attached(ref.path), hub.watches.roots()) == (None, [])
+
+
+async def test_stopping_a_run_that_waits_for_its_scan_runs_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    marker = tmp_path / "executed"
+    write_cell(
+        root / "churn.flow",
+        "leaf",
+        f"""
+        class Leaf:
+            produces = {{"value": "asset"}}
+
+            def materialize(self, ctx):
+                from pathlib import Path
+
+                Path({str(marker)!r}).touch()
+                return {{"value": 1}}
+        """,
+    )
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        scan = _BlockedScan()
+        monkeypatch.setattr(hub_module, "scan_workspace", scan)
+        running = asyncio.create_task(api.run({"flow": "churn"}))
+        await scan.started()
+        left = await api.cancel({"flow": "churn"})
+        scan.release.set()
+        outcome = await asyncio.wait_for(running, _PROMPT_S)
+        runs = ops_of(session, RunRecorded)
+
+    assert left["left"] == 1
+    assert (outcome["abandoned"], outcome["executed"]) == (True, [])
+    assert runs == []
+    assert not marker.exists()
