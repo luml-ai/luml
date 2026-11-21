@@ -6,6 +6,7 @@ import pytest
 from lumlflow.flow.daemon import hub as hub_module
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import Hub
+from lumlflow.flow.daemon.main import Daemon
 from lumlflow.flow.daemon.workspace import FlowRef
 from lumlflow.flow.dsl.tree import ScanStopped, WorkspaceTree, scan_workspace
 from lumlflow.flow.errors import FlowNotFound
@@ -424,3 +425,25 @@ async def test_a_second_stop_does_not_count_a_run_already_stopped(
 
     assert (first["left"], second["left"]) == (1, 0)
     assert outcome["abandoned"]
+
+
+async def test_a_run_waiting_for_its_scan_keeps_the_daemon_from_idling_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+    daemon = Daemon(root)
+    try:
+        await daemon.api.flow_open({"flow": "churn"})
+        scan = _BlockedScan()
+        monkeypatch.setattr(hub_module, "scan_workspace", scan)
+        running = asyncio.create_task(daemon.api.run({"flow": "churn"}))
+        await scan.started()
+        idle = await daemon.api.shutdown_if_idle({"path": str(root / "churn.flow")})
+        scan.release.set()
+        await asyncio.wait_for(running, _PROMPT_S)
+    finally:
+        await daemon.hub.close()
+
+    assert not idle["stopping"]
+    assert idle["attached"]["active_runs"] == 1

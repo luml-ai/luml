@@ -150,7 +150,7 @@ class Api:
         self._lane_seen: dict[tuple[str, str, str], int] = {}
         self._moved_by: dict[tuple[str, str], str] = {}
         self._claims: dict[tuple[str, str, str], _Claim] = {}
-        self._pending_runs: list[_PendingRun] = []
+        self.pending_runs: list[_PendingRun] = []
         self.clock: Callable[[], float] = time.time
         self.kernel_idle_s = _idle_seconds(KERNEL_IDLE_ENV, KERNEL_IDLE_S)
         self.session_idle_s = _idle_seconds(SESSION_IDLE_ENV, SESSION_IDLE_S)
@@ -1106,11 +1106,11 @@ class Api:
         session = await self._session(params, actor=_actor(params))
         branch = _branch(session, params)
         pending = _PendingRun(flow=session.ref.address, branch=branch)
-        self._pending_runs.append(pending)
+        self.pending_runs.append(pending)
         try:
             await self._quiesce(session, params)
         finally:
-            self._pending_runs.remove(pending)
+            self.pending_runs.remove(pending)
         target = _named(params.get("target"))
         if pending.abandoned:
             result = _abandoned_run(branch, target)
@@ -1177,7 +1177,7 @@ class Api:
         left = session.queue.abandon(branch)
         pending = [
             run
-            for run in self._pending_runs
+            for run in self.pending_runs
             if run.flow == session.ref.address
             and run.branch == branch
             and not run.abandoned
