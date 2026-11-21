@@ -744,7 +744,7 @@ class _HeldPlacement:
                         return
             schedule(scheduled)
 
-        placement.schedule = held  # type: ignore[method-assign]
+        placement.schedule = held
 
 
 def _tree_files(session: FlowSession) -> set[str]:
