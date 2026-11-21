@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import dataclasses
 import logging
 import shutil
 import threading
@@ -284,6 +285,9 @@ class Hub:
 
     async def open(self, ref: FlowRef, *, actor: str | None = None) -> FlowSession:
         self._remember_loop()
+        # One session per notebook on disk, whichever spelling reached it: two
+        # stores on the same journal would each hand out the same next step.
+        ref = dataclasses.replace(ref, path=ref.path.resolve())
         waited = False
         while (session := self._sessions.get(ref.path)) is not None:
             session.touch()
@@ -313,7 +317,7 @@ class Hub:
         return session
 
     def attached(self, path: Path) -> FlowSession | None:
-        return self._sessions.get(path)
+        return self._sessions.get(path.resolve())
 
     def opened(
         self, *, here: bool = False, directory: Path | None = None

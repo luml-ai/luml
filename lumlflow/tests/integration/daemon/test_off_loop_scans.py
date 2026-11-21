@@ -6,6 +6,7 @@ import pytest
 from lumlflow.flow.daemon import hub as hub_module
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import Hub
+from lumlflow.flow.daemon.workspace import FlowRef
 from lumlflow.flow.dsl.tree import ScanStopped, WorkspaceTree, scan_workspace
 from lumlflow.flow.errors import FlowNotFound
 from lumlflow.flow.store.models import RunRecorded
@@ -347,3 +348,32 @@ async def test_stopping_a_run_that_waits_for_its_scan_runs_nothing(
     assert (outcome["abandoned"], outcome["executed"]) == (True, [])
     assert runs == []
     assert not marker.exists()
+
+
+async def test_a_symlink_and_its_target_opened_together_share_one_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+    (root / "alias.flow").symlink_to(root / "churn.flow", target_is_directory=True)
+    alias = FlowRef(name="alias", path=root / "alias.flow", relpath="alias.flow")
+
+    async with daemon_api(root) as api:
+        target = api.resolve(str(root / "churn.flow"))
+        scan = _BlockedScan()
+        monkeypatch.setattr(hub_module, "scan_workspace", scan)
+        through_alias = asyncio.create_task(api.hub.open(alias))
+        await scan.started()
+        through_target = asyncio.create_task(api.hub.open(target))
+        for _ in range(_YIELDS):
+            await asyncio.sleep(0)
+        scan.release.set()
+        first = await asyncio.wait_for(through_alias, _PROMPT_S)
+        second = await asyncio.wait_for(through_target, _PROMPT_S)
+        opened = api.hub.opened()
+        attached = api.hub.attached(alias.path)
+
+    assert second is first
+    assert opened == [first]
+    assert attached is first
+    assert first.ref.name == "alias"
