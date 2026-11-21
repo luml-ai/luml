@@ -1,6 +1,5 @@
 import asyncio
 import contextlib
-import dataclasses
 import logging
 import shutil
 import threading
@@ -53,10 +52,13 @@ class FlowSession:
         store: FlowStore,
         workspace_dir: Path,
         *,
+        key: Path,
         tracker: TrackerProvider,
         streams: Streams | None = None,
     ) -> None:
         self.ref = ref
+        # The notebook on disk, whichever spelling `ref` reached it by.
+        self.key = key
         self.store = store
         self.workspace_dir = workspace_dir
         self.tracker = tracker
@@ -214,10 +216,11 @@ class Hub:
         if not wanted:
             return None
         opened = [session.ref for session in self._sessions.values()]
+        opened_paths = {ref.path for ref in opened}
         known = [
             ref
             for path, ref in (self._found | self._known).items()
-            if path not in self._sessions
+            if path not in opened_paths
         ]
         groups = [
             [
@@ -250,7 +253,7 @@ class Hub:
             session
             for session in sessions
             if (
-                (asked.is_absolute() and session.ref.path == asked.resolve())
+                (asked.is_absolute() and session.key == _session_key(asked))
                 or name
                 in {
                     session.ref.name,
@@ -287,11 +290,11 @@ class Hub:
         self._remember_loop()
         # One session per notebook on disk, whichever spelling reached it: two
         # stores on the same journal would each hand out the same next step.
-        ref = dataclasses.replace(ref, path=ref.path.resolve())
+        key = _session_key(ref.path)
         waited = False
-        while (session := self._sessions.get(ref.path)) is not None:
+        while (session := self._sessions.get(key)) is not None:
             session.touch()
-            if (opening := self._opening.get(ref.path)) is None:
+            if (opening := self._opening.get(key)) is None:
                 return session
             # Looked up again after: a first sync that did not finish takes
             # its session with it, and this open starts over.
@@ -308,7 +311,7 @@ class Hub:
         # Before the session serves anything: each lane gets its own copy of
         # its order, and flow.yaml starts mirroring the root lane's.
         store.ensure_lane_orders_fixed()
-        session = self._session(ref, store)
+        session = self._session(ref, store, key)
         async with self._first_scan(session) as tree:
             reconciliation.sync_workspace_code(tree, [session])
             envs.sync(session.workspace_dir, [session])
@@ -317,7 +320,7 @@ class Hub:
         return session
 
     def attached(self, path: Path) -> FlowSession | None:
-        return self._sessions.get(path.resolve())
+        return self._sessions.get(_session_key(path))
 
     def opened(
         self, *, here: bool = False, directory: Path | None = None
@@ -386,7 +389,7 @@ class Hub:
         raised, so it costs the others nothing; a failed scan is raised.
         """
         for session in sessions:
-            if (opening := self._opening.get(session.ref.path)) is not None:
+            if (opening := self._opening.get(session.key)) is not None:
                 await opening.wait()
         live = [session for session in sessions if self._live(session)]
         if not live:
@@ -410,7 +413,7 @@ class Hub:
         if ref.path.exists():
             raise FlowAlreadyExists(f"`{ref.relpath}` already exists")
         store = FlowStore.init(ref.path, name=ref.name)
-        session = self._session(ref, store)
+        session = self._session(ref, store, _session_key(ref.path))
         async with self._first_scan(session) as tree:
             reconciliation.sync_workspace_code(tree, [session])
         return session
@@ -422,8 +425,8 @@ class Hub:
         finish. A session whose first sync does not finish — cancelled, or
         failed — is let go of before anyone waiting is let in, so the next
         open does the whole first sync again."""
-        path = session.ref.path
-        opening = self._opening[path] = asyncio.Event()
+        key = session.key
+        opening = self._opening[key] = asyncio.Event()
         try:
             async with self._scan_lock(session.workspace_dir):
                 await self.watches.settled(session.watch.root)
@@ -432,7 +435,7 @@ class Hub:
             await self._discard(session)
             raise
         finally:
-            del self._opening[path]
+            del self._opening[key]
             opening.set()
 
     async def _discard(self, session: FlowSession) -> None:
@@ -440,11 +443,11 @@ class Hub:
             await session.close()
         finally:
             if self._live(session):
-                del self._sessions[session.ref.path]
+                del self._sessions[session.key]
                 self.watches.release(session.watch.root)
 
     def _live(self, session: FlowSession) -> bool:
-        return self._sessions.get(session.ref.path) is session
+        return self._sessions.get(session.key) is session
 
     def _scan_lock(self, workspace_dir: Path) -> asyncio.Lock:
         return self._scan_locks.setdefault(workspace_dir, asyncio.Lock())
@@ -476,16 +479,17 @@ class Hub:
         finally:
             self._scan_stops.discard(stop)
 
-    def _session(self, ref: FlowRef, store: FlowStore) -> FlowSession:
+    def _session(self, ref: FlowRef, store: FlowStore, key: Path) -> FlowSession:
         self._remember_loop()
         session = FlowSession(
             ref,
             store,
             self._workspace_of(ref),
+            key=key,
             tracker=self.tracker,
             streams=self._streams,
         )
-        self._sessions[ref.path] = session
+        self._sessions[key] = session
         self._known[ref.path] = ref
         self.watches.hold(session.watch.root)
         return session
@@ -505,18 +509,18 @@ class Hub:
         attached, so a request arriving mid-close reuses it instead of opening
         a second store on the same files; `still` is asked again after them.
         """
-        path = session.ref.path
+        key = session.key
 
         def kept() -> bool:
-            return self._sessions.get(path) is not session or (
+            return self._sessions.get(key) is not session or (
                 still is not None and not still(session)
             )
 
         # A slow first open finishes, or is let go of, before anything closes
         # it: otherwise its scan would land on the store this closes.
-        while (opening := self._opening.get(path)) is not None:
+        while (opening := self._opening.get(key)) is not None:
             await opening.wait()
-        if self._sessions.get(path) is not session:
+        if self._sessions.get(key) is not session:
             return False
         await session.reactor.stop()
         if kept():
@@ -526,7 +530,7 @@ class Hub:
         if kept():
             session.reactor.arm()
             return False
-        del self._sessions[path]
+        del self._sessions[key]
         self.watches.release(session.watch.root)
         session.store.close()
         return True
@@ -536,7 +540,8 @@ class Hub:
             raise FlowNotFound(f"`{ref.relpath}` is not a flow")
         self._known.pop(ref.path, None)
         self._found.pop(ref.path, None)
-        while (session := self.attached(ref.path)) is not None:
+        key = _session_key(ref.path)
+        while (session := self._sessions.get(key)) is not None:
             await self.close_session(session)
         shutil.rmtree(ref.path)
 
@@ -550,7 +555,8 @@ class Hub:
             raise FlowAlreadyExists(f"`{renamed.relpath}` already exists")
         self._known.pop(ref.path, None)
         self._found.pop(ref.path, None)
-        while (session := self.attached(ref.path)) is not None:
+        key = _session_key(ref.path)
+        while (session := self._sessions.get(key)) is not None:
             await self.close_session(session)
         ref.path.rename(renamed.path)
         self._found[renamed.path] = renamed
@@ -642,6 +648,14 @@ def _duplicate_skips(flow_dir: Path) -> Callable[[str, list[str]], set[str]]:
         return set()
 
     return skips
+
+
+def _session_key(path: Path) -> Path:
+    try:
+        return path.resolve()
+    except (OSError, RuntimeError):
+        # A symlink loop raises RuntimeError before Python 3.13.
+        return path.absolute()
 
 
 def _new_flow_ref(root: Path, name: str) -> FlowRef:

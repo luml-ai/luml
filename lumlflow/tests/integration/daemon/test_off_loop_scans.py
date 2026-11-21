@@ -10,6 +10,7 @@ from lumlflow.flow.daemon.main import Daemon
 from lumlflow.flow.daemon.workspace import FlowRef
 from lumlflow.flow.dsl.tree import ScanStopped, WorkspaceTree, scan_workspace
 from lumlflow.flow.errors import FlowNotFound
+from lumlflow.flow.store.flowstore import store_dir
 from lumlflow.flow.store.models import RunRecorded
 
 from tests.helpers.daemon import (
@@ -378,6 +379,48 @@ async def test_a_symlink_and_its_target_opened_together_share_one_session(
     assert opened == [first]
     assert attached is first
     assert first.ref.name == "alias"
+    assert first.ref.path == alias.path
+
+
+async def test_deleting_a_symlink_opened_by_its_name_keeps_its_target(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    cell = write_cell(root / "churn.flow", "score", SCORE_CELL)
+    (root / "alias.flow").symlink_to(root / "churn.flow", target_is_directory=True)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "alias"})
+        with pytest.raises(OSError):
+            await api.flow_delete({"flow": "alias"})
+
+    assert cell.is_file()
+    assert store_dir(root / "churn.flow").is_dir()
+
+
+async def test_a_flow_created_under_a_linked_directory_shares_its_first_open(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    (root / "real").mkdir()
+    (root / "linked").symlink_to(root / "real", target_is_directory=True)
+    real = FlowRef(name="new", path=root / "real" / "new.flow", relpath="real/new.flow")
+
+    async with daemon_api(root) as api:
+        scan = _BlockedScan()
+        monkeypatch.setattr(hub_module, "scan_workspace", scan)
+        creating = asyncio.create_task(api.hub.init_flow(root, "linked/new"))
+        await scan.started()
+        opening = asyncio.create_task(api.hub.open(real))
+        for _ in range(_YIELDS):
+            await asyncio.sleep(0)
+        scan.release.set()
+        created = await asyncio.wait_for(creating, _PROMPT_S)
+        opened = await asyncio.wait_for(opening, _PROMPT_S)
+        sessions = api.hub.opened()
+
+    assert opened is created
+    assert sessions == [created]
 
 
 async def test_renaming_a_flow_through_its_symlink_closes_the_open_session(
