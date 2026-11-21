@@ -154,6 +154,24 @@ def test_an_excluded_directory_raises_no_event(
     assert [path for path in recorder.posted if path.suffix == ".py"] == []
 
 
+def test_a_gitignored_notebook_keeps_watching_its_own_cells(
+    root: Path, trees: Any, recorder: _Recorder
+) -> None:
+    notebook = root / "scratch.flow"
+    (notebook / "cells").mkdir(parents=True)
+    (notebook / "helpers").mkdir()
+    (root / ".gitignore").write_text("scratch.flow/\n", encoding="utf-8")
+    trees.schedule(root)
+    tree = trees.trees[root]
+
+    assert tree.watched() == {root, notebook, notebook / "cells"}
+    (notebook / "cells" / "score.py").write_text("X = 1\n")
+    _until(lambda: recorder.saw(notebook / "cells" / "score.py"))
+    tree.on_queue_overflow()
+    _until(lambda: recorder.woken == [root])
+    assert tree.watched() == {root, notebook, notebook / "cells"}
+
+
 def test_a_directory_made_after_scheduling_is_watched_and_its_files_posted(
     root: Path, trees: Any, recorder: _Recorder
 ) -> None:

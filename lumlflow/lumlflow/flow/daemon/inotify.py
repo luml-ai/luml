@@ -17,6 +17,7 @@ from watchdog.observers.inotify_c import (
 
 from lumlflow.flow.dsl.accept import CELL_SUFFIX
 from lumlflow.flow.dsl.tree import WorkspaceExclusions
+from lumlflow.flow.store.flowstore import CELLS_DIRNAME, FLOW_SUFFIX
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +99,7 @@ class TreeWatch:
                 if (
                     directory != root
                     and not self._watching(directory)
-                    and exclusions.matches(Path(directory), directory=True)
+                    and _excluded(exclusions, Path(directory))
                 ):
                     continue
                 self._add(directory)
@@ -153,9 +154,7 @@ class TreeWatch:
                 return
             if _within(str(path), stale):
                 continue
-            if not path.is_dir() or (
-                path != self.root and exclusions.matches(path, directory=True)
-            ):
+            if not path.is_dir() or (path != self.root and _excluded(exclusions, path)):
                 stale.add(str(path))
         if stale:
             self.drop(*stale)
@@ -296,6 +295,17 @@ class InotifyTrees:
             self.trees.clear()
         self._inotify.stop()
         self._inotify.join(_JOIN_TIMEOUT_S)
+
+
+def _excluded(exclusions: WorkspaceExclusions, directory: Path) -> bool:
+    """Whether the scan prunes `directory`, except for a notebook and its
+    `cells/`: the shared-code rules say nothing about a notebook's own cells,
+    which stay live even in a gitignored notebook."""
+    if directory.name.endswith(FLOW_SUFFIX) or (
+        directory.name == CELLS_DIRNAME and directory.parent.name.endswith(FLOW_SUFFIX)
+    ):
+        return False
+    return exclusions.matches(directory, directory=True)
 
 
 def _within(path: str, tops: set[str]) -> bool:
