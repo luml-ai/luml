@@ -352,12 +352,19 @@ async def test_stopping_a_run_that_waits_for_its_scan_runs_nothing(
     assert not marker.exists()
 
 
+def _link(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except OSError:
+        pytest.skip("this system does not let the tests make directory links")
+
+
 async def test_a_symlink_and_its_target_opened_together_share_one_session(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
-    (root / "alias.flow").symlink_to(root / "churn.flow", target_is_directory=True)
+    _link(root / "alias.flow", root / "churn.flow")
     alias = FlowRef(name="alias", path=root / "alias.flow", relpath="alias.flow")
 
     async with daemon_api(root) as api:
@@ -387,7 +394,7 @@ async def test_deleting_a_symlink_opened_by_its_name_keeps_its_target(
 ) -> None:
     root = make_workspace(tmp_path / "project")
     cell = write_cell(root / "churn.flow", "score", SCORE_CELL)
-    (root / "alias.flow").symlink_to(root / "churn.flow", target_is_directory=True)
+    _link(root / "alias.flow", root / "churn.flow")
 
     async with daemon_api(root) as api:
         await api.flow_open({"flow": "alias"})
@@ -405,7 +412,7 @@ async def test_a_flow_created_under_a_linked_directory_shares_its_first_open(
 ) -> None:
     root = make_workspace(tmp_path / "project")
     (root / "real").mkdir()
-    (root / "linked").symlink_to(root / "real", target_is_directory=True)
+    _link(root / "linked", root / "real")
     real = FlowRef(name="new", path=root / "real" / "new.flow", relpath="real/new.flow")
 
     async with daemon_api(root) as api:
@@ -430,7 +437,7 @@ async def test_renaming_a_flow_through_its_symlink_closes_the_open_session(
 ) -> None:
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
-    (root / "alias.flow").symlink_to(root / "churn.flow", target_is_directory=True)
+    _link(root / "alias.flow", root / "churn.flow")
     alias = FlowRef(name="alias", path=root / "alias.flow", relpath="alias.flow")
 
     async with daemon_api(root) as api:
