@@ -207,25 +207,35 @@ class AuthHandler:
         return user
 
     async def handle_signup(self, create_user_in: CreateUserIn) -> dict[str, str]:
-        if await self.__user_repository.get_user(create_user_in.email):
-            return {"detail": "Please confirm your email address"}
+        existing_user = await self.__user_repository.get_user(create_user_in.email)
+        if existing_user:
+            if (
+                existing_user.email_verified
+                or existing_user.auth_method != AuthProvider.EMAIL
+                or existing_user.hashed_password is None
+                or not self._verify_password(
+                    create_user_in.password, existing_user.hashed_password
+                )
+            ):
+                return {"detail": "Please confirm your email address"}
+            user = existing_user
+        else:
+            hashed_password = self._get_password_hash(create_user_in.password)
 
-        hashed_password = self._get_password_hash(create_user_in.password)
+            create_user = CreateUser(
+                email=create_user_in.email,
+                full_name=create_user_in.full_name,
+                photo=create_user_in.photo,
+                hashed_password=hashed_password,
+                auth_method=AuthProvider.EMAIL,
+            )
 
-        create_user = CreateUser(
-            email=create_user_in.email,
-            full_name=create_user_in.full_name,
-            photo=create_user_in.photo,
-            hashed_password=hashed_password,
-            auth_method=AuthProvider.EMAIL,
-        )
-
-        try:
-            user = await self.__user_repository.create_user(create_user=create_user)
-        except IntegrityError as error:
-            if not violates(error, "users_email_key"):
-                raise
-            return {"detail": "Please confirm your email address"}
+            try:
+                user = await self.__user_repository.create_user(create_user=create_user)
+            except IntegrityError as error:
+                if not violates(error, "users_email_key"):
+                    raise
+                return {"detail": "Please confirm your email address"}
 
         confirmation_token = self._generate_email_confirmation_token(
             user.email, user.id, user.email_version
@@ -236,10 +246,9 @@ class AuthHandler:
                 user.email, confirmation_link, user.full_name
             )
         except Exception as error:
-            await self.__user_repository.delete_signup(user.id)
-            raise EmailDeliveryError(
-                "Error sending confirmation email. User is not created."
-            ) from error
+            if existing_user is None:
+                await self.__user_repository.delete_signup(user.id)
+            raise EmailDeliveryError("Error sending confirmation email.") from error
         return {"detail": "Please confirm your email address"}
 
     async def handle_signin(self, user: SignInUser) -> SignInResponse:
