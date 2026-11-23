@@ -6,6 +6,7 @@ export const getBaseChartOptions = (): ApexOptions => ({
     zoom: { enabled: false },
     fontFamily: 'Inter, sans-serif',
     background: 'transparent',
+    accessibility: { keyboard: { enabled: false } },
   },
   grid: {
     borderColor: 'var(--p-content-border-color)',

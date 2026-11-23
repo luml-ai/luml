@@ -42,6 +42,10 @@ const options = computed<ApexOptions>(() => {
     chart: { ...base.chart, animations: { enabled: false }, foreColor: cssValues.value.text },
     colors: [cssValues.value.reference, cssValues.value.current],
     plotOptions: { bar: { columnWidth: '68%', borderRadius: 3 } },
+    states: {
+      hover: { filter: { type: 'none' } },
+      active: { filter: { type: 'none' } },
+    },
     legend: { show: true, position: 'top', horizontalAlign: 'right', fontSize: '12px' },
     grid: {
       borderColor: cssValues.value.grid,
