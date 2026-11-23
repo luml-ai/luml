@@ -298,36 +298,57 @@ class AuthHandler:
         self,
         email: EmailStr,
         update_user: UpdateUserIn,
+        *,
+        expected_identity: tuple[UUID, UUID],
     ) -> bool:
-        if not await self.__user_repository.get_user(email):
+        user = await self.__user_repository.get_user(email)
+        if user is None:
             raise AuthError("User not found", 404)
+        if (user.id, user.email_version) != expected_identity:
+            raise AuthError("Token has been revoked", 401)
         update_user = UpdateUser(
             **update_user.model_dump(exclude_unset=True), email=email
         )
-        return await self.__user_repository.update_user(update_user)
+        return await self.__user_repository.update_user(
+            update_user, expected_identity=expected_identity
+        )
 
     async def handle_change_password(
-        self, email: EmailStr, passwords: ChangePasswordIn
+        self,
+        email: EmailStr,
+        passwords: ChangePasswordIn,
+        *,
+        expected_identity: tuple[UUID, UUID],
     ) -> Token:
         user = await self.__user_repository.get_user(email)
         if user is None:
             raise AuthError("User not found", 404)
+        if (user.id, user.email_version) != expected_identity:
+            raise AuthError("Token has been revoked", 401)
         if user.auth_method != AuthProvider.EMAIL or user.hashed_password is None:
             raise AuthError("Invalid auth method", 400)
         if not self._verify_password(passwords.current_password, user.hashed_password):
             raise AuthError("Invalid current password", 400)
 
         hashed_password = self._get_password_hash(passwords.new_password)
-        if not await self.__user_repository.update_password(email, hashed_password):
+        if not await self.__user_repository.update_password(
+            email, hashed_password, expected_identity=expected_identity
+        ):
             raise AuthError("User not found", 404)
         return self._create_tokens(email, hashed_password, user.id, user.email_version)
 
     async def handle_change_email(
-        self, email: EmailStr, request: ChangeEmailIn
+        self,
+        email: EmailStr,
+        request: ChangeEmailIn,
+        *,
+        expected_identity: tuple[UUID, UUID],
     ) -> dict[str, str]:
         user = await self.__user_repository.get_user(email)
         if user is None:
             raise AuthError("User not found", 404)
+        if (user.id, user.email_version) != expected_identity:
+            raise AuthError("Token has been revoked", 401)
         if user.auth_method != AuthProvider.EMAIL or user.hashed_password is None:
             raise AuthError("Email is managed by your sign-in provider", 400)
         if not self._verify_password(request.current_password, user.hashed_password):
@@ -417,8 +438,12 @@ class AuthHandler:
         except Exception:
             logger.exception("Email change notice could not be delivered")
 
-    async def handle_delete_account(self, email: EmailStr) -> None:
-        await self.__user_repository.delete_user(email)
+    async def handle_delete_account(
+        self, email: EmailStr, *, expected_identity: tuple[UUID, UUID]
+    ) -> None:
+        await self.__user_repository.delete_user(
+            email, expected_identity=expected_identity
+        )
 
     async def handle_get_current_user(
         self,

@@ -75,6 +75,7 @@ class TestAuth:
             ChangePasswordIn(
                 current_password="current-password", new_password="new-password"
             ),
+            expected_identity=(USER_ID, USER_ID),
         )
 
     @patch("luml.api.auth.auth_handler.handle_change_password", new_callable=AsyncMock)
@@ -107,7 +108,9 @@ class TestAuth:
 
         assert response.status_code == 200
         assert response.json()["auth_method"] == "EMAIL"
-        mock_get_current_user.assert_awaited_once_with(CALLER_EMAIL)
+        mock_get_current_user.assert_awaited_once_with(
+            CALLER_EMAIL, user_id=str(USER_ID), email_version=str(USER_ID)
+        )
 
 
 @pytest.mark.parametrize("path", ["/v1/auth/refresh", "/v1/auth/logout"])
@@ -243,3 +246,59 @@ def test_profile_mutations_do_not_offer_session_refresh(
 
     assert response.status_code == 401
     assert response.json() == {"detail": "Not authenticated"}
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "payload", "handler"),
+    [
+        ("get", UPDATE_PROFILE_PATH, None, "handle_get_current_user"),
+        ("delete", UPDATE_PROFILE_PATH, None, "handle_delete_account"),
+        ("patch", UPDATE_PROFILE_PATH, {"full_name": "Changed"}, "update_user"),
+        (
+            "post",
+            "/v1/auth/change-password",
+            {"current_password": "test_password", "new_password": "new-password"},
+            "handle_change_password",
+        ),
+        (
+            "post",
+            "/v1/auth/change-email",
+            {"current_password": "test_password", "new_email": "new@example.com"},
+            "handle_change_email",
+        ),
+    ],
+)
+def test_account_routes_pass_authenticated_identity(
+    client: TestClient,
+    method: str,
+    path: str,
+    payload: dict[str, str] | None,
+    handler: str,
+) -> None:
+    with (
+        patch(
+            f"luml.api.auth.auth_handler.{handler}", new_callable=AsyncMock
+        ) as mocked,
+        patch("luml.api.auth.limit_auth_attempts", new_callable=AsyncMock),
+    ):
+        if handler == "handle_change_password":
+            mocked.return_value = Token(
+                access_token="new", refresh_token="new", token_type="bearer"
+            )
+        elif handler == "handle_get_current_user":
+            mocked.return_value = CurrentUserOut(
+                id=USER_ID, email=CALLER_EMAIL, auth_method=AuthProvider.EMAIL
+            )
+        elif handler == "handle_change_email":
+            mocked.return_value = {"detail": "Sent"}
+        else:
+            mocked.return_value = True
+        client.request(method, path, json=payload)
+
+    assert mocked.await_args is not None
+    kwargs = mocked.await_args.kwargs
+    if handler == "handle_get_current_user":
+        assert kwargs["user_id"] == str(USER_ID)
+        assert kwargs["email_version"] == str(USER_ID)
+    else:
+        assert kwargs["expected_identity"] == (USER_ID, USER_ID)

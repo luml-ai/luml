@@ -187,7 +187,11 @@ async def get_current_user_info(request: Request) -> CurrentUserOut:
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Session refresh required"
         )
     is_user_authenticated(request)
-    return await auth_handler.handle_get_current_user(request.user.email)
+    return await auth_handler.handle_get_current_user(
+        request.user.email,
+        user_id=str(request.user.id),
+        email_version=str(request.user.email_version),
+    )
 
 
 @auth_router.delete("/users/me", response_model=DetailResponse)
@@ -195,7 +199,10 @@ async def delete_account(
     request: Request,
     _: Annotated[None, Depends(is_user_authenticated)],
 ) -> dict[str, str]:
-    await auth_handler.handle_delete_account(request.user.email)
+    await auth_handler.handle_delete_account(
+        request.user.email,
+        expected_identity=(request.user.id, request.user.email_version),
+    )
     return {"detail": "Account deleted successfully"}
 
 
@@ -206,7 +213,11 @@ async def change_password(
     passwords: ChangePasswordIn,
     _: Annotated[None, Depends(is_user_authenticated)],
 ) -> dict[str, str]:
-    tokens = await auth_handler.handle_change_password(request.user.email, passwords)
+    tokens = await auth_handler.handle_change_password(
+        request.user.email,
+        passwords,
+        expected_identity=(request.user.id, request.user.email_version),
+    )
     set_auth_cookies(response, tokens)
     return {"detail": "Password changed successfully"}
 
@@ -218,7 +229,11 @@ async def change_email(
     _: Annotated[None, Depends(is_user_authenticated)],
 ) -> dict[str, str]:
     await limit_auth_attempts(request, request.user.email)
-    return await auth_handler.handle_change_email(request.user.email, data)
+    return await auth_handler.handle_change_email(
+        request.user.email,
+        data,
+        expected_identity=(request.user.id, request.user.email_version),
+    )
 
 
 @auth_router.post("/confirm-email-change", response_model=DetailResponse)
@@ -239,7 +254,13 @@ async def update_user_profile(
 ) -> dict[str, str]:
     return {
         "detail": "User profile updated successfully"
-        if (await auth_handler.update_user(request.user.email, update_user))
+        if (
+            await auth_handler.update_user(
+                request.user.email,
+                update_user,
+                expected_identity=(request.user.id, request.user.email_version),
+            )
+        )
         else "No changes made to the user profile"
     }
 

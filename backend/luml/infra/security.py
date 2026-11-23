@@ -70,6 +70,7 @@ class JWTAuthenticationBackend(AuthenticationBackend):
                 email=user.email,
                 full_name=user.full_name,
                 disabled=user.disabled,
+                email_version=user.email_version,
             )
             return AuthCredentials(["authenticated", "jwt"]), auth_user
         except AuthError:

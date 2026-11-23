@@ -72,7 +72,9 @@ class TestAccountDeletion:
                 )
             )
 
-        await repository.delete_user(data.user.email)
+        await repository.delete_user(
+            data.user.email, expected_identity=(data.user.id, data.user.email_version)
+        )
 
         async with AsyncSession(engine) as session:
             for model in (
@@ -114,7 +116,9 @@ class TestAccountDeletion:
                 )
             )
 
-        await repository.delete_user(departing.email)
+        await repository.delete_user(
+            departing.email, expected_identity=(departing.id, departing.email_version)
+        )
 
         assert await repository.get_user(departing.email) is None
         members = await repository.get_organization_members(organization.id)
@@ -142,7 +146,9 @@ class TestAccountDeletion:
             )
         )
 
-        await repository.delete_user(owner.email)
+        await repository.delete_user(
+            owner.email, expected_identity=(owner.id, owner.email_version)
+        )
 
         assert await repository.get_user(owner.email) is None
         assert await repository.get_user(member.email) is not None
@@ -175,7 +181,9 @@ class TestAccountDeletion:
             organization.id, owner.id, successor_member.id
         )
 
-        await repository.delete_user(owner.email)
+        await repository.delete_user(
+            owner.email, expected_identity=(owner.id, owner.email_version)
+        )
 
         members = await repository.get_organization_members(organization.id)
         assert [(member.user.id, member.role) for member in members] == [
@@ -209,7 +217,9 @@ class TestAccountDeletion:
             patch("luml.repositories.users.delete", side_effect=RuntimeError("failed")),
             pytest.raises(RuntimeError, match="failed"),
         ):
-            await repository.delete_user(user.email)
+            await repository.delete_user(
+                user.email, expected_identity=(user.id, user.email_version)
+            )
 
         assert await repository.get_user(user.email) is not None
         assert {org.id for org in await repository.get_user_organizations(user.id)} == {
@@ -231,7 +241,11 @@ class TestAccountDeletion:
             await session.scalar(
                 select(UserOrm.id).where(UserOrm.id == user.id).with_for_update()
             )
-            task = asyncio.create_task(repository.delete_user(user.email))
+            task = asyncio.create_task(
+                repository.delete_user(
+                    user.email, expected_identity=(user.id, user.email_version)
+                )
+            )
             try:
                 async with asyncio.timeout(10):
                     while not await session.scalar(
@@ -267,7 +281,9 @@ class TestAccountDeletion:
         }
 
     async def test_delete_missing_account_is_a_noop(self, engine: AsyncEngine) -> None:
-        await UserRepository(engine).delete_user("missing@example.com")
+        await UserRepository(engine).delete_user(
+            "missing@example.com", expected_identity=(uuid.uuid4(), uuid.uuid4())
+        )
 
     async def test_concurrent_owner_account_deletions_keep_an_owner(
         self, engine: AsyncEngine, new_user: CreateUser
@@ -282,8 +298,12 @@ class TestAccountDeletion:
 
         async with asyncio.timeout(10):
             results = await asyncio.gather(
-                repository.delete_user(owner.email),
-                repository.delete_user(other.email),
+                repository.delete_user(
+                    owner.email, expected_identity=(owner.id, owner.email_version)
+                ),
+                repository.delete_user(
+                    other.email, expected_identity=(other.id, other.email_version)
+                ),
                 return_exceptions=True,
             )
 
@@ -291,3 +311,42 @@ class TestAccountDeletion:
         async with AsyncSession(engine) as session:
             assert await session.get(OrganizationOrm, organization.id) is None
             assert await session.scalar(select(func.count()).select_from(UserOrm)) == 0
+
+
+async def test_delete_account_rechecks_identity_after_waiting_for_user_lock(
+    engine: AsyncEngine, new_user: CreateUser
+) -> None:
+    repository = UserRepository(engine)
+    user = await repository.create_user(new_user)
+    organizations = await repository.get_user_organizations(user.id)
+    async with AsyncSession(engine) as session, session.begin():
+        locked = await session.scalar(
+            select(UserOrm).where(UserOrm.id == user.id).with_for_update()
+        )
+        assert locked is not None
+        task = asyncio.create_task(
+            repository.delete_user(
+                user.email, expected_identity=(user.id, user.email_version)
+            )
+        )
+        try:
+            async with asyncio.timeout(10):
+                while not await session.scalar(
+                    text(
+                        "SELECT count(*) FROM pg_stat_activity "
+                        "WHERE datname = current_database() "
+                        "AND pid <> pg_backend_pid() AND wait_event_type = 'Lock'"
+                    )
+                ):
+                    await session.execute(text("SELECT pg_stat_clear_snapshot()"))
+                    await asyncio.sleep(0.02)
+            locked.email_version = uuid.uuid4()
+            await session.commit()
+            await task
+        finally:
+            if not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+
+    assert await repository.get_user(user.email) is not None
+    assert await repository.get_user_organizations(user.id) == organizations

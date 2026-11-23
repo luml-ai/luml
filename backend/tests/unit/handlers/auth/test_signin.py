@@ -316,34 +316,44 @@ class TestAuthSignIn:
         mocks.user_repository.get_user.return_value = user
         mocks.user_repository.update_user.return_value = True
 
-        result = await mocks.handler.update_user(email, update_payload)
+        result = await mocks.handler.update_user(
+            email, update_payload, expected_identity=(user.id, user.email_version)
+        )
 
         assert result is True
         mocks.user_repository.get_user.assert_awaited_once_with(email)
         expected_update = UpdateUser(full_name="Updated Name", email=email)
-        mocks.user_repository.update_user.assert_awaited_once_with(expected_update)
+        mocks.user_repository.update_user.assert_awaited_once_with(
+            expected_update, expected_identity=(user.id, user.email_version)
+        )
 
     async def test_update_user_raises_when_user_not_found(
-        self, mocks: CollaboratorMocks[AuthHandler]
+        self, mocks: CollaboratorMocks[AuthHandler], user: User
     ) -> None:
         email = "test@example.com"
         update_payload = UpdateUserIn(full_name="Updated Name")
         mocks.user_repository.get_user.return_value = None
 
         with pytest.raises(AuthError, match="User not found") as exc:
-            await mocks.handler.update_user(email, update_payload)
+            await mocks.handler.update_user(
+                email, update_payload, expected_identity=(user.id, user.email_version)
+            )
 
         assert exc.value.status_code == 404
         mocks.user_repository.get_user.assert_awaited_once_with(email)
 
     async def test_handle_delete_account_deletes_user(
-        self, mocks: CollaboratorMocks[AuthHandler]
+        self, mocks: CollaboratorMocks[AuthHandler], user: User
     ) -> None:
         email = "test@example.com"
 
-        await mocks.handler.handle_delete_account(email)
+        await mocks.handler.handle_delete_account(
+            email, expected_identity=(user.id, user.email_version)
+        )
 
-        mocks.user_repository.delete_user.assert_awaited_once_with(email)
+        mocks.user_repository.delete_user.assert_awaited_once_with(
+            email, expected_identity=(user.id, user.email_version)
+        )
 
     async def test_handle_get_current_user_returns_user(
         self,

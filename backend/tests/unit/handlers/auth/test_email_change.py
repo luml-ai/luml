@@ -22,6 +22,7 @@ async def test_request_sends_bound_link_without_changing_email(
         ChangeEmailIn(
             new_email="  NEW@Example.com  ", current_password=passwords.password
         ),
+        expected_identity=(user.id, user.email_version),
     )
     assert result == {
         "detail": "If this address can be used, we have sent a confirmation link to it"
@@ -46,8 +47,12 @@ async def test_taken_and_free_addresses_have_identical_responses(
     )
     mocks.user_repository.get_user.return_value = user
     mocks.user_repository.email_exists.side_effect = [False, True]
-    free = await mocks.handler.handle_change_email(user.email, request)
-    taken = await mocks.handler.handle_change_email(user.email, request)
+    free = await mocks.handler.handle_change_email(
+        user.email, request, expected_identity=(user.id, user.email_version)
+    )
+    taken = await mocks.handler.handle_change_email(
+        user.email, request, expected_identity=(user.id, user.email_version)
+    )
     assert free == taken
     mocks.emails_handler.send_email_change_confirmation.assert_awaited_once()
 
@@ -73,7 +78,9 @@ async def test_invalid_request_sends_no_mail(
         else passwords.password,
     )
     with pytest.raises(AuthError):
-        await mocks.handler.handle_change_email(user.email, request)
+        await mocks.handler.handle_change_email(
+            user.email, request, expected_identity=(user.id, user.email_version)
+        )
     mocks.emails_handler.send_email_change_confirmation.assert_not_awaited()
 
 
@@ -95,6 +102,7 @@ async def test_confirmation_delivery_failure_does_not_update_user(
             ChangeEmailIn(
                 new_email="new@example.com", current_password=passwords.password
             ),
+            expected_identity=(user.id, user.email_version),
         )
     mocks.user_repository.update_user.assert_not_awaited()
 

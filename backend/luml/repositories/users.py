@@ -120,10 +120,17 @@ class UserRepository(RepositoryBase, CrudMixin):
             db_user = await self.get_model(session, UserOrm, user_id)
             return db_user.to_public_user() if db_user else None
 
-    async def delete_user(self, email: EmailStr) -> None:
+    async def delete_user(
+        self, email: EmailStr, *, expected_identity: tuple[UUID, UUID]
+    ) -> None:
+        expected_user_id, email_version = expected_identity
         async with self._get_session() as session, session.begin():
             user_id = await session.scalar(
-                select(UserOrm.id).where(UserOrm.email == email)
+                select(UserOrm.id).where(
+                    UserOrm.email == email,
+                    UserOrm.id == expected_user_id,
+                    UserOrm.email_version == email_version,
+                )
             )
             if user_id is None:
                 return
@@ -139,9 +146,19 @@ class UserRepository(RepositoryBase, CrudMixin):
                     .with_for_update()
                 )
             )
-            await session.scalar(
-                select(UserOrm.id).where(UserOrm.id == user_id).with_for_update()
-            )
+            if (
+                await session.scalar(
+                    select(UserOrm.id)
+                    .where(
+                        UserOrm.id == user_id,
+                        UserOrm.email == email,
+                        UserOrm.email_version == email_version,
+                    )
+                    .with_for_update()
+                )
+                is None
+            ):
+                return
             current_ids = set(await session.scalars(organization_ids))
             if not current_ids.issubset({org.id for org in organizations}):
                 raise AccountDeleteError(
