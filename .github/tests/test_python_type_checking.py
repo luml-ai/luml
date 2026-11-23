@@ -15,6 +15,7 @@ PACKAGES = {
             "handlers",
             "services",
             "utils",
+            "compute_mode.py",
             "conda_manager.py",
             "conda_worker.py",
             "main.py",

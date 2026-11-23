@@ -30,8 +30,11 @@ def classify_compute(extracted_path: str | Path) -> tuple[ComputeMode, str]:
     classes = {node.name: node for node in source.body if isinstance(node, ast.ClassDef)}
 
     def local_mro(name: str, ancestors: set[str]) -> list[str] | None:
-        if name not in classes or name in ancestors:
+        if name in ancestors:
             return None
+        if name not in classes:
+            # retain unknown bases so method lookup stops if they take precedence
+            return [name]
         cls = classes[name]
         if cls.decorator_list or cls.keywords:
             return None
@@ -120,7 +123,8 @@ def classify_compute(extracted_path: str | Path) -> tuple[ComputeMode, str]:
                 (
                     name
                     for name in order[1:]
-                    if any(
+                    if name not in classes
+                    or any(
                         isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
                         and node.name == "compute_async"
                         for node in classes[name].body

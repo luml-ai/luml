@@ -35,8 +35,20 @@ def load_worker(
     return load
 
 
+@pytest.mark.parametrize(
+    "source",
+    [
+        "class Model:\n    async def compute_async(self, inputs, attrs):\n"
+        "        return self.compute(inputs, attrs)\n",
+        "from fnnx import PyFunc\nclass Mixin:\n    pass\n"
+        "class SyncBase(PyFunc):\n    async def compute_async(self, inputs, attrs):\n"
+        "        return self.compute(inputs, attrs)\n"
+        "class Model(Mixin, SyncBase):\n    pass\n",
+    ],
+)
 async def test_sync_compute_keeps_loop_responsive_and_skips_async(
     load_worker: Callable[[str | None, Mock], dict],
+    source: str,
 ) -> None:
     loop_thread = threading.get_ident()
     worker_threads = []
@@ -47,11 +59,7 @@ async def test_sync_compute_keeps_loop_responsive_and_skips_async(
         return {"y": inputs["x"] + attrs["offset"]}
 
     handler = Mock(compute=Mock(side_effect=compute), compute_async=AsyncMock())
-    namespace = load_worker(
-        "class Model:\n    async def compute_async(self, inputs, attrs):\n"
-        "        return self.compute(inputs, attrs)\n",
-        handler,
-    )
+    namespace = load_worker(source, handler)
     task = asyncio.create_task(namespace["compute_model"]({"x": 2}, {"offset": 3}))
     ticks = 0
     while not task.done():

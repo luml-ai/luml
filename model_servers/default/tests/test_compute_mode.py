@@ -53,9 +53,13 @@ def test_follows_local_base_classes(artifact: Path) -> None:
 
 
 @pytest.mark.parametrize("bases", ["Left, Right", "Right, Left"])
-def test_local_diamond_uses_python_method_resolution_order(artifact: Path, bases: str) -> None:
+@pytest.mark.parametrize("root_base", ["", "(PyFunc)"])
+def test_local_diamond_uses_python_method_resolution_order(
+    artifact: Path, bases: str, root_base: str
+) -> None:
     (artifact / "variant_artifacts/__pyfunc__.py").write_text(
-        "class Root:\n    async def compute_async(self, i, a):\n        return await work()\n"
+        f"class Root{root_base}:\n"
+        "    async def compute_async(self, i, a):\n        return await work()\n"
         "class Left(Root):\n    pass\n"
         "class Right(Root):\n    async def compute_async(self, i, a):\n"
         "        return self.compute(i, a)\n"
@@ -118,6 +122,41 @@ def test_local_inherited_method_with_external_root(artifact: Path, method: str) 
     )
     expected = ComputeMode.ASYNC if "await" in method else ComputeMode.SYNC
     assert classify_compute(artifact)[0] == expected
+
+
+@pytest.mark.parametrize("bases", ["Mixin, Parent", "Parent, Mixin"])
+@pytest.mark.parametrize(
+    ("method", "expected"),
+    [
+        ("return self.compute(i, a)", ComputeMode.SYNC),
+        ("raise NotImplementedError", ComputeMode.SYNC),
+        ("return await work()", ComputeMode.ASYNC),
+    ],
+)
+def test_local_multiple_inheritance_with_external_root(
+    artifact: Path, bases: str, method: str, expected: ComputeMode
+) -> None:
+    (artifact / "variant_artifacts/__pyfunc__.py").write_text(
+        "from fnnx import PyFunc\n"
+        "class Mixin:\n    pass\n"
+        f"class Parent(PyFunc):\n    async def compute_async(self, i, a):\n        {method}\n"
+        f"class Model({bases}):\n    pass\n"
+    )
+    assert classify_compute(artifact)[0] == expected
+
+
+@pytest.mark.parametrize("earlier_base", ["External", "Mixin"])
+def test_unknown_earlier_base_keeps_local_override_undecided(
+    artifact: Path, earlier_base: str
+) -> None:
+    (artifact / "variant_artifacts/__pyfunc__.py").write_text(
+        "from helpers import External, PyFunc\n"
+        "class Mixin(External):\n    pass\n"
+        "class Parent(PyFunc):\n    async def compute_async(self, i, a):\n"
+        "        return self.compute(i, a)\n"
+        f"class Model({earlier_base}, Parent):\n    pass\n"
+    )
+    assert classify_compute(artifact)[0] == ComputeMode.UNDECIDED
 
 
 def test_non_pyfunc_is_async_without_pyfunc_files(tmp_path: Path) -> None:
