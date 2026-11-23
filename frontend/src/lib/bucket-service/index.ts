@@ -89,13 +89,17 @@ export class ModelDownloader {
   }
 
   async readRange(start: number, end: number): Promise<ArrayBuffer> {
-    const headers = { Range: `bytes=${start}-${end - 1}` }
-    let response = await fetch(this.url, { headers })
-    if ((response.status === 401 || response.status === 403) && this.refreshUrl) {
-      await response.body?.cancel()
-      this.url = await this.refreshUrl()
-      response = await fetch(this.url, { headers })
-    }
+    const range = `bytes=${start}-${end - 1}`
+    const response = await this.urls.withLocation(async ({ url, headers, credentials }) => {
+      const answer = await fetch(url, { headers: { ...headers, Range: range }, credentials })
+      if (answer.status === 401 || answer.status === 403) {
+        await answer.body?.cancel()
+        throw Object.assign(new Error(`Storage answered ${answer.status}`), {
+          response: { status: answer.status },
+        })
+      }
+      return answer
+    })
     // Cross-origin buckets don't always expose Content-Range to scripts.
     const contentRange = response.headers.get('Content-Range')
     if (

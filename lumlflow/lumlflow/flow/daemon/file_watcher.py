@@ -210,7 +210,7 @@ class FileWatcher(FileSystemEventHandler):
     def lease_starting(self, session: object) -> None:
         # Watchdog can still have undelivered events when the socket acquires
         # its first lease. Those file versions predate this session.
-        versions = {}
+        versions: dict[Path, tuple[int, ...]] = {}
         for root in self._watches:
             with suppress(OSError), os.scandir(root) as entries:
                 for entry in entries:

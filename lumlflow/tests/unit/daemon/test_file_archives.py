@@ -7,7 +7,7 @@ from unittest.mock import ANY, Mock
 
 import polars as pl
 import pytest
-from fnnx.extras.builder import PyfuncBuilder  # type: ignore[import-untyped]
+from fnnx.extras.builder import PyfuncBuilder
 from luml.artifacts.dataset import save_hf_dataset, save_tabular_dataset
 from luml.artifacts.experiment import save_experiment
 from luml.artifacts.model import ModelReference
@@ -124,7 +124,7 @@ async def test_inspect_sdk_experiment(
     assert result["manifest"]["payload"]["local_experiment_id"] == experiment_id
     assert {entry["name"] for entry in result["files"]} >= {
         "manifest.json",
-        "exp.db.zip",
+        "exp.db",
     }
 
 

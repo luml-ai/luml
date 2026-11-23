@@ -9,7 +9,7 @@ than propagated as a write failure.
 import os
 import tempfile
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -59,7 +59,7 @@ def atomic_write_bytes(path: Path, data: bytes, *, fsync: bool = True) -> None:
 @contextmanager
 def staged_bytes(
     path: Path, data: bytes, *, mode: int | None = None, fsync: bool = True
-) -> Iterator[Path]:
+) -> Generator[Path]:
     """Stage bytes beside their destination. The caller publishes them on success."""
     handle_fd, temp_name = tempfile.mkstemp(
         dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"

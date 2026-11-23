@@ -60,7 +60,6 @@ onMounted(async () => {
       findAttachmentsTarPath: () => tar.name,
       previewWorkerUrl: `${import.meta.env.BASE_URL}attachment-preview-sw.js`,
       downloader: {
-        url,
         readRange: bytes.slice,
         async getFileFromBucket<T>(entries: Record<string, [number, number]>, name: string) {
           const [start, size] = entries[name]!

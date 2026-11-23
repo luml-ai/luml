@@ -10,7 +10,7 @@ import shutil
 import stat
 import sys
 import tempfile
-from collections.abc import Awaitable, Callable, Iterator
+from collections.abc import Awaitable, Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -45,7 +45,7 @@ async def finish_operation(work: Awaitable[object]) -> None:
 
 
 @contextmanager
-def os_errors() -> Iterator[None]:
+def os_errors() -> Generator[None]:
     try:
         yield
     except FileExistsError as error:

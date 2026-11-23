@@ -7,7 +7,7 @@ import threading
 from pathlib import Path
 from unittest.mock import ANY, Mock, patch
 
-import httpx
+import httpx2
 import pytest
 from lumlflow.cli import app
 from lumlflow.flow import cli
@@ -376,8 +376,8 @@ async def test_http_refusal_names_the_open_notebook(tmp_path: Path) -> None:
         app = web.build_app(
             api.hub, api, Streams(), token="local", session_token="ui", static=root
         )
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://localhost"
+        async with httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=app), base_url="http://localhost"
         ) as client:
             response = await client.post(
                 web.RPC_PATH,
