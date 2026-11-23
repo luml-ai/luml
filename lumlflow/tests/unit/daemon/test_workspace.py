@@ -420,8 +420,9 @@ async def test_link_kind_comes_from_its_target(tmp_path: Path):
         with pytest.raises(FlowNotFound):
             await api.flow_open({"flow": str(folder)})
         await api.flow_open({"flow": str(notebook)})
-        await api.flow_delete({"flow": str(notebook)})
+        with pytest.raises(FlowError, match="is a link"):
+            await api.flow_delete({"flow": str(notebook)})
         await api.file_delete({"path": str(folder)})
-    assert not folder.is_symlink() and not notebook.is_symlink()
+    assert not folder.is_symlink() and notebook.is_symlink()
     assert target.is_dir() and not (target / ".lumlflow").exists()
     assert (target / "churn.flow").is_dir()

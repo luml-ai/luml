@@ -175,7 +175,9 @@ class Hub:
         self._streams = streams
         self._drop_leases = drop_leases
         self.ui_directories: set[Path] = set()
-        self._reserved: set[Path] = set()
+        # Paths under a running move or delete, each with the event its
+        # operation sets when it finishes.
+        self._reserved: dict[Path, asyncio.Event] = {}
         self._sessions: dict[Path, FlowSession] = {}
         self._known: dict[Path, FlowRef] = {}
         # Flows a listing came across: findable by name, but never opened.
@@ -301,8 +303,12 @@ class Hub:
         # One session per notebook on disk, whichever spelling reached it: two
         # stores on the same journal would each hand out the same next step.
         key = _session_key(ref.path)
-        self.check_available(ref.path, key)
         waited = False
+        # An open behind a move or delete waits for it, then finds the notebook
+        # gone instead of recreating its store mid-operation.
+        while (operation := self._operation(ref.path, key)) is not None:
+            await operation.wait()
+            waited = True
         while (session := self._sessions.get(key)) is not None:
             session.touch()
             if (opening := self._opening.get(key)) is None:
@@ -562,8 +568,15 @@ class Hub:
 
     def check_available(self, *paths: Path) -> None:
         for path in paths:
-            if any(_inside(path, held) for held in self._reserved):
+            if self._operation(path) is not None:
                 raise FlowError(f"`{path}` is busy with a filesystem operation")
+
+    def _operation(self, *paths: Path) -> asyncio.Event | None:
+        for path in paths:
+            for held, done in self._reserved.items():
+                if _inside(path, held):
+                    return done
+        return None
 
     async def change_path(
         self,
@@ -602,13 +615,16 @@ class Hub:
                 )
                 names = ", ".join(flow["name"] for flow in flows)
                 raise FlowOpen(f"close the open notebooks first: {names}", flows=flows)
-            self._reserved.update(paths)
+            done = asyncio.Event()
+            self._reserved.update(dict.fromkeys(paths, done))
             try:
                 await files.finish_operation(
                     self._apply_path_change(source, target, affected, written)
                 )
             finally:
-                self._reserved.difference_update(paths)
+                for path in paths:
+                    self._reserved.pop(path, None)
+                done.set()
 
     async def _apply_path_change(
         self,
@@ -635,15 +651,22 @@ class Hub:
                             moved.name.removesuffix(FLOW_SUFFIX), moved, moved.name
                         )
 
+    # The Flow API passes `close_open` from the user's answer; an internal caller
+    # that names a notebook to change means to close it.
     async def delete_flow(
-        self, ref: FlowRef, *, close_open: bool | list[str] = False
+        self, ref: FlowRef, *, close_open: bool | list[str] = True
     ) -> None:
         if not _is_flow(ref.path):
             raise FlowNotFound(f"`{ref.relpath}` is not a flow")
+        if ref.path.is_symlink():
+            raise FlowError(
+                f"`{ref.relpath}` is a link to another flow; "
+                "delete the flow it points to"
+            )
         await self.change_path(ref.path, None, close_open=close_open)
 
     async def rename_flow(
-        self, ref: FlowRef, name: str, *, close_open: bool | list[str] = False
+        self, ref: FlowRef, name: str, *, close_open: bool | list[str] = True
     ) -> FlowRef:
         files.valid_name(name.strip().removesuffix(FLOW_SUFFIX))
         renamed = _new_flow_ref(ref.path.parent, name)
@@ -653,7 +676,7 @@ class Hub:
         return await self.move_flow(ref, renamed, close_open=close_open)
 
     async def move_flow(
-        self, ref: FlowRef, target: FlowRef, *, close_open: bool | list[str] = False
+        self, ref: FlowRef, target: FlowRef, *, close_open: bool | list[str] = True
     ) -> FlowRef:
         if not _is_flow(ref.path):
             raise FlowNotFound(f"`{ref.relpath}` is not a flow")

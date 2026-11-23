@@ -271,17 +271,22 @@ async def test_notebook_alias_uses_one_session_and_moves_only_link(
         await api.flow_open({"flow": str(link)})
         await api.flow_open({"flow": str(notebook)})
         assert len(api.hub.opened()) == 1
-        await api.flow_rename({"flow": str(link), "name": "alias2"})
+        # The session was opened through the link, so renaming it closes it.
+        with pytest.raises(FlowOpen):
+            await api.flow_rename({"flow": str(link), "name": "alias2"})
+        await api.flow_rename({"flow": str(link), "name": "alias2", "close_open": True})
         assert (root / "alias2.flow").readlink() == notebook
+        assert api.hub.opened() == []
         destination = root / "destination"
         destination.mkdir()
         moved = await api.flow_move(
             {"flow": str(root / "alias2.flow"), "destination": str(destination)}
         )
         assert Path(moved["path"]).readlink() == notebook
-        await api.flow_delete({"flow": moved["path"]})
+        with pytest.raises(FlowError, match="is a link"):
+            await api.flow_delete({"flow": moved["path"]})
         assert notebook.is_dir()
-        assert api.hub.opened()[0].ref.path == notebook
+        assert Path(moved["path"]).is_symlink()
 
 
 @pytest.mark.parametrize("fail", [False, True])

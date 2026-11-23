@@ -420,6 +420,8 @@ class Api:
 
     async def flow_open(self, params: dict[str, Any]) -> dict[str, Any]:
         ref = self.resolve(_flow_name(params), directory=self._directory(params))
+        # The UI is told at once; Hub.open itself would wait for the operation.
+        self.hub.check_available(ref.path)
         session = await self.hub.open(ref, actor=_actor(params))
         session.experiment_states.clear()
         if params.get("worktree", True):
