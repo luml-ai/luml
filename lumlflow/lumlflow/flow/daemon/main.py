@@ -144,7 +144,7 @@ class Daemon:
             )
             self._serve_web(listener)
             try:
-                self.watcher.start()
+                await self.watcher.start()
             except OSError as unwatchable:
                 logger.warning("not watching flows: %s", unwatchable)
             self._sweeper = asyncio.create_task(self._sweep_quiet())
@@ -451,9 +451,8 @@ class Daemon:
             "leased_sessions": len(leases),
             "stream_subscribers": self.streams.watchers,
             "open_flows": open_flows,
-            "active_runs": sum(
-                session.queue.in_flight for session in self.hub.opened()
-            ),
+            "active_runs": self.api.waiting_runs()
+            + sum(session.queue.in_flight for session in self.hub.opened()),
             "other_requests": sum(
                 1 for call in self._calls if call is not current and not call.done()
             ),
@@ -513,6 +512,7 @@ class Daemon:
         announced = False
         try:
             if activity is not None:
+                await self.api.attach(params)
                 self.api.fence(str(message["method"]), params)
                 self.api.claim(str(message["method"]), params, label=activity[2])
                 self._announce_activity(activity, "started")
@@ -535,8 +535,12 @@ class Daemon:
             _reply(writer, request_id, result=result)
             name = str(message["method"])
             if activity is not None:
+                # A call that waited may have acted on a lane other than the
+                # one checked out now: acknowledge the lane it reports.
+                lane = result.get("branch") if isinstance(result, dict) else None
+                acted = params | {"branch": lane} if lane else params
                 with contextlib.suppress(FlowError, OSError):
-                    self.api.observed(name, params)
+                    self.api.observed(name, acted)
                     self.api.settled(name, params)
             _leased(leased, name, params, result)
             if name == "agent.begin" and caller:

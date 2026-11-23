@@ -320,7 +320,7 @@ async def test_a_request_during_a_close_keeps_the_one_session(tmp_path: Path):
             )
         )
         await asyncio.sleep(0)
-        during = api.hub.open(session.ref)
+        during = await api.hub.open(session.ref)
         closed = await closing
         listed = await api.cells_list({"flow": "churn"})
 
@@ -360,7 +360,7 @@ async def test_a_browser_subscribed_to_a_flow_keeps_it_open(tmp_path: Path):
 
     async with _streamed_api(root) as (api, streams):
         subscription = streams.subscribe()
-        web._subscribed(
+        await web._subscribed(
             api.hub,
             api,
             streams,

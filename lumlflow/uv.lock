@@ -648,7 +648,7 @@ requires-dist = [
     { name = "tomli-w", specifier = ">=1.2.0,<2.0.0" },
     { name = "typer", specifier = ">=0.15.0,<1.0.0" },
     { name = "uvicorn", specifier = ">=0.32.0,<1.0.0" },
-    { name = "watchdog", specifier = ">=7.0.0,<8.0.0" },
+    { name = "watchdog", specifier = ">=7.1.0,<8.0.0" },
     { name = "websockets", specifier = ">=17.0.1,<18.0.0" },
 ]
 provides-extras = ["tui"]

@@ -15,6 +15,7 @@ from tests.helpers.daemon import (
     fake_venv,
     flow_named,
     make_workspace,
+    opened,
     ops_of,
     stub_uv,
     write_cell,
@@ -253,7 +254,7 @@ class TestObservation:
         async with daemon_api(root) as api:
             await api.status({})
             observed = {
-                name: ops_of(api.hub.session(name), EnvChanged)
+                name: ops_of(await opened(api, name), EnvChanged)
                 for name in ("churn", "fraud")
             }
 
@@ -267,7 +268,7 @@ class TestObservation:
 
         async with daemon_api(root) as api:
             await api.status({})
-            (recorded,) = ops_of(api.hub.session("churn"), EnvChanged)
+            (recorded,) = ops_of(await opened(api, "churn"), EnvChanged)
 
         assert recorded.summary == "recorded the workspace env"
         assert recorded.packages == {"pandas": "2.2.0", "scipy": "1.11.0"}
