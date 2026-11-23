@@ -102,6 +102,12 @@ const router = createRouter({
       },
     },
     {
+      path: '/confirm-email-change',
+      name: 'confirm-email-change',
+      component: () => import('../pages/ConfirmEmailChangePage.vue'),
+      meta: { layout: AppLayoutsEnum.clear },
+    },
+    {
       path: '/email-check',
       name: 'email-check',
       component: () => import('../pages/EmailCheckPage.vue'),

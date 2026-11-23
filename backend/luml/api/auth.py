@@ -22,7 +22,9 @@ from luml.infra.dependencies import UserAuthentication
 from luml.infra.exceptions import AuthError, RefreshTokenReusedError
 from luml.schemas.auth import ForgotPasswordIn, Token
 from luml.schemas.user import (
+    ChangeEmailIn,
     ChangePasswordIn,
+    ConfirmEmailChangeIn,
     CreateUserIn,
     CurrentUserOut,
     DetailResponse,
@@ -207,6 +209,26 @@ async def change_password(
     tokens = await auth_handler.handle_change_password(request.user.email, passwords)
     set_auth_cookies(response, tokens)
     return {"detail": "Password changed successfully"}
+
+
+@auth_router.post("/change-email", response_model=DetailResponse)
+async def change_email(
+    request: Request,
+    data: ChangeEmailIn,
+    _: Annotated[None, Depends(is_user_authenticated)],
+) -> dict[str, str]:
+    await limit_auth_attempts(request, request.user.email)
+    return await auth_handler.handle_change_email(request.user.email, data)
+
+
+@auth_router.post("/confirm-email-change", response_model=DetailResponse)
+async def confirm_email_change(
+    request: Request, response: Response, data: ConfirmEmailChangeIn
+) -> dict[str, str]:
+    await limit_auth_attempts(request)
+    await auth_handler.handle_confirm_email_change(data.token)
+    delete_auth_cookies(response)
+    return {"detail": "Email changed successfully. Sign in with your new address."}
 
 
 @auth_router.patch("/users/me", response_model=DetailResponse)

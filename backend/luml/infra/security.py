@@ -59,8 +59,12 @@ class JWTAuthenticationBackend(AuthenticationBackend):
         if await self.auth_handler.is_token_blacklisted(token):
             return None
         try:
-            email, fingerprint = self.auth_handler._verify_token(token)
-            user = await self.auth_handler.handle_get_current_user(email, fingerprint)
+            email, fingerprint, user_id, email_version = (
+                self.auth_handler._verify_token(token)
+            )
+            user = await self.auth_handler.handle_get_current_user(
+                email, fingerprint, user_id, email_version
+            )
             auth_user = AuthUser(
                 user_id=user.id,
                 email=user.email,

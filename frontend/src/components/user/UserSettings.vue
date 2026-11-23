@@ -10,11 +10,6 @@
     :validateOnBlur="true"
     @submit="onFormSubmit"
   >
-    <!--<image-input
-      @on-image-change="onAvatarChange"
-      class="image-input"
-      :image="userStore.getUserAvatar"
-    />-->
     <d-avatar
       :label="userStore.getUserAvatar ? undefined : getUserFullName?.[0] || getUserEmail?.[0]"
       :image="userStore.getUserAvatar"
@@ -49,28 +44,18 @@
       </div>
       <div class="input-wrapper">
         <d-float-label variant="on">
-          <d-icon-field>
-            <d-input-text
-              ref="emailRef"
-              id="email"
-              name="email"
-              fluid
-              :disabled="isUserLoggedWithSSO"
-              v-model="initialValues.email"
-            />
-            <d-input-icon v-if="!isUserLoggedWithSSO">
-              <component
-                :is="getCurrentInputIcon('email')"
-                :size="14"
-                @click="onIconClick('email')"
-              />
-            </d-input-icon>
-          </d-icon-field>
+          <d-input-text id="email" :model-value="getUserEmail" fluid readonly />
           <label class="label" for="email">Email</label>
         </d-float-label>
-        <d-message v-if="$form.email?.invalid" severity="error" size="small" variant="simple">
-          {{ $form.email.error?.message }}
-        </d-message>
+        <button
+          v-if="!isUserLoggedWithSSO"
+          type="button"
+          class="link change-password-link"
+          @click="$emit('showChangeEmail')"
+        >
+          Change email
+        </button>
+        <small v-else>Email is managed by your sign-in provider.</small>
       </div>
     </div>
     <d-message v-if="formResponseError" severity="error" size="small" variant="simple">
@@ -78,6 +63,7 @@
     </d-message>
     <button
       v-if="!isUserLoggedWithSSO"
+      type="button"
       class="link change-password-link"
       @click="$emit('showChangePassword')"
     >
@@ -117,6 +103,7 @@ const { getUserFullName, getUserEmail, isUserLoggedWithSSO } = storeToRefs(userS
 const toast = useToast()
 
 type Emits = {
+  showChangeEmail: []
   showChangePassword: []
   close: []
 }
@@ -125,21 +112,14 @@ const emit = defineEmits<Emits>()
 
 const initialValues = ref({
   username: getUserFullName.value || '',
-  email: getUserEmail.value || '',
 })
 const resolver = ref(userSettingResolver)
 
 const formRef = ref()
 const usernameRef = ref<HTMLInputElement | null>()
-const emailRef = ref<HTMLInputElement | null>()
 
-const { getCurrentInputIcon, onIconClick } = useInputIcon(
-  [usernameRef, emailRef],
-  formRef,
-  initialValues,
-)
+const { getCurrentInputIcon, onIconClick } = useInputIcon([usernameRef], formRef, initialValues)
 
-const newAvatar = ref<File | null>(null)
 const isDeleteAccountVisible = ref(false)
 const formResponseError = ref('')
 
@@ -154,10 +134,6 @@ const onFormSubmit = async ({ valid }: FormSubmitEvent) => {
 
   if (userStore.getUserFullName !== initialValues.value.username)
     data.full_name = initialValues.value.username
-
-  if (userStore.getUserEmail !== initialValues.value.email) data.email = initialValues.value.email
-
-  if (newAvatar.value) data.photo = newAvatar.value
 
   if (!Object.keys(data).length) {
     emit('close')

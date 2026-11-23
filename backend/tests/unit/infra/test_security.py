@@ -18,7 +18,7 @@ EMAIL = "caller@example.com"
 @pytest.fixture
 def bearer_tokens() -> dict[str, str]:
     token_minter = AuthHandler(secret_key=config.AUTH_SECRET_KEY)
-    tokens = token_minter._create_tokens(EMAIL)
+    tokens = token_minter._create_tokens(EMAIL, user_id=USER_ID, email_version=USER_ID)
     assert tokens.refresh_token
 
     return {
@@ -75,6 +75,7 @@ class TestJWTAuthenticationBackend:
     ) -> None:
         current_user = CurrentUserOut(
             id=USER_ID,
+            email_version=USER_ID,
             email=EMAIL,
             full_name="Caller",
             disabled=False,
@@ -117,7 +118,10 @@ class TestJWTAuthenticationBackend:
             "luml.handlers.api_keys.UserRepository.get_user_by_api_key_hash",
             new_callable=AsyncMock,
             return_value=UserOut(
-                id=USER_ID, email=EMAIL, disabled=disabled, has_api_key=True
+                id=USER_ID,
+                email=EMAIL,
+                disabled=disabled,
+                has_api_key=True,
             ),
         ):
             response = _client("api_key").get(
@@ -131,6 +135,7 @@ class TestJWTAuthenticationBackend:
     ) -> None:
         current_user = CurrentUserOut(
             id=USER_ID,
+            email_version=USER_ID,
             email=EMAIL,
             full_name="Caller",
             disabled=False,

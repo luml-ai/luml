@@ -20,11 +20,19 @@ class TestAuthEmailFlows:
         create_token = Mock(return_value="test_token")
         monkeypatch.setattr(mocks.handler, "_create_token", create_token)
 
-        actual = mocks.handler._generate_password_reset_token(user.email)
+        actual = mocks.handler._generate_password_reset_token(
+            user.email, user.id, user.email_version
+        )
 
         assert actual == "test_token"
         create_token.assert_called_once_with(
-            data={"sub": user.email, "type": "password_reset", "jti": ANY},
+            data={
+                "sub": user.email,
+                "uid": str(user.id),
+                "ev": str(user.email_version),
+                "type": "password_reset",
+                "jti": ANY,
+            },
             expires_delta=3600,
         )
 
@@ -51,7 +59,9 @@ class TestAuthEmailFlows:
         await mocks.handler.send_password_reset_email(user.email)
 
         mocks.user_repository.get_user.assert_awaited_once_with(user.email)
-        generate_password_reset_token.assert_called_once_with(user.email)
+        generate_password_reset_token.assert_called_once_with(
+            user.email, user.id, user.email_version
+        )
         get_password_reset_link.assert_called_once_with(token)
         mocks.emails_handler.send_password_reset_email.assert_awaited_once_with(
             user.email, link, user.full_name
@@ -89,6 +99,8 @@ class TestAuthEmailFlows:
         with patch("luml.handlers.auth.jwt.decode") as mock_jwt_decode:
             mock_jwt_decode.return_value = {
                 "sub": unverified_user.email,
+                "uid": str(unverified_user.id),
+                "ev": str(unverified_user.email_version),
                 "type": "email_confirmation",
             }
 
@@ -128,6 +140,8 @@ class TestAuthEmailFlows:
         with patch("luml.handlers.auth.jwt.decode") as mock_jwt_decode:
             mock_jwt_decode.return_value = {
                 "sub": user.email,
+                "uid": str(user.id),
+                "ev": str(user.email_version),
                 "type": "email_confirmation",
             }
 
@@ -148,6 +162,8 @@ class TestAuthEmailFlows:
         with patch("luml.handlers.auth.jwt.decode") as mock_jwt_decode:
             mock_jwt_decode.return_value = {
                 "sub": verified_user.email,
+                "uid": str(verified_user.id),
+                "ev": str(verified_user.email_version),
                 "type": "email_confirmation",
             }
 
@@ -181,11 +197,14 @@ class TestAuthEmailFlows:
         mocks.user_repository.get_user.return_value = unverified_user
 
         await mocks.handler.handle_email_confirmation(
-            mocks.handler._generate_email_confirmation_token(unverified_user.email)
+            mocks.handler._generate_email_confirmation_token(
+                unverified_user.email, unverified_user.id, unverified_user.email_version
+            )
         )
 
         mocks.user_repository.update_user.assert_awaited_once_with(
-            UpdateUser(email=unverified_user.email, email_verified=True)
+            UpdateUser(email=unverified_user.email, email_verified=True),
+            expected_identity=(unverified_user.id, unverified_user.email_version),
         )
 
     async def test_handle_reset_password_stores_new_password_hash(
@@ -202,6 +221,8 @@ class TestAuthEmailFlows:
         with patch("luml.handlers.auth.jwt.decode") as mock_jwt_decode:
             mock_jwt_decode.return_value = {
                 "sub": user.email,
+                "uid": str(user.id),
+                "ev": str(user.email_version),
                 "type": "password_reset",
                 "exp": int(time()) + 3600,
             }
@@ -212,7 +233,10 @@ class TestAuthEmailFlows:
         mocks.user_repository.get_user.assert_awaited_once_with(user.email)
         get_password_hash.assert_called_once_with(new_password)
         mocks.user_repository.update_password.assert_awaited_once_with(
-            user.email, user.hashed_password, reset_token=("token", ANY)
+            user.email,
+            user.hashed_password,
+            reset_token=("token", ANY),
+            expected_identity=(user.id, user.email_version),
         )
 
     async def test_handle_reset_password_raises_when_token_expired(
@@ -255,6 +279,8 @@ class TestAuthEmailFlows:
         with patch("luml.handlers.auth.jwt.decode") as mock_jwt_decode:
             mock_jwt_decode.return_value = {
                 "sub": user.email,
+                "uid": str(user.id),
+                "ev": str(user.email_version),
                 "type": "password_reset",
                 "exp": int(time()) + 3600,
             }
@@ -308,19 +334,29 @@ class TestAuthEmailFlows:
         )
 
         await mocks.handler.handle_reset_password(
-            mocks.handler._generate_password_reset_token(user.email), "new_pass"
+            mocks.handler._generate_password_reset_token(
+                user.email, user.id, user.email_version
+            ),
+            "new_pass",
         )
 
         mocks.user_repository.update_password.assert_awaited_once_with(
-            user.email, "argon_hash", reset_token=(ANY, ANY)
+            user.email,
+            "argon_hash",
+            reset_token=(ANY, ANY),
+            expected_identity=(user.id, user.email_version),
         )
 
     def test_password_reset_tokens_are_unique_even_within_same_second(
         self, mocks: CollaboratorMocks[AuthHandler], user: User
     ) -> None:
         with patch("luml.handlers.auth.time", return_value=1_800_000_000):
-            first = mocks.handler._generate_password_reset_token(user.email)
-            second = mocks.handler._generate_password_reset_token(user.email)
+            first = mocks.handler._generate_password_reset_token(
+                user.email, user.id, user.email_version
+            )
+            second = mocks.handler._generate_password_reset_token(
+                user.email, user.id, user.email_version
+            )
 
         assert first != second
 
@@ -329,7 +365,9 @@ class TestAuthEmailFlows:
     ) -> None:
         mocks.user_repository.get_user.return_value = user
         mocks.user_repository.update_password.return_value = False
-        token = mocks.handler._generate_password_reset_token(user.email)
+        token = mocks.handler._generate_password_reset_token(
+            user.email, user.id, user.email_version
+        )
 
         with pytest.raises(AuthError, match="revoked"):
             await mocks.handler.handle_reset_password(token, "new-password")

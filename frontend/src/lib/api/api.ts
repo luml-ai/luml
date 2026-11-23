@@ -12,6 +12,7 @@ import type {
   IPostChangePasswordRequest,
   TPostLogoutResponse,
   IUpdateUserRequest,
+  IChangeEmailRequest,
   IPostForgotPasswordRequest,
   IPostForgotPasswordResponse,
   IGetGoogleLoginRequest,
@@ -162,6 +163,20 @@ export class ApiClass {
     const { data: responseData } = await this.api.post('/v1/auth/change-password', data)
 
     return responseData
+  }
+
+  public async changeEmail(data: IChangeEmailRequest): Promise<BaseDetailResponse> {
+    const { data: responseData } = await this.api.post('/v1/auth/change-email', data)
+    return responseData
+  }
+
+  public async confirmEmailChange(token: string): Promise<BaseDetailResponse> {
+    const { data } = await this.api.post(
+      '/v1/auth/confirm-email-change',
+      { token },
+      { skipInterceptors: true },
+    )
+    return data
   }
 
   public async updateUser(data: IUpdateUserRequest): Promise<IPostChangePasswordResponse> {

@@ -58,6 +58,8 @@ class TestAuthPasswords:
         assert mocks.handler._verify_token(tokens.access_token) == (
             user.email,
             mocks.handler._password_fingerprint("new-password-hash"),
+            str(user.id),
+            str(user.email_version),
         )
 
     async def test_handle_change_password_raises_when_current_password_invalid(

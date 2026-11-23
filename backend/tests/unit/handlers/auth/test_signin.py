@@ -160,7 +160,14 @@ class TestAuthSignIn:
         assert actual == {"detail": "Please confirm your email address"}
         get_password_hash.assert_called_once_with(new_user_in.password)
         mocks.user_repository.get_user.assert_awaited_once_with(new_user.email)
-        mocks.user_repository.create_user.assert_awaited_once_with(create_user=new_user)
+        mocks.user_repository.create_user.assert_awaited_once()
+        assert mocks.user_repository.create_user.await_args is not None
+        actual_create = mocks.user_repository.create_user.await_args.kwargs[
+            "create_user"
+        ]
+        assert actual_create.model_dump(
+            exclude={"email_version"}
+        ) == new_user.model_dump(exclude={"email_version"})
         assert [name for name, _, _ in calls.mock_calls] == [
             "create_user",
             "send_activation_email",
@@ -190,7 +197,14 @@ class TestAuthSignIn:
         with pytest.raises(EmailDeliveryError):
             await mocks.handler.handle_signup(new_user_in)
 
-        mocks.user_repository.create_user.assert_awaited_once_with(create_user=new_user)
+        mocks.user_repository.create_user.assert_awaited_once()
+        assert mocks.user_repository.create_user.await_args is not None
+        actual_create = mocks.user_repository.create_user.await_args.kwargs[
+            "create_user"
+        ]
+        assert actual_create.model_dump(
+            exclude={"email_version"}
+        ) == new_user.model_dump(exclude={"email_version"})
         mocks.user_repository.delete_signup.assert_awaited_once_with(user.id)
 
     async def test_handle_signup_does_not_send_email_when_commit_fails(
@@ -290,7 +304,9 @@ class TestAuthSignIn:
         authenticate_user.assert_awaited_once_with(
             sign_in_user.email, sign_in_user.password
         )
-        create_tokens.assert_called_once_with(new_user_in.email, user.hashed_password)
+        create_tokens.assert_called_once_with(
+            new_user_in.email, user.hashed_password, user.id, user.email_version
+        )
 
     async def test_update_user_updates_profile(
         self, mocks: CollaboratorMocks[AuthHandler], user: User

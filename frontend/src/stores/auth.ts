@@ -41,6 +41,12 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  const clearSession = () => {
+    authCheck = Promise.resolve()
+    usersStore.resetUser()
+    isAuth.value = false
+  }
+
   const logout = async () => {
     if (isLoggingOut.value) {
       return
@@ -51,9 +57,7 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (e) {
       console.error('Logout error:', e)
     } finally {
-      authCheck = Promise.resolve()
-      usersStore.resetUser()
-      isAuth.value = false
+      clearSession()
       isLoggingOut.value = false
       if (route.meta.requireAuth) {
         setTimeout(() => {
@@ -104,6 +108,7 @@ export const useAuthStore = defineStore('auth', () => {
     signUp,
     signIn,
     logout,
+    clearSession,
     checkIsLoggedIn,
     forgotPassword,
     loginWithGoogle,
