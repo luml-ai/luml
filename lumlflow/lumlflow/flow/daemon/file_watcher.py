@@ -10,11 +10,11 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
+from watchdog.observers import Observer
 from watchdog.observers.api import BaseObserver, ObservedWatch
 
 from lumlflow.flow.daemon import files
 from lumlflow.flow.daemon.stream import Frame, Subscription
-from lumlflow.flow.daemon.watcher import _observer
 from lumlflow.flow.errors import FileLocked, FlowError, NotAFile
 from lumlflow.flow.store.flowstore import STORE_DIRNAME
 
@@ -104,7 +104,7 @@ class FileWatcher(FileSystemEventHandler):
         with files.os_errors():
             if self._observer is None:
                 self._loop = asyncio.get_running_loop()
-                observer = _observer()
+                observer = Observer()
                 observer.start()
                 self._observer = observer
             assert self._observer is not None

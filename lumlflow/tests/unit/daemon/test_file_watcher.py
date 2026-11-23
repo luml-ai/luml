@@ -27,7 +27,7 @@ async def daemon(tmp_path: Path) -> AsyncIterator[Daemon]:
         await daemon.hub.close()
 
 
-def _subscribe(
+async def _subscribe(
     daemon: Daemon, directory: Path, file: Path | None = None
 ) -> Subscription:
     subscription = daemon.streams.subscribe()
@@ -35,7 +35,9 @@ def _subscribe(
     if file is not None:
         message["file"] = str(file)
     subscription.replay(
-        web._subscribed(daemon.hub, daemon.api, daemon.streams, subscription, message)
+        await web._subscribed(
+            daemon.hub, daemon.api, daemon.streams, subscription, message
+        )
     )
     return subscription
 
@@ -66,7 +68,7 @@ async def _locks(subscription: Subscription) -> list[Frame]:
 
 
 async def _snapshot(daemon: Daemon, directory: Path) -> list[Frame]:
-    subscription = _subscribe(daemon, directory)
+    subscription = await _subscribe(daemon, directory)
     try:
         return await _locks(subscription)
     finally:
@@ -81,8 +83,8 @@ async def test_real_changes_reach_the_listing_and_open_files_parent(
     opened = tmp_path / "elsewhere" / "notes.md"
     opened.parent.mkdir()
     opened.touch()
-    other = _subscribe(daemon, listed)
-    viewer = _subscribe(daemon, listed, opened)
+    other = await _subscribe(daemon, listed)
+    viewer = await _subscribe(daemon, listed, opened)
     assert await _locks(other) == await _locks(viewer) == []
 
     opened.write_text("outside the listing")
@@ -109,18 +111,18 @@ async def test_resubscribe_and_close_release_each_shared_watch_after_its_last_us
     opened = right / "notes.md"
     opened.touch()
 
-    observer = file_watcher._observer()
-    monkeypatch.setattr(file_watcher, "_observer", lambda: observer)
+    observer = file_watcher.Observer()
+    monkeypatch.setattr(file_watcher, "Observer", lambda: observer)
 
     def watches() -> set[tuple[str, bool]]:
         return {(str(e.watch.path), e.watch.is_recursive) for e in observer.emitters}
 
-    first = _subscribe(daemon, left, opened)
-    second = _subscribe(daemon, left)
+    first = await _subscribe(daemon, left, opened)
+    second = await _subscribe(daemon, left)
     assert watches() == {(str(left), False), (str(right), False)}
     first.offer({"channel": "files", "type": "changed", "path": str(left / "old")})
     first.replay(
-        web._subscribed(
+        await web._subscribed(
             daemon.hub,
             daemon.api,
             daemon.streams,
@@ -143,7 +145,7 @@ async def test_disk_writes_are_debounced_and_nested_files_are_ignored(
 ) -> None:
     for name in ("nested", ".lumlflow", "analysis.flow"):
         (tmp_path / name).mkdir()
-    subscription = _subscribe(daemon, tmp_path)
+    subscription = await _subscribe(daemon, tmp_path)
     assert await _locks(subscription) == []
     _lease(daemon, "codex-1", "Codex")
     for name in ("nested", ".lumlflow", "analysis.flow"):
@@ -171,7 +173,7 @@ async def test_single_owner_lock_refuses_forced_save_and_lapses_from_last_write(
     now = 1_000.0
     api.clock = lambda: now
     _lease(daemon, "codex-1", "Codex")
-    subscription = _subscribe(daemon, tmp_path)
+    subscription = await _subscribe(daemon, tmp_path)
     assert await _locks(subscription) == []
 
     api.file_watcher.notice(path, write=True)
@@ -210,7 +212,7 @@ async def test_an_owned_lock_ends_when_its_agent_leaves_even_if_another_stays(
     path = tmp_path / "notes.md"
     path.touch()
     first = _lease(daemon, "first", "First agent")
-    subscription = _subscribe(daemon, tmp_path)
+    subscription = await _subscribe(daemon, tmp_path)
     assert await _locks(subscription) == []
     daemon.api.file_watcher.notice(path, write=True)
     assert (await _locks(subscription))[0]["actor"] == "first"
@@ -238,8 +240,8 @@ async def test_generic_lock_is_scoped_and_ends_when_the_last_agent_leaves(
     first = _lease(daemon, "first", "First agent")
     second = _lease(daemon, "second", "Second agent")
     daemon.api.clock = lambda: 1_000.0
-    viewer = _subscribe(daemon, path.parent)
-    other = _subscribe(daemon, elsewhere)
+    viewer = await _subscribe(daemon, path.parent)
+    other = await _subscribe(daemon, elsewhere)
     assert await _locks(viewer) == await _locks(other) == []
     daemon.api.file_watcher.notice(path, write=True)
     row = {"path": str(path), "actor": None, "label": "an agent", "last": 1_000_000}
@@ -262,7 +264,7 @@ async def test_daemon_save_refreshes_without_a_lock_then_an_external_save_locks(
     path = tmp_path / "notes.md"
     path.write_text("original")
     _lease(daemon, "pair", "Pair")
-    viewer = _subscribe(daemon, tmp_path)
+    viewer = await _subscribe(daemon, tmp_path)
     assert await _locks(viewer) == []
     rpc = daemon.api.methods
     original = await rpc["file.read_text"]({"path": str(path)})
@@ -281,8 +283,8 @@ async def test_creating_renaming_and_moving_from_the_daemon_skips_agent_locks(
 ) -> None:
     destination = tmp_path / "other"
     destination.mkdir()
-    listing = _subscribe(daemon, tmp_path)
-    moved_listing = _subscribe(daemon, destination)
+    listing = await _subscribe(daemon, tmp_path)
+    moved_listing = await _subscribe(daemon, destination)
     assert await _locks(listing) == await _locks(moved_listing) == []
     _lease(daemon, "pair", "Pair")
     rpc = daemon.api.methods
@@ -311,7 +313,7 @@ async def test_external_target_write_locks_its_open_symlink_for_edits(
     target.write_text("before")
     link = listed / "latest.md"
     link.symlink_to(target)
-    viewer = _subscribe(daemon, listed, link)
+    viewer = await _subscribe(daemon, listed, link)
     assert await _locks(viewer) == []
     _lease(daemon, "pair", "Pair")
     rpc = daemon.api.methods
@@ -341,7 +343,7 @@ async def test_external_removal_announces_the_missing_file_and_clears_its_lock(
 ) -> None:
     path = tmp_path / "notes.md"
     path.write_text("original")
-    viewer = _subscribe(daemon, tmp_path, path)
+    viewer = await _subscribe(daemon, tmp_path, path)
     assert await _locks(viewer) == []
     _lease(daemon, "pair", "Pair")
     path.write_text("external edit")
@@ -350,7 +352,7 @@ async def test_external_removal_announces_the_missing_file_and_clears_its_lock(
     path.unlink()
     await _frame(viewer, "changed", path)
     assert await _locks(viewer) == []
-    reconnected = _subscribe(daemon, tmp_path, path)
+    reconnected = await _subscribe(daemon, tmp_path, path)
     assert await _locks(reconnected) == []
     reconnected.close()
     viewer.close()
@@ -358,7 +360,7 @@ async def test_external_removal_announces_the_missing_file_and_clears_its_lock(
 
 async def test_edit_queued_before_socket_lease_stays_unlocked(daemon, tmp_path):
     path = tmp_path / "notes"
-    viewer = _subscribe(daemon, tmp_path)
+    viewer = await _subscribe(daemon, tmp_path)
     assert await _locks(viewer) == []
     writer = Mock(spec=asyncio.StreamWriter)
     writer.drain = AsyncMock()
@@ -391,7 +393,7 @@ async def test_edit_queued_before_socket_lease_stays_unlocked(daemon, tmp_path):
 
 async def test_same_actor_on_two_sockets_has_distinct_lock_ownership(daemon, tmp_path):
     first = _lease(daemon, "agent", "Pair")
-    viewer = _subscribe(daemon, tmp_path)
+    viewer = await _subscribe(daemon, tmp_path)
     assert await _locks(viewer) == []
     owned = tmp_path / "owned"
     owned.write_text("first session")
@@ -408,7 +410,7 @@ async def test_same_actor_on_two_sockets_has_distinct_lock_ownership(daemon, tmp
 
 
 async def test_continuous_writes_publish_while_the_writer_is_active(daemon, tmp_path):
-    viewer = _subscribe(daemon, tmp_path)
+    viewer = await _subscribe(daemon, tmp_path)
     assert await _locks(viewer) == []
     _lease(daemon, "pair", "Pair")
     path = tmp_path / "running.log"
@@ -435,7 +437,7 @@ async def test_continuous_writes_publish_while_the_writer_is_active(daemon, tmp_
 async def test_touch_updates_viewer_without_locking(daemon, tmp_path):
     path = tmp_path / "notes"
     path.write_text("contents")
-    viewer = _subscribe(daemon, tmp_path, path)
+    viewer = await _subscribe(daemon, tmp_path, path)
     assert await _locks(viewer) == []
     _lease(daemon, "pair", "Pair")
     stamp = path.stat().st_mtime_ns + 2_000_000_000
@@ -445,7 +447,7 @@ async def test_touch_updates_viewer_without_locking(daemon, tmp_path):
 
 
 async def test_new_notebook_invalidates_its_directory(daemon, tmp_path):
-    viewer = _subscribe(daemon, tmp_path)
+    viewer = await _subscribe(daemon, tmp_path)
     assert await _locks(viewer) == []
     notebook = tmp_path / "analysis.flow"
     notebook.mkdir()
@@ -463,7 +465,7 @@ async def test_retargeted_link_follows_only_the_new_file(daemon, tmp_path):
         path.touch()
     link = tmp_path / "latest"
     link.symlink_to(left)
-    viewer = _subscribe(daemon, tmp_path, link)
+    viewer = await _subscribe(daemon, tmp_path, link)
     assert await _locks(viewer) == []
     _lease(daemon, "pair", "Pair")
     left.write_text("locked")
@@ -483,11 +485,11 @@ async def test_retargeted_link_follows_only_the_new_file(daemon, tmp_path):
 async def test_existing_and_new_subscribers_watch_recreated_directory(daemon, tmp_path):
     directory = tmp_path / "output"
     directory.mkdir()
-    first = _subscribe(daemon, directory)
+    first = await _subscribe(daemon, directory)
     assert await _locks(first) == []
     directory.rename(tmp_path / "old")
     directory.mkdir()
-    second = _subscribe(daemon, directory)
+    second = await _subscribe(daemon, directory)
     path = directory / "result"
     path.touch()
     for viewer in (first, second):
@@ -498,7 +500,7 @@ async def test_existing_and_new_subscribers_watch_recreated_directory(daemon, tm
 async def test_renamed_lock_follows_file_and_replacement_does_not_inherit_it(
     daemon, tmp_path, monkeypatch, cross_device
 ):
-    viewer = _subscribe(daemon, tmp_path)
+    viewer = await _subscribe(daemon, tmp_path)
     assert await _locks(viewer) == []
     _lease(daemon, "pair", "Pair")
     path = tmp_path / "notes"
@@ -545,7 +547,7 @@ async def test_second_save_stays_unlocked_when_its_event_arrives_after_first_ref
     watcher = daemon.api.file_watcher
     # Deliver the two write notices explicitly to control the observer's delay.
     monkeypatch.setattr(watcher, "on_any_event", lambda event: None)
-    viewer = _subscribe(daemon, tmp_path)
+    viewer = await _subscribe(daemon, tmp_path)
     assert await _locks(viewer) == []
     rpc = daemon.api
     edit = await rpc.file_read_text({"path": str(path)})
@@ -564,7 +566,7 @@ async def test_explicit_session_end_releases_another_connections_lock(daemon, tm
     notebook = str(root / "churn.flow")
     path = root / "notes.md"
     path.touch()
-    viewer = _subscribe(daemon, root, path)
+    viewer = await _subscribe(daemon, root, path)
     assert await _locks(viewer) == []
     writer = Mock(spec=asyncio.StreamWriter)
     writer.drain = AsyncMock()
