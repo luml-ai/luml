@@ -36,6 +36,35 @@ def load_worker(
 
 
 @pytest.mark.parametrize(
+    ("source", "expected_log"),
+    [
+        (
+            "class Model:\n    async def compute_async(self, i, a):\n        return {}\n",
+            "Compute mode SYNC: compute_async has no asynchronous operations",
+        ),
+        (
+            "class Model:\n    async def compute_async(self, i, a):\n        return await work()\n",
+            "Compute mode ASYNC: compute_async contains asynchronous operations",
+        ),
+        (None, "Compute mode UNDECIDED: artifact source unavailable (FileNotFoundError)"),
+    ],
+)
+def test_startup_logs_mode_and_reason_once(
+    load_worker: Callable[[str | None, Mock], dict],
+    source: str | None,
+    expected_log: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.INFO):
+        load_worker(source, Mock())
+
+    messages = [
+        record.getMessage() for record in caplog.records if "Compute mode" in record.message
+    ]
+    assert messages == [expected_log]
+
+
+@pytest.mark.parametrize(
     "source",
     [
         "class Model:\n    async def compute_async(self, inputs, attrs):\n"

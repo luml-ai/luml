@@ -1,10 +1,10 @@
 import ast
 import json
-from enum import StrEnum
+from enum import Enum
 from pathlib import Path
 
 
-class ComputeMode(StrEnum):
+class ComputeMode(str, Enum):  # noqa: UP042 - artifact environments support python 3.10
     SYNC = "SYNC"
     ASYNC = "ASYNC"
     UNDECIDED = "UNDECIDED"

@@ -62,7 +62,7 @@ try:
     from telemetry import model_span
 
     compute_mode, compute_mode_reason = classify_compute(extracted_path)
-    logger.info("Compute mode %s: %s", compute_mode, compute_mode_reason)
+    logger.info("Compute mode %s: %s", compute_mode.value, compute_mode_reason)
     use_sync_compute = compute_mode == ComputeMode.SYNC
 
     async def compute_model(

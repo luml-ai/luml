@@ -1,5 +1,7 @@
 import ast
+import enum
 import json
+import runpy
 from pathlib import Path
 
 import pytest
@@ -15,6 +17,18 @@ def artifact(tmp_path: Path) -> Path:
     (tmp_path / "variant_config.json").write_text(json.dumps({"pyfunc_classname": "Model"}))
     (tmp_path / "variant_artifacts").mkdir()
     return tmp_path
+
+
+def test_classifier_imports_without_strenum(
+    artifact: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delattr(enum, "StrEnum")
+    namespace = runpy.run_path(str(Path(__file__).resolve().parents[1] / "compute_mode.py"))
+
+    mode, reason = namespace["classify_compute"](artifact)
+
+    assert mode == namespace["ComputeMode"].UNDECIDED
+    assert reason == "artifact source unavailable (FileNotFoundError)"
 
 
 @pytest.mark.parametrize(
