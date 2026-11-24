@@ -33,7 +33,7 @@ export interface PathSegment {
 // The path split into its directories, each carrying the path up to itself.
 // A leading separator or a drive letter is folded into the first segment.
 export function pathSegments(path: string): PathSegment[] {
-  const trimmed = path.replace(TRAILING_SEPARATORS, '')
+  const trimmed = trimTrailingSeparators(path)
   if (trimmed === '') return []
   const separator = trimmed.includes('/') ? '/' : '\\'
   // A backslash is an ordinary name character in a POSIX path.

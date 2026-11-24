@@ -90,4 +90,8 @@ describe('pathSegments', () => {
       { name: String.raw`run\42.luml`, path: String.raw`/work/run\42.luml` },
     ])
   })
+
+  it('keeps a trailing backslash of a posix name', () => {
+    expect(pathSegments('/x/a\\').at(-1)).toEqual({ name: 'a\\', path: '/x/a\\' })
+  })
 })
