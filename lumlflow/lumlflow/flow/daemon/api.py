@@ -190,6 +190,7 @@ class Api:
             "file.create": self.file_create,
             "file.read_text": self.file_read_text,
             "file.write_text": self.file_write_text,
+            "file.agent_wrote": self.file_agent_wrote,
             "flow.duplicate": self.flow_duplicate,
             "flows.open": self.flows_open,
             "cells.list": self.cells_list,
@@ -526,8 +527,8 @@ class Api:
             params.get("path", ""), self.file_watcher.check_write
         )
         self.hub.check_available(target)
-        # Keep the check, replacement and watcher acknowledgement in one event-loop
-        # turn so another RPC or incoming watcher event cannot split the save.
+        # Keep the check and replacement in one event-loop turn so another RPC
+        # cannot split the save.
         info, revision = files.write_text(
             target,
             params.get("text"),
@@ -536,8 +537,17 @@ class Api:
             check_lock=self.file_watcher.check_write,
             force=params.get("force", False),
         )
-        self.file_watcher.written(target, info)
         return {"mtime_ns": str(info.st_mtime_ns), "revision": revision}
+
+    async def file_agent_wrote(self, params: dict[str, Any]) -> dict[str, Any]:
+        harness_pid = str(params.get("harness_pid", ""))
+        if "shell" in params:
+            self.file_watcher.agent_shell(harness_pid, params["shell"] == "start")
+            return {}
+        with files.os_errors():
+            target = files.regular_file(params.get("path", "")).resolve(strict=True)
+            self.file_watcher.agent_wrote(target, harness_pid)
+        return {}
 
     def _create_entry(self, params: dict[str, Any], *, folder: bool) -> dict[str, Any]:
         target = files.target_path(
@@ -546,9 +556,7 @@ class Api:
             directory=folder,
         )
         self.hub.check_available(target)
-        info = files.create(target, folder=folder)
-        if info is not None:
-            self.file_watcher.written(target, info)
+        files.create(target, folder=folder)
         return {"path": str(target)}
 
     async def flow_duplicate(self, params: dict[str, Any]) -> dict[str, Any]:

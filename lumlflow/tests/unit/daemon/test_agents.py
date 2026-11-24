@@ -1,16 +1,19 @@
 import json
+import os
 import stat
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from lumlflow import __version__
+from lumlflow.cli import app
 from lumlflow.flow import cli
-from lumlflow.flow.daemon import harnesses
+from lumlflow.flow.daemon import client, harnesses
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import Hub
 from lumlflow.flow.daemon.main import Daemon
+from typer.testing import CliRunner
 
 from tests.helpers.daemon import fake_lumlflow_build, make_workspace
 
@@ -44,6 +47,10 @@ def _one(result: dict[str, Any]) -> dict[str, Any]:
     return result["harnesses"][0]
 
 
+def _hooks(settings: Path) -> dict[str, Any]:
+    return json.loads(settings.read_text("utf-8"))["hooks"]
+
+
 @pytest.mark.asyncio
 async def test_agents_api_records_consent_and_remove_clears_it(
     tmp_path: Path,
@@ -53,6 +60,13 @@ async def test_agents_api_records_consent_and_remove_clears_it(
     config = tmp_path / "home" / ".claude.json"
     config.parent.mkdir()
     config.write_text(json.dumps({"theme": "dark"}), encoding="utf-8")
+    settings = tmp_path / "home" / ".claude" / "settings.json"
+    settings.parent.mkdir()
+    theirs = {"matcher": "Bash", "hooks": [{"type": "command", "command": "lint"}]}
+    settings.write_text(
+        json.dumps({"model": "opus", "hooks": {"PostToolUse": [theirs]}}),
+        encoding="utf-8",
+    )
     before_decline = config.read_bytes()
     hub = Hub()
     api = Api(hub, directory=root, harness_service=service)
@@ -79,6 +93,14 @@ async def test_agents_api_records_consent_and_remove_clears_it(
         assert document["theme"] == "dark"
         assert document["mcpServers"]["lumlflow"]["args"] == ["mcp"]
         assert service.has_consent("claude-code")
+        ours = [{"type": "command", "command": f"{service.command[0]} agent wrote"}]
+        assert _hooks(settings) == {
+            "PostToolUse": [
+                theirs,
+                {"matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash", "hooks": ours},
+            ],
+            "PreToolUse": [{"matcher": "Bash", "hooks": ours}],
+        }
 
         document["mcpServers"]["lumlflow-old"] = {
             "command": "/old/bin/lumlflow",
@@ -97,8 +119,81 @@ async def test_agents_api_records_consent_and_remove_clears_it(
             "mcpServers": {"foreign": {"command": "node"}},
         }
         assert not service.has_consent("claude-code")
+        assert json.loads(settings.read_text("utf-8")) == {
+            "model": "opus",
+            "hooks": {"PostToolUse": [theirs]},
+        }
     finally:
         await hub.close()
+
+
+def test_sync_adds_the_write_hook_to_an_install_set_up_before_it(
+    tmp_path: Path,
+) -> None:
+    service = _service(tmp_path)
+    service.setup("claude-code", consent=True)
+    settings = tmp_path / "home" / ".claude" / "settings.json"
+    settings.unlink()
+
+    service.list_harnesses()
+    service.list_harnesses()
+
+    assert {
+        event: [group["matcher"] for group in groups]
+        for event, groups in _hooks(settings).items()
+    } == {
+        "PostToolUse": ["Edit|Write|MultiEdit|NotebookEdit|Bash"],
+        "PreToolUse": ["Bash"],
+    }
+
+
+@pytest.mark.parametrize(
+    ("event", "reported"),
+    [
+        (
+            {"tool_name": "Edit", "tool_input": {"file_path": "/w/a.md"}},
+            {"path": "/w/a.md"},
+        ),
+        (
+            {
+                "tool_name": "NotebookEdit",
+                "tool_input": {"notebook_path": "/w/e.ipynb"},
+            },
+            {"path": "/w/e.ipynb"},
+        ),
+        (
+            {"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {}},
+            {"shell": "start"},
+        ),
+        (
+            {"hook_event_name": "PostToolUse", "tool_name": "Bash", "tool_input": {}},
+            {"shell": "end"},
+        ),
+        ({"tool_name": "Read", "tool_input": {"command": "ls"}}, None),
+    ],
+)
+def test_the_write_hook_reports_the_edited_file_and_never_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    event: dict[str, Any],
+    reported: dict[str, str] | None,
+) -> None:
+    daemon = Mock()
+    monkeypatch.setattr(client, "connect", Mock(return_value=daemon))
+
+    result = CliRunner().invoke(app, ["agent", "wrote"], input=json.dumps(event))
+
+    assert (result.exit_code, result.output) == (0, "")
+    calls = (
+        []
+        if reported is None
+        else [(("file.agent_wrote", {"harness_pid": os.getppid(), **reported}),)]
+    )
+    assert [(call.args,) for call in daemon.call.call_args_list] == calls
+    event = json.dumps(event)
+
+    monkeypatch.setattr(client, "connect", Mock(side_effect=OSError("no daemon")))
+    assert CliRunner().invoke(app, ["agent", "wrote"], input=event).exit_code == 0
+    assert CliRunner().invoke(app, ["agent", "wrote"], input="{").exit_code == 0
 
 
 def test_sync_rewrites_a_path_scoped_entry_but_honours_manual_removal(

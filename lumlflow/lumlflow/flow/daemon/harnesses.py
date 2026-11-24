@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import shutil
 import sys
 import threading
 import tomllib
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -23,6 +24,16 @@ MANAGED_ENV = "LUMLFLOW_MANAGED"
 DAEMON_EXECUTABLE_ENV = "LUMLFLOW_DAEMON_EXECUTABLE"
 ACTOR_ENV = "LUMLFLOW_ACTOR"
 CONSENT_RECORD_NAME = "agents.json"
+# Claude Code reports its file edits through this hook, so the daemon can lock
+# a file an agent wrote without blaming the person's own editors for theirs.
+WRITE_HOOK_HARNESS = "claude-code"
+# Bash is reported before and after it runs: a command does not say which
+# files it wrote, so the daemon takes the files changed while it ran.
+WRITE_HOOK_MATCHERS = {
+    "PreToolUse": "Bash",
+    "PostToolUse": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+}
+WRITE_HOOK_VERB = ("agent", "wrote")
 
 Platform = Literal["linux", "darwin", "win32"]
 PathBase = Literal["home", "appdata", "codex_home"]
@@ -652,6 +663,59 @@ def remove_config(
     return WriteResult(path=config_path, changed=True, entry={})
 
 
+def write_hook(executable: str | Sequence[str], *, home: Path | None = None) -> None:
+    hook = {
+        "type": "command",
+        "command": shlex.join([*_argv(executable), *WRITE_HOOK_VERB]),
+    }
+    _update_hooks(
+        home, lambda event: {"matcher": WRITE_HOOK_MATCHERS[event], "hooks": [hook]}
+    )
+
+
+def remove_hook(*, home: Path | None = None) -> None:
+    _update_hooks(home, lambda event: None)
+
+
+def _update_hooks(
+    home: Path | None, ours: Callable[[str], dict[str, Any] | None]
+) -> None:
+    path = (home or Path.home()) / ".claude" / "settings.json"
+    try:
+        document = json.loads(path.read_bytes()) if path.exists() else {}
+    except ValueError as error:
+        raise HarnessConfigError(f"`{path}` is not valid JSON") from error
+    hooks = document.get("hooks", {}) if isinstance(document, dict) else None
+    if not isinstance(hooks, dict):
+        raise HarnessConfigError(f"`{path}` has unexpected hooks")
+    hooks = dict(hooks)
+    for event in WRITE_HOOK_MATCHERS:
+        groups = hooks.pop(event, [])
+        if not isinstance(groups, list):
+            raise HarnessConfigError(f"`{path}` has unexpected {event} hooks")
+        groups = [group for group in groups if not _our_hook(group)]
+        if (group := ours(event)) is not None:
+            groups.append(group)
+        if groups:
+            hooks[event] = groups
+    updated = {key: value for key, value in document.items() if key != "hooks"}
+    if hooks:
+        updated["hooks"] = hooks
+    if updated != document:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_bytes(path, (json.dumps(updated, indent=2) + "\n").encode())
+
+
+def _our_hook(group: object) -> bool:
+    hooks = group.get("hooks") if isinstance(group, dict) else None
+    return isinstance(hooks, list) and any(
+        isinstance(hook, dict)
+        and str(hook.get("command", "")).endswith(shlex.join(WRITE_HOOK_VERB))
+        and SERVER_NAME in str(hook.get("command", ""))
+        for hook in hooks
+    )
+
+
 def is_owned(name: str, entry: object) -> bool:
     if not isinstance(entry, dict):
         return False
@@ -1099,6 +1163,8 @@ class HarnessService:
                     platform=self._platform,
                     environment=self._environment,
                 )
+                if harness.id == WRITE_HOOK_HARNESS:
+                    write_hook(self.command, home=self._home)
             except (HarnessConfigError, OSError) as error:
                 self._errors[harness.id] = str(error)
                 return self._describe(harness, preferences)
@@ -1126,6 +1192,8 @@ class HarnessService:
                     platform=self._platform,
                     environment=self._environment,
                 )
+                if harness.id == WRITE_HOOK_HARNESS:
+                    remove_hook(home=self._home)
             except (HarnessConfigError, OSError) as error:
                 self._errors[harness.id] = str(error)
                 return self._describe(harness, preferences)
@@ -1151,7 +1219,8 @@ class HarnessService:
             ):
                 continue
             try:
-                if self._entry_status(harness).state == EntryState.OUT_OF_DATE:
+                state = self._entry_status(harness).state
+                if state == EntryState.OUT_OF_DATE:
                     write_config(
                         harness,
                         executable=self.command,
@@ -1159,6 +1228,12 @@ class HarnessService:
                         platform=self._platform,
                         environment=self._environment,
                     )
+                # Installs set up before the hook existed get it here.
+                if harness.id == WRITE_HOOK_HARNESS and state in {
+                    EntryState.SET_UP,
+                    EntryState.OUT_OF_DATE,
+                }:
+                    write_hook(self.command, home=self._home)
             except (HarnessConfigError, OSError) as error:
                 self._errors[harness.id] = str(error)
 

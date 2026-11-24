@@ -3,6 +3,7 @@
 import asyncio
 import os
 import stat
+import time
 import weakref
 from collections.abc import Callable
 from contextlib import suppress
@@ -71,7 +72,6 @@ class FileWatcher(FileSystemEventHandler):
         idle_s: float,
     ) -> None:
         self._sessions = sessions
-        self._at_start: dict[object, dict[Path, tuple[int, ...]]] = {}
         self._clock = clock
         self._idle_s = idle_s
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -79,11 +79,11 @@ class FileWatcher(FileSystemEventHandler):
         self._watches: dict[Path, tuple[ObservedWatch, os.stat_result]] = {}
         self._subscribers: dict[Subscription, _Selection] = {}
         self._locks: dict[Path, _Lock] = {}
-        self._writes: dict[Path, tuple[int, ...]] = {}
         self._pending: dict[Path, asyncio.TimerHandle] = {}
         self._changes: dict[Path, set[Path]] = {}
         self._watch_timer: asyncio.TimerHandle | None = None
         self._dirty_locks: set[Path] = set()
+        self._shells: dict[str, int] = {}
 
     def subscribe(
         self, sub: Subscription, directory: str, file: str | None
@@ -135,9 +135,6 @@ class FileWatcher(FileSystemEventHandler):
         for path, lock in self._locks.items():
             if path.parent == root:
                 lock.pin_unwatched(path)
-        for path in list(self._writes):
-            if path.parent == root:
-                del self._writes[path]
 
     def _watch(self, root: Path) -> None:
         held = self._watches.get(root)
@@ -207,30 +204,14 @@ class FileWatcher(FileSystemEventHandler):
                 0.5, self._refresh_watches
             )
 
-    def lease_starting(self, session: object) -> None:
-        # Watchdog can still have undelivered events when the socket acquires
-        # its first lease. Those file versions predate this session.
-        versions: dict[Path, tuple[int, ...]] = {}
-        for root in self._watches:
-            with suppress(OSError), os.scandir(root) as entries:
-                for entry in entries:
-                    with suppress(OSError):
-                        info = entry.stat(follow_symlinks=False)
-                        if stat.S_ISREG(info.st_mode):
-                            versions[Path(entry.path)] = (
-                                *_version(info),
-                                info.st_ctime_ns,
-                            )
-        self._at_start[session] = versions
-
     async def stop(self) -> None:
         self._loop = None
         for timer in self._pending.values():
             timer.cancel()
         self._pending.clear()
         self._changes.clear()
-        self._at_start.clear()
         self._dirty_locks.clear()
+        self._shells.clear()
         for sub in list(self._subscribers):
             self.unsubscribe(sub)
         self._locks.clear()
@@ -260,23 +241,17 @@ class FileWatcher(FileSystemEventHandler):
                     self._observed_move,
                     Path(os.fsdecode(event.src_path)),
                     Path(os.fsdecode(event.dest_path)),
-                    event.is_directory,
                 )
             return
-        for name, changed in (
-            (event.src_path, event.event_type in {"created", "modified"}),
-            (event.dest_path, True),
-        ):
+        for name in (event.src_path, event.dest_path):
             if name:
                 path = Path(os.fsdecode(name))
                 if path.name == STORE_DIRNAME:
                     continue
                 with suppress(RuntimeError):
-                    loop.call_soon_threadsafe(
-                        self.notice, path, changed and not event.is_directory
-                    )
+                    loop.call_soon_threadsafe(self.notice, path)
 
-    def notice(self, path: Path, write: bool) -> None:
+    def notice(self, path: Path) -> None:
         if path in self._watches:
             self._queue(path, path)
         if path.parent not in self._watches:
@@ -284,31 +259,7 @@ class FileWatcher(FileSystemEventHandler):
         for selection in self._subscribers.values():
             if path == selection.file:
                 self._refresh_target(selection)
-        if write:
-            with suppress(OSError):
-                info = path.lstat()
-                if stat.S_ISREG(info.st_mode):
-                    signature = _version(info)
-                    agents = {
-                        session: display
-                        for session, display in self._sessions().items()
-                        if self._at_start.get(session, {}).get(path)
-                        != (*signature, info.st_ctime_ns)
-                    }
-                    if self._writes.get(path) != (*signature, info.st_ctime_ns):
-                        self._writes.pop(path, None)
-                        if agents:
-                            session, (actor, label) = (
-                                next(iter(agents.items()))
-                                if len(agents) == 1
-                                else (None, (None, "an agent"))
-                            )
-                            self._locks[path] = _Lock(
-                                session, actor, label, self._clock(), info
-                            )
-                            self._dirty_locks.add(path.parent)
-        elif not path.exists():
-            self._writes.pop(path, None)
+        if not path.exists():
             if self._locks.pop(path, None) is not None:
                 self._dirty_locks.add(path.parent)
         self._queue(path.parent, path)
@@ -358,8 +309,7 @@ class FileWatcher(FileSystemEventHandler):
             ) == getattr(lock.info, "st_birthtime_ns", None)
         return False
 
-    def _observed_move(self, source: Path, target: Path, directory: bool) -> None:
-        transferred = False
+    def _observed_move(self, source: Path, target: Path) -> None:
         for path, lock in list(self._locks.items()):
             if path.is_relative_to(source):
                 destination = target / path.relative_to(source)
@@ -369,11 +319,10 @@ class FileWatcher(FileSystemEventHandler):
                     if destination.parent not in self._watches:
                         lock.pin_unwatched(destination)
                     self._dirty_locks.update((path.parent, destination.parent))
-                    transferred = True
         if source.name != STORE_DIRNAME:
-            self.notice(source, False)
+            self.notice(source)
         if target.name != STORE_DIRNAME:
-            self.notice(target, not directory and not transferred)
+            self.notice(target)
 
     def prepare_move(
         self, source: Path
@@ -387,7 +336,6 @@ class FileWatcher(FileSystemEventHandler):
         }
 
         def moved(target: Path, original: os.stat_result, info: os.stat_result) -> None:
-            self.written(target, info)
             directories: set[Path] = set()
             for path, lock in held.items():
                 destination = target / path.relative_to(source)
@@ -451,8 +399,6 @@ class FileWatcher(FileSystemEventHandler):
         self, ended: set[tuple[asyncio.StreamWriter, str]] | None = None
     ) -> None:
         sessions = self._sessions()
-        for session in self._at_start.keys() - sessions.keys():
-            del self._at_start[session]
         if not self._locks:
             return
         now = self._clock()
@@ -475,23 +421,44 @@ class FileWatcher(FileSystemEventHandler):
         if (lock := self._locks.get(path)) and self._matches(path, lock):
             raise FileLocked(f"{lock.label} is working on this file", label=lock.label)
 
-    def written(self, path: Path, info: os.stat_result) -> None:
-        if path.parent not in self._watches or not stat.S_ISREG(info.st_mode):
+    def agent_shell(self, harness_pid: str, started: bool) -> None:
+        """A harness's shell command started or ended. It does not say which
+        files it wrote, so at its end every listed file it may have changed is
+        taken as its write. A person's save in that window is taken too."""
+        if started:
+            self._shells[harness_pid] = time.time_ns()
             return
-        version = _version(info)
-        # Acknowledge only the published inode. Its rename can advance ctime.
-        # Retire this acknowledgement on a different version or removal, so
-        # an older publication timer cannot retire a newer save.
-        try:
-            published = path.lstat()
-        except OSError:
+        since = self._shells.pop(harness_pid, None)
+        if since is None:
             return
-        if _version(published) != version:
+        for root in list(self._watches):
+            with suppress(OSError), os.scandir(root) as entries:
+                for entry in entries:
+                    with suppress(OSError):
+                        if entry.stat(follow_symlinks=False).st_mtime_ns >= since:
+                            self.agent_wrote(Path(entry.path), harness_pid)
+
+    def agent_wrote(self, path: Path, harness_pid: str) -> None:
+        """Lock a file an agent's harness reported writing. A disk change alone
+        never locks: the person's own editors write files too. Only the session
+        that harness runs owns the lock, not every agent working in Flow."""
+        self.expire()
+        # An MCP session's actor ends with its harness's process id.
+        owners = [
+            (session, held)
+            for session, held in self._sessions().items()
+            if harness_pid and held[0].rpartition("-")[2] == harness_pid
+        ]
+        if not owners:
             return
-        self._writes[path] = (*version, published.st_ctime_ns)
-        # A move may finish on a worker after its watchdog event reached the loop.
-        lock = self._locks.get(path)
-        if lock is not None and _version(lock.info) == version:
-            del self._locks[path]
-            self._dirty_locks.discard(path.parent)
-            self._announce({path.parent})
+        info = path.lstat()
+        if not stat.S_ISREG(info.st_mode):
+            return
+        session, (actor, label) = (
+            owners[0] if len(owners) == 1 else (None, (None, "an agent"))
+        )
+        lock = _Lock(session, actor, label, self._clock(), info)
+        if path.parent not in self._watches:
+            lock.pin_unwatched(path)
+        self._locks[path] = lock
+        self._announce({path.parent})

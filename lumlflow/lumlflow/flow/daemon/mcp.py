@@ -332,7 +332,10 @@ class Server:
         self.directory = directory.resolve()
         self.given = (label or "").strip()
         self.label = self.given or "mcp"
-        self.actor = f"{self.label}-{os.getpid()}"
+        # Named after the harness process that launched this server. Its
+        # file-write hook is that process's child too, so the hook can say
+        # which session wrote a file (`lumlflow agent wrote`).
+        self.actor = f"{self.label}-{os.getppid()}"
         self._daemon: DaemonClient | None = None
         self._named: dict[str, str] = {}
         self._flows: dict[str, _Flow] = {}
@@ -397,7 +400,7 @@ class Server:
         explicit = os.environ.get(harnesses.ACTOR_ENV, "").strip()
         registered = harnesses.client_harness_id(named)
         self.label = self.given or explicit or registered or named or "mcp"
-        self.actor = f"{self.label}-{os.getpid()}"
+        self.actor = f"{self.label}-{os.getppid()}"
         asked = str(params.get("protocolVersion") or "")
         return {
             "protocolVersion": asked if asked in _SPOKEN else PROTOCOL_VERSION,

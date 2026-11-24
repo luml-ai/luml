@@ -435,13 +435,12 @@ def target_path(parent: Path, name: str, *, directory: bool) -> Path:
     return target
 
 
-def create(target: Path, *, folder: bool) -> os.stat_result | None:
+def create(target: Path, *, folder: bool) -> None:
     with os_errors():
         if folder:
             target.mkdir()
-            return None
-        with target.open("xb") as handle:
-            return os.fstat(handle.fileno())
+        else:
+            target.open("xb").close()
 
 
 def _case_change(source: Path, target: Path) -> bool:

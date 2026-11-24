@@ -152,12 +152,8 @@ async def test_text_operations_follow_links_and_reject_private_targets(tmp_path)
         params = {"path": str(link)}
         edit = await api.file_read_text(params)
         assert edit["text"] == "initial"
-        with patch.object(api.file_watcher, "written") as written:
-            saved = await api.file_write_text({**params, **edit, "text": "updated"})
-        resolved, info = written.call_args.args
-        assert resolved == target
-        assert str(info.st_mtime_ns) == saved["mtime_ns"]
-        assert info.st_ino == target.stat().st_ino
+        saved = await api.file_write_text({**params, **edit, "text": "updated"})
+        assert str(target.stat().st_mtime_ns) == saved["mtime_ns"]
         assert link.readlink() == target
         assert target.read_text() == "updated"
         for directory in [tmp_path / "a.flow", tmp_path / ".lumlflow"]:

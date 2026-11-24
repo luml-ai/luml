@@ -377,8 +377,6 @@ class Daemon:
                 )
             except FlowError:
                 continue
-            if not leased:
-                self.api.file_watcher.lease_starting(writer)
             leased.add((flow, actor, str(begun.get("label") or label)))
             self._last_call[(flow, actor)] = self.clock()
             self._announce_agents(flow)
@@ -582,8 +580,6 @@ class Daemon:
                 with contextlib.suppress(FlowError, OSError):
                     self.api.observed(name, acted)
                     self.api.settled(name, params)
-            if name == "agent.begin" and not leased and result.get("leased"):
-                self.api.file_watcher.lease_starting(writer)
             _leased(leased, name, params, result)
             if name == "agent.begin" and caller:
                 self._heard_from(leased, caller)

@@ -44,10 +44,14 @@ async def _subscribe(
 
 def _lease(daemon: Daemon, actor: str, label: str) -> Leases:
     leases: Leases = {(None, actor, label)}
-    writer = Mock(spec=asyncio.StreamWriter)
-    daemon.api.file_watcher.lease_starting(writer)
-    daemon._client_leases[writer] = leases
+    daemon._client_leases[Mock(spec=asyncio.StreamWriter)] = leases
     return leases
+
+
+async def _wrote(daemon: Daemon, path: Path, harness_pid: int) -> None:
+    await daemon.api.methods["file.agent_wrote"](
+        {"path": str(path), "harness_pid": harness_pid}
+    )
 
 
 async def _frame(
@@ -154,11 +158,8 @@ async def test_disk_writes_are_debounced_and_nested_files_are_ignored(
     path = tmp_path / "report.md"
     path.write_text("first")
     path.write_text("second")
-    frames = [await asyncio.wait_for(subscription.next(), 4) for _ in range(2)]
-    changed, held = sorted(frames, key=lambda frame: frame["type"])
+    changed = await asyncio.wait_for(subscription.next(), 4)
     assert (changed["type"], changed["path"]) == ("changed", str(path))
-    assert held["type"] == "locks"
-    assert [row["path"] for row in held["locks"]] == [str(path)]
     with pytest.raises(asyncio.TimeoutError):
         await asyncio.wait_for(subscription.next(), 0.4)
     subscription.close()
@@ -176,7 +177,7 @@ async def test_single_owner_lock_refuses_forced_save_and_lapses_from_last_write(
     subscription = await _subscribe(daemon, tmp_path)
     assert await _locks(subscription) == []
 
-    api.file_watcher.notice(path, write=True)
+    await _wrote(daemon, path, 1)
     row = {
         "path": str(path),
         "actor": "codex-1",
@@ -193,7 +194,7 @@ async def test_single_owner_lock_refuses_forced_save_and_lapses_from_last_write(
     assert path.read_text() == "existing"
 
     now += CLAIM_IDLE_S - 1
-    api.file_watcher.notice(path, write=True)
+    await _wrote(daemon, path, 1)
     row["last"] = int(now * 1000)
     assert await _locks(subscription) == [row]
     now += CLAIM_IDLE_S - 1
@@ -211,21 +212,21 @@ async def test_an_owned_lock_ends_when_its_agent_leaves_even_if_another_stays(
 ) -> None:
     path = tmp_path / "notes.md"
     path.touch()
-    first = _lease(daemon, "first", "First agent")
+    first = _lease(daemon, "first-11", "First agent")
     subscription = await _subscribe(daemon, tmp_path)
     assert await _locks(subscription) == []
-    daemon.api.file_watcher.notice(path, write=True)
-    assert (await _locks(subscription))[0]["actor"] == "first"
-    _lease(daemon, "second", "Second agent")
+    await _wrote(daemon, path, 11)
+    assert (await _locks(subscription))[0]["actor"] == "first-11"
+    _lease(daemon, "second-12", "Second agent")
 
     if end == "disconnect":
         await daemon._release(first)
     else:
         daemon.clock = lambda: QUIET_AFTER_S
-        daemon._last_call[(None, "first")] = 0.0
+        daemon._last_call[(None, "first-11")] = 0.0
         await daemon.end_quiet()
     assert await _locks(subscription) == []
-    assert daemon._leases() == {(None, "second", "Second agent")}
+    assert daemon._leases() == {(None, "second-12", "Second agent")}
     subscription.close()
 
 
@@ -237,13 +238,14 @@ async def test_generic_lock_is_scoped_and_ends_when_the_last_agent_leaves(
     path.touch()
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
-    first = _lease(daemon, "first", "First agent")
-    second = _lease(daemon, "second", "Second agent")
+    # One harness whose session reconnected holds two leases.
+    first = _lease(daemon, "claude-code-5", "claude-code")
+    second = _lease(daemon, "codex-5", "Codex")
     daemon.api.clock = lambda: 1_000.0
     viewer = await _subscribe(daemon, path.parent)
     other = await _subscribe(daemon, elsewhere)
     assert await _locks(viewer) == await _locks(other) == []
-    daemon.api.file_watcher.notice(path, write=True)
+    await _wrote(daemon, path, 5)
     row = {"path": str(path), "actor": None, "label": "an agent", "last": 1_000_000}
     assert await _locks(viewer) == [row]
     assert await _snapshot(daemon, elsewhere) == []
@@ -258,23 +260,57 @@ async def test_generic_lock_is_scoped_and_ends_when_the_last_agent_leaves(
     other.close()
 
 
-async def test_daemon_save_refreshes_without_a_lock_then_an_external_save_locks(
+async def test_only_a_reported_agent_write_locks_not_an_outside_save(
     daemon: Daemon, tmp_path: Path
 ) -> None:
     path = tmp_path / "notes.md"
     path.write_text("original")
-    _lease(daemon, "pair", "Pair")
+    _lease(daemon, "claude-code-7", "claude-code")
     viewer = await _subscribe(daemon, tmp_path)
     assert await _locks(viewer) == []
     rpc = daemon.api.methods
-    original = await rpc["file.read_text"]({"path": str(path)})
-    await rpc["file.write_text"]({**original, "path": str(path), "text": "my edit"})
+    path.write_text("saved in another editor")
     await _frame(viewer, "changed", path)
     assert await _snapshot(daemon, tmp_path) == []
+    original = await rpc["file.read_text"]({"path": str(path)})
+    await rpc["file.write_text"]({**original, "path": str(path), "text": "my edit"})
 
+    # Another Claude Code window, with no session in Flow, edits the file.
+    await _wrote(daemon, path, 8)
+    assert await _snapshot(daemon, tmp_path) == []
     path.write_text("agent edit")
+    await _wrote(daemon, path, 7)
     locks = await _locks(viewer)
-    assert [(row["path"], row["actor"]) for row in locks] == [(str(path), "pair")]
+    assert [(row["path"], row["actor"]) for row in locks] == [
+        (str(path), "claude-code-7")
+    ]
+    viewer.close()
+
+
+async def test_a_bash_command_locks_the_files_it_changed_for_its_session_only(
+    daemon: Daemon, tmp_path: Path
+) -> None:
+    before = tmp_path / "before.md"
+    before.write_text("untouched")
+    during = tmp_path / "report.md"
+    _lease(daemon, "claude-code-7", "claude-code")
+    viewer = await _subscribe(daemon, tmp_path)
+    assert await _locks(viewer) == []
+    shell = daemon.api.methods["file.agent_wrote"]
+
+    # Another window's command, with no session in Flow, locks nothing.
+    await shell({"harness_pid": 8, "shell": "start"})
+    during.write_text("other window")
+    await shell({"harness_pid": 8, "shell": "end"})
+    assert await _snapshot(daemon, tmp_path) == []
+
+    await shell({"harness_pid": 7, "shell": "start"})
+    during.write_text("written by the command")
+    await shell({"harness_pid": 7, "shell": "end"})
+    locks = await _locks(viewer)
+    assert [(row["path"], row["actor"]) for row in locks] == [
+        (str(during), "claude-code-7")
+    ]
     viewer.close()
 
 
@@ -286,7 +322,7 @@ async def test_creating_renaming_and_moving_from_the_daemon_skips_agent_locks(
     listing = await _subscribe(daemon, tmp_path)
     moved_listing = await _subscribe(daemon, destination)
     assert await _locks(listing) == await _locks(moved_listing) == []
-    _lease(daemon, "pair", "Pair")
+    _lease(daemon, "pair-7", "Pair")
     rpc = daemon.api.methods
 
     created = await rpc["file.create"]({"directory": str(tmp_path), "name": "notes.md"})
@@ -315,13 +351,14 @@ async def test_external_target_write_locks_its_open_symlink_for_edits(
     link.symlink_to(target)
     viewer = await _subscribe(daemon, listed, link)
     assert await _locks(viewer) == []
-    _lease(daemon, "pair", "Pair")
+    _lease(daemon, "pair-7", "Pair")
     rpc = daemon.api.methods
     original = await rpc["file.read_text"]({"path": str(link)})
     target.write_text("edited outside")
     await _frame(viewer, "changed", link)
+    await _wrote(daemon, link, 7)
     locks = await _locks(viewer)
-    assert (str(link), "pair", "Pair") in [
+    assert (str(link), "pair-7", "Pair") in [
         (row["path"], row["actor"], row["label"]) for row in locks
     ]
     with pytest.raises(FileLocked):
@@ -345,8 +382,9 @@ async def test_external_removal_announces_the_missing_file_and_clears_its_lock(
     path.write_text("original")
     viewer = await _subscribe(daemon, tmp_path, path)
     assert await _locks(viewer) == []
-    _lease(daemon, "pair", "Pair")
-    path.write_text("external edit")
+    _lease(daemon, "pair-7", "Pair")
+    path.write_text("agent edit")
+    await _wrote(daemon, path, 7)
     assert [row["path"] for row in await _locks(viewer)] == [str(path)]
 
     path.unlink()
@@ -358,61 +396,10 @@ async def test_external_removal_announces_the_missing_file_and_clears_its_lock(
     viewer.close()
 
 
-async def test_edit_queued_before_socket_lease_stays_unlocked(daemon, tmp_path):
-    path = tmp_path / "notes"
-    viewer = await _subscribe(daemon, tmp_path)
-    assert await _locks(viewer) == []
-    writer = Mock(spec=asyncio.StreamWriter)
-    writer.drain = AsyncMock()
-    leased = set()
-    daemon._client_leases[writer] = leased
-    # Complete registration before yielding to watchdog's queued events.
-    daemon.api.methods["agent.begin"] = AsyncMock(
-        return_value={
-            "actor": "pair",
-            "label": "Pair",
-            "leased": True,
-        }
-    )
-    path.write_text("my change")
-    await daemon._handle(
-        json.dumps(
-            {
-                "method": "agent.begin",
-                "params": {"actor": "pair", "lease": True},
-            }
-        ).encode(),
-        writer,
-        leased,
-    )
-    await _frame(viewer, "changed", path)
-    assert await _snapshot(daemon, tmp_path) == []
-    path.write_text("a later agent edit")
-    assert [row["actor"] for row in await _locks(viewer)] == ["pair"]
-
-
-async def test_same_actor_on_two_sockets_has_distinct_lock_ownership(daemon, tmp_path):
-    first = _lease(daemon, "agent", "Pair")
-    viewer = await _subscribe(daemon, tmp_path)
-    assert await _locks(viewer) == []
-    owned = tmp_path / "owned"
-    owned.write_text("first session")
-    assert [row["actor"] for row in await _locks(viewer)] == ["agent"]
-    _lease(daemon, "agent", "Pair")
-    shared = tmp_path / "shared"
-    shared.write_text("two sessions")
-    rows = await _locks(viewer)
-    assert next(r for r in rows if r["path"] == str(shared))["label"] == "an agent"
-    await daemon._release(first)
-    assert [(r["path"], r["actor"]) for r in await _locks(viewer)] == [
-        (str(shared), None)
-    ]
-
-
 async def test_continuous_writes_publish_while_the_writer_is_active(daemon, tmp_path):
     viewer = await _subscribe(daemon, tmp_path)
     assert await _locks(viewer) == []
-    _lease(daemon, "pair", "Pair")
+    _lease(daemon, "pair-7", "Pair")
     path = tmp_path / "running.log"
 
     async def append():
@@ -425,7 +412,6 @@ async def test_continuous_writes_publish_while_the_writer_is_active(daemon, tmp_
     try:
         async with asyncio.timeout(1.5):
             await _frame(viewer, "changed", path)
-            assert [row["path"] for row in await _locks(viewer)] == [str(path)]
     finally:
         writer.cancel()
         await asyncio.gather(writer, return_exceptions=True)
@@ -439,7 +425,7 @@ async def test_touch_updates_viewer_without_locking(daemon, tmp_path):
     path.write_text("contents")
     viewer = await _subscribe(daemon, tmp_path, path)
     assert await _locks(viewer) == []
-    _lease(daemon, "pair", "Pair")
+    _lease(daemon, "pair-7", "Pair")
     stamp = path.stat().st_mtime_ns + 2_000_000_000
     os.utime(path, ns=(stamp, stamp))
     await _frame(viewer, "changed", path)
@@ -467,8 +453,9 @@ async def test_retargeted_link_follows_only_the_new_file(daemon, tmp_path):
     link.symlink_to(left)
     viewer = await _subscribe(daemon, tmp_path, link)
     assert await _locks(viewer) == []
-    _lease(daemon, "pair", "Pair")
+    _lease(daemon, "pair-7", "Pair")
     left.write_text("locked")
+    await _wrote(daemon, left, 7)
     assert str(link) in {row["path"] for row in await _locks(viewer)}
     link.unlink()
     link.symlink_to(right)
@@ -479,6 +466,7 @@ async def test_retargeted_link_follows_only_the_new_file(daemon, tmp_path):
         await asyncio.wait_for(viewer.next(), 0.4)
     right.write_text("new file")
     await _frame(viewer, "changed", link)
+    await _wrote(daemon, right, 7)
     assert str(link) in {row["path"] for row in await _locks(viewer)}
 
 
@@ -502,9 +490,10 @@ async def test_renamed_lock_follows_file_and_replacement_does_not_inherit_it(
 ):
     viewer = await _subscribe(daemon, tmp_path)
     assert await _locks(viewer) == []
-    _lease(daemon, "pair", "Pair")
+    _lease(daemon, "pair-7", "Pair")
     path = tmp_path / "notes"
     path.write_text("agent edit")
+    await _wrote(daemon, path, 7)
     assert [row["path"] for row in await _locks(viewer)] == [str(path)]
     if cross_device:
         other = tmp_path / "destination"
@@ -538,29 +527,6 @@ async def test_renamed_lock_follows_file_and_replacement_does_not_inherit_it(
     )
 
 
-async def test_second_save_stays_unlocked_when_its_event_arrives_after_first_refresh(
-    daemon, tmp_path, monkeypatch
-):
-    path = tmp_path / "notes"
-    path.touch()
-    _lease(daemon, "pair", "Pair")
-    watcher = daemon.api.file_watcher
-    # Deliver the two write notices explicitly to control the observer's delay.
-    monkeypatch.setattr(watcher, "on_any_event", lambda event: None)
-    viewer = await _subscribe(daemon, tmp_path)
-    assert await _locks(viewer) == []
-    rpc = daemon.api
-    edit = await rpc.file_read_text({"path": str(path)})
-    first = await rpc.file_write_text({**edit, "path": str(path), "text": "first"})
-    watcher.notice(path, write=True)
-    await rpc.file_write_text({**first, "path": str(path), "text": "second"})
-    await _frame(viewer, "changed", path)
-    watcher.notice(path, write=True)
-    await _frame(viewer, "changed", path)
-    assert await _snapshot(daemon, tmp_path) == []
-    assert path.read_text() == "second"
-
-
 async def test_explicit_session_end_releases_another_connections_lock(daemon, tmp_path):
     root = make_workspace(tmp_path / "project")
     notebook = str(root / "churn.flow")
@@ -576,14 +542,15 @@ async def test_explicit_session_end_releases_another_connections_lock(daemon, tm
         json.dumps(
             {
                 "method": "agent.begin",
-                "params": {"actor": "pair", "flow": notebook, "lease": True},
+                "params": {"actor": "pair-7", "flow": notebook, "lease": True},
             }
         ).encode(),
         writer,
         leases,
     )
     path.write_text("agent edit")
-    assert (await _locks(viewer))[0]["actor"] == "pair"
+    await _wrote(daemon, path, 7)
+    assert (await _locks(viewer))[0]["actor"] == "pair-7"
     await daemon.api.agent_end({"flow": notebook})
     assert await _locks(viewer) == []
     edit = await daemon.api.file_read_text({"path": str(path)})
