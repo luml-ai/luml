@@ -576,10 +576,11 @@ class ExperimentsHandler:
             raise NotFound("Experiment not found")
         try:
             store = self.tracker.backend.base_path.resolve()
-            root = store / experiment_id / "attachments"
+            # An experiment folder may link elsewhere in the store, e.g. archive/.
+            root = (store / experiment_id / "attachments").resolve()
             path = (root / file_path).resolve()
             if (
-                root.resolve() != root
+                not root.is_relative_to(store)
                 or not path.is_relative_to(root)
                 or not path.is_file()
             ):
