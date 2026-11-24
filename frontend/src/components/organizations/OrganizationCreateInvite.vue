@@ -1,9 +1,5 @@
 <template>
-  <Button
-    :disabled="isMemberLimitExceeded"
-    v-tooltip.top="inviteButtonTooltip"
-    @click="visible = true"
-  >
+  <Button v-tooltip.top="inviteButtonTooltip" @click="visible = true">
     <span>Invite member</span>
     <Plus :size="14" />
   </Button>
@@ -21,6 +17,9 @@
         <h3 class="body-title">Email invite</h3>
         <p class="body-description">
           Enter the email and role to invite a new member to your organization.
+        </p>
+        <p v-if="isMemberLimitExceeded" class="error-message" role="status">
+          {{ memberLimitMessage }}
         </p>
         <Form
           id="createInviteForm"
@@ -53,7 +52,11 @@
       </div>
     </div>
     <template #footer>
-      <Button type="submit" :disabled="loading" :loading="loading" form="createInviteForm"
+      <Button
+        type="submit"
+        :disabled="loading || isMemberLimitExceeded"
+        :loading="loading"
+        form="createInviteForm"
         >Invite</Button
       >
     </template>
@@ -74,6 +77,8 @@ import { useOrganizationStore } from '@/stores/organization'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 
 const INITIAL_ROLE = OrganizationRoleEnum.member
+const memberLimitMessage =
+  'The organization has no free member slots. Cancel pending invites or upgrade to invite more people.'
 
 const dialogPT = {
   root: {
@@ -114,13 +119,14 @@ const isMemberLimitExceeded = computed(() => {
   if (!organizationStore.organizationDetails) return false
   return (
     organizationStore.organizationDetails.members_limit <=
-    organizationStore.organizationDetails.total_members
+    organizationStore.organizationDetails.members.length +
+      organizationStore.organizationDetails.invites.length
   )
 })
 
 const inviteButtonTooltip = computed(() => {
   if (!isMemberLimitExceeded.value) return null
-  return `The organization's member limit has been exceeded. Please contact support to upgrade to a higher plan.`
+  return memberLimitMessage
 })
 
 const resolver = zodResolver(
@@ -134,7 +140,7 @@ const visible = ref(false)
 const loading = ref(false)
 
 async function onFormSubmit({ values, valid }: FormSubmitEvent) {
-  if (!valid) return
+  if (!valid || isMemberLimitExceeded.value) return
   loading.value = true
   try {
     if (!organizationStore.currentOrganization) throw new Error('Current organization not found')

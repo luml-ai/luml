@@ -6,7 +6,7 @@ from httpx2 import ASGITransport, AsyncClient
 from luml.handlers.organizations import OrganizationHandler
 from luml.handlers.permissions import PermissionsHandler
 from luml.infra.security import JWTAuthenticationBackend
-from luml.models import AuthUser
+from luml.models import AuthUser, OrganizationOrm
 from luml.repositories.invites import InviteRepository
 from luml.repositories.users import UserRepository
 from luml.schemas.organization import (
@@ -16,6 +16,8 @@ from luml.schemas.organization import (
 )
 from luml.schemas.user import CreateUser
 from luml.service import AppService
+from sqlalchemy import update
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.authentication import AuthCredentials
 
 from tests.support.seeds import OrganizationFixtureData
@@ -201,3 +203,109 @@ class TestOrganizationInviteEmail:
             )
             == []
         )
+
+
+class TestOrganizationInviteLimits:
+    async def test_pending_invites_use_slots_and_cancellation_frees_one(
+        self, client: AsyncClient, seeded_organization: OrganizationFixtureData
+    ) -> None:
+        data = seeded_organization
+        async with AsyncSession(data.engine) as session:
+            await session.execute(
+                update(OrganizationOrm)
+                .where(OrganizationOrm.id == data.organization.id)
+                .values(members_limit=3)
+            )
+            await session.commit()
+
+        path = f"/v1/organizations/{data.organization.id}/invitations"
+        first = await client.post(
+            path, json={"email": "first@example.com", "role": "member"}
+        )
+        second = await client.post(
+            path, json={"email": "second@example.com", "role": "member"}
+        )
+        assert first.status_code == second.status_code == 200
+
+        refused = await client.post(
+            path, json={"email": "third@example.com", "role": "member"}
+        )
+        assert refused.status_code == 409
+        assert refused.json() == {
+            "detail": "The organization has no free member slots. "
+            "Cancel pending invites or upgrade to invite more people."
+        }
+        assert len((await client.get(path)).json()) == 2
+
+        canceled = await client.delete(f"{path}/{first.json()['id']}")
+        assert canceled.status_code == 204
+        retried = await client.post(
+            path, json={"email": "third@example.com", "role": "member"}
+        )
+        assert retried.status_code == 200
+        assert len((await client.get(path)).json()) == 2
+
+    async def test_legacy_invites_stay_valid_but_acceptance_checks_members(
+        self,
+        client: AsyncClient,
+        authentication: AsyncMock,
+        seeded_organization: OrganizationFixtureData,
+        new_user: CreateUser,
+    ) -> None:
+        data = seeded_organization
+        users = UserRepository(data.engine)
+        invites = InviteRepository(data.engine)
+        invitees = [
+            await users.create_user(
+                new_user.model_copy(update={"email": f"legacy-{index}@example.com"})
+            )
+            for index in range(3)
+        ]
+        pending = [
+            await invites.create_organization_invite(
+                CreateOrganizationInvite(
+                    email=user.email,
+                    role=OrgRole.MEMBER,
+                    organization_id=data.organization.id,
+                    invited_by=data.user.id,
+                )
+            )
+            for user in invitees
+        ]
+        async with AsyncSession(data.engine) as session:
+            await session.execute(
+                update(OrganizationOrm)
+                .where(OrganizationOrm.id == data.organization.id)
+                .values(members_limit=2)
+            )
+            await session.commit()
+
+        refused = await client.post(
+            f"/v1/organizations/{data.organization.id}/invitations",
+            json={"email": "new@example.com", "role": "member"},
+        )
+        assert refused.status_code == 409
+        assert (
+            len(await invites.get_invites_by_organization_id(data.organization.id)) == 3
+        )
+
+        for index, status in [(0, 200), (1, 409)]:
+            user = invitees[index]
+            authentication.return_value = (
+                AuthCredentials(["authenticated", "jwt"]),
+                AuthUser(user_id=user.id, email=user.email),
+            )
+            response = await client.post(
+                f"/v1/users/me/invitations/{pending[index].id}/accept"
+            )
+            assert response.status_code == status
+            if status == 409:
+                assert response.json() == {
+                    "detail": "Organization reached maximum number of users"
+                }
+
+        assert await users.get_organization_members_count(data.organization.id) == 2
+        remaining = await invites.get_invites_by_organization_id(data.organization.id)
+        assert {invite.id for invite in remaining} == {
+            invite.id for invite in pending[1:]
+        }

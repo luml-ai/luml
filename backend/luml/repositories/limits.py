@@ -11,6 +11,7 @@ from luml.models import (
     CollectionOrm,
     LiveSessionOrm,
     OrbitOrm,
+    OrganizationInviteOrm,
     OrganizationMemberOrm,
     OrganizationOrm,
     RelayOrm,
@@ -31,6 +32,11 @@ class OrganizationResource(StrEnum):
 
 MEMBERSHIP_LIMIT_MESSAGE = (
     "You’ve reached the limit of organizations you can join or create"
+)
+
+INVITE_LIMIT_MESSAGE = (
+    "The organization has no free member slots. "
+    "Cancel pending invites or upgrade to invite more people."
 )
 
 _LIMIT_MESSAGES = {
@@ -74,6 +80,7 @@ def organization_usage_query(
     resource: OrganizationResource,
     organization_id: UUID | SQLColumnExpression[UUID],
     excluded_session_id: str | None = None,
+    include_pending_invites: bool = False,
 ) -> Select[tuple[int]]:
     if resource is OrganizationResource.ARTIFACTS:
         return (
@@ -100,9 +107,15 @@ def organization_usage_query(
             .join(OrbitOrm, SatelliteOrm.orbit_id == OrbitOrm.id)
             .where(OrbitOrm.organization_id == organization_id)
         )
-    return select(func.count(OrganizationMemberOrm.id)).where(
+    members = select(func.count(OrganizationMemberOrm.id)).where(
         OrganizationMemberOrm.organization_id == organization_id
     )
+    if include_pending_invites:
+        invites = select(func.count(OrganizationInviteOrm.id)).where(
+            OrganizationInviteOrm.organization_id == organization_id
+        )
+        return select(members.scalar_subquery() + invites.scalar_subquery())
+    return members
 
 
 async def reserve_organization_slot(
@@ -111,6 +124,7 @@ async def reserve_organization_slot(
     resource: OrganizationResource,
     lock: bool = True,
     excluded_session_id: str | None = None,
+    include_pending_invites: bool = False,
 ) -> None:
     """Refuse when the organization has used up its limit for the resource.
 
@@ -124,10 +138,16 @@ async def reserve_organization_slot(
     limit = await session.scalar(query.with_for_update() if lock else query)
     if limit is None:
         raise NotFoundError("Organization not found")
-    usage = organization_usage_query(resource, organization_id, excluded_session_id)
+    usage = organization_usage_query(
+        resource, organization_id, excluded_session_id, include_pending_invites
+    )
     used = await session.scalar(usage) or 0
     if used >= limit:
-        raise OrganizationLimitReachedError(_LIMIT_MESSAGES[resource])
+        raise OrganizationLimitReachedError(
+            INVITE_LIMIT_MESSAGE
+            if include_pending_invites
+            else _LIMIT_MESSAGES[resource]
+        )
 
 
 async def reserve_user_membership_slot(

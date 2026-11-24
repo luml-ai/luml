@@ -734,6 +734,43 @@ class TestConcurrencyGuards:
             == 1
         )
 
+    async def test_concurrent_invites_reserve_only_the_remaining_member_slot(
+        self, engine: AsyncEngine, seeded_organization: OrganizationFixtureData
+    ) -> None:
+        data = seeded_organization
+        invites = InviteRepository(engine)
+        await _set_limit(engine, data.organization.id, members_limit=2)
+        async with AsyncSession(engine) as session:
+            await session.scalar(
+                select(OrganizationOrm.id)
+                .where(OrganizationOrm.id == data.organization.id)
+                .with_for_update()
+            )
+            tasks = [
+                asyncio.create_task(
+                    invites.create_organization_invite(
+                        CreateOrganizationInvite(
+                            email=f"invite-{index}@example.com",
+                            role=OrgRole.MEMBER,
+                            organization_id=data.organization.id,
+                            invited_by=data.user.id,
+                        )
+                    )
+                )
+                for index in range(2)
+            ]
+            try:
+                await _wait_for_lock_waiters(session, 2)
+            finally:
+                await session.commit()
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        winners, losers = _split(list(results), OrganizationLimitReachedError)
+        assert len(winners) == len(losers) == 1
+        assert (
+            len(await invites.get_invites_by_organization_id(data.organization.id)) == 1
+        )
+
     async def test_delete_organization_raises_when_members_exist_or_returns_false(
         self,
         engine: AsyncEngine,
