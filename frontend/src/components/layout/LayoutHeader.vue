@@ -94,6 +94,9 @@ watch(
       if (notices.some((notice) => notice.status === 'accepted')) {
         await organizationStore.getAvailableOrganizations()
       }
+      if (notices.length) {
+        await organizationStore.getOrganizationDetails(id)
+      }
     } catch {
       // retry when the organization is opened again
     }
