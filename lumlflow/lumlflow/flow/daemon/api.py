@@ -143,7 +143,6 @@ class Api:
     ) -> None:
         self.hub = hub
         self.directory = (directory or Path.cwd()).resolve()
-        self.hub.ui_directories.add(self.directory)
         self.instance_id = instance_id
         self.web: str | None = None
         self._stop = stop
@@ -342,7 +341,6 @@ class Api:
     async def ui_attach(self, params: dict[str, Any]) -> dict[str, Any]:
         directory = self._directory(params)
         self.hub.check_available(directory)
-        self.hub.ui_directories.add(directory)
         return {"directory": str(directory)}
 
     async def workspace_list(self, params: dict[str, Any]) -> dict[str, Any]:

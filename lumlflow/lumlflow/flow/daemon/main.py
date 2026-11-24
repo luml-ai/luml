@@ -623,9 +623,13 @@ def serve_here(
     rotate_session_token: bool = False,
 ) -> int:
     daemon_log.configure()
+    daemon = Daemon(directory)
+    # Only this `lumlflow ui` lasts as long as the daemon, so only its folder is
+    # protected. An attached one exits at once, a spawned daemon has no `ui`.
+    daemon.hub.ui_directories.add(daemon.directory)
     try:
         return asyncio.run(
-            Daemon(directory).serve(
+            daemon.serve(
                 web_host=web_host,
                 web_port=web_port,
                 exact_web_port=True,

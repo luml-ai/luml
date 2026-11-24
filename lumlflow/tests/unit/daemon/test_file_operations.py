@@ -114,6 +114,7 @@ async def test_root_home_and_ui_directory_are_protected(
     monkeypatch.setattr(Path, "home", lambda: home)
     root = make_workspace(home / "project")
     async with daemon_api(root) as api:
+        api.hub.ui_directories.add(root)
         for protected in (Path(root.anchor), root, home, tmp_path, root / ".."):
             for method, params in [
                 ("file.delete", {}),
@@ -122,6 +123,20 @@ async def test_root_home_and_ui_directory_are_protected(
             ]:
                 with pytest.raises(Protected):
                     await api.methods[method]({"path": str(protected), **params})
+
+
+async def test_an_attached_ui_folder_and_a_spawned_daemon_folder_can_be_deleted(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    run = root / "tmp-run"
+    run.mkdir()
+    async with daemon_api(root) as api:
+        await api.methods["ui.attach"]({"directory": str(run)})
+        await api.methods["file.delete"]({"path": str(run)})
+        await api.methods["file.rename"]({"path": str(root), "name": "renamed"})
+    assert not run.exists()
+    assert (tmp_path / "renamed").is_dir()
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="requires symlinks")

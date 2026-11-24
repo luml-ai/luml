@@ -531,13 +531,16 @@ def test_a_second_ui_in_another_directory_opens_the_one_already_serving(
     with client.attach(record) as daemon:
         for method, params in [
             ("file.rename", {"name": "renamed"}),
-            ("file.move", {"destination": str(root)}),
+            ("file.move", {"destination": str(other)}),
             ("file.delete", {}),
         ]:
             with pytest.raises(Protected):
-                daemon.call(method, {"path": str(other), **params})
-        daemon.call("file.create", {"directory": str(other), "name": "report.csv"})
-        daemon.call("file.delete", {"path": str(other / "report.csv")})
+                daemon.call(method, {"path": str(root), **params})
+        daemon.call("file.create", {"directory": str(root), "name": "report.csv"})
+        daemon.call("file.delete", {"path": str(root / "report.csv")})
+        # The second `ui` has exited, so its folder is no longer protected.
+        daemon.call("file.delete", {"path": str(other)})
+    assert not other.exists()
 
 
 @pytest.mark.default_port
