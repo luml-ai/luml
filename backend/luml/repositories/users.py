@@ -2,7 +2,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import EmailStr
-from sqlalchemy import case, delete, func, or_, select, update
+from sqlalchemy import case, delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload, selectinload
@@ -10,6 +10,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from luml.infra.exceptions import (
     AccountDeleteError,
     DatabaseConstraintError,
+    InsufficientPermissionsError,
     NotFoundError,
     OrganizationDeleteError,
 )
@@ -420,6 +421,21 @@ class UserRepository(RepositoryBase, CrudMixin):
         self, organization_id: UUID, member_id: UUID, member: UpdateOrganizationMember
     ) -> OrganizationMember | None:
         async with self._get_session() as session:
+            await session.scalar(
+                select(OrganizationOrm.id)
+                .where(OrganizationOrm.id == organization_id)
+                .with_for_update()
+            )
+            current = await session.scalar(
+                select(OrganizationMemberOrm).where(
+                    OrganizationMemberOrm.id == member_id,
+                    OrganizationMemberOrm.organization_id == organization_id,
+                )
+            )
+            if current is not None and current.role == OrgRole.OWNER:
+                raise InsufficientPermissionsError(
+                    "Organization Owner role can not be changed."
+                )
             db_member = await self.update_model_where(
                 session,
                 OrganizationMemberOrm,
@@ -428,51 +444,6 @@ class UserRepository(RepositoryBase, CrudMixin):
                 OrganizationMemberOrm.id == member_id,
             )
             return db_member.to_organization_member() if db_member else None
-
-    async def transfer_organization_ownership(
-        self, organization_id: UUID, owner_user_id: UUID, member_id: UUID
-    ) -> OrganizationMember | None:
-        async with self._get_session() as session, session.begin():
-            await session.scalar(
-                select(OrganizationOrm.id)
-                .where(OrganizationOrm.id == organization_id)
-                .with_for_update()
-            )
-            members = list(
-                await session.scalars(
-                    select(OrganizationMemberOrm)
-                    .where(
-                        OrganizationMemberOrm.organization_id == organization_id,
-                        or_(
-                            OrganizationMemberOrm.user_id == owner_user_id,
-                            OrganizationMemberOrm.id == member_id,
-                        ),
-                    )
-                    .order_by(OrganizationMemberOrm.id)
-                    .with_for_update()
-                )
-            )
-            owner = next(
-                (member for member in members if member.user_id == owner_user_id),
-                None,
-            )
-            successor = next(
-                (member for member in members if member.id == member_id), None
-            )
-            if (
-                owner is None
-                or successor is None
-                or owner is successor
-                or owner.role != OrgRole.OWNER
-                or successor.role == OrgRole.OWNER
-            ):
-                return None
-
-            owner.role = OrgRole.ADMIN
-            successor.role = OrgRole.OWNER
-            await session.flush()
-            await session.refresh(successor)
-            return successor.to_organization_member()
 
     async def delete_organization_member(
         self, organization_id: UUID, member_id: UUID
@@ -490,6 +461,16 @@ class UserRepository(RepositoryBase, CrudMixin):
             member = result.scalar_one_or_none()
 
             if member:
+                await session.scalar(
+                    select(OrganizationOrm.id)
+                    .where(OrganizationOrm.id == member.organization_id)
+                    .with_for_update()
+                )
+                await session.refresh(member)
+                if member.role == OrgRole.OWNER:
+                    raise InsufficientPermissionsError(
+                        "Organization Owner can not be removed."
+                    )
                 await session.execute(
                     delete(OrbitMembersOrm).where(
                         OrbitMembersOrm.user_id == member.user_id,

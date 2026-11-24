@@ -3,8 +3,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Request, status
 
 from luml.handlers.organizations import OrganizationHandler
+from luml.handlers.ownership_transfers import OwnershipTransferHandler
 from luml.infra.dependencies import UserAuthentication
-from luml.schemas.organization import UserInvite
+from luml.schemas.organization import OwnershipTransfer, UserInvite
 from luml.schemas.user import DetailResponse
 
 user_invites_router = APIRouter(
@@ -34,3 +35,35 @@ async def accept_invite_to_organization(
 @user_invites_router.post("/{invite_id}/reject", status_code=status.HTTP_204_NO_CONTENT)
 async def reject_invite_to_organization(request: Request, invite_id: UUID) -> None:
     return await organization_handler.reject_invite(invite_id, request.user.email)
+
+
+transfer_handler = OwnershipTransferHandler()
+
+
+@user_invites_router.get("/ownership-transfers", response_model=list[OwnershipTransfer])
+async def received_ownership_transfers(request: Request) -> list[OwnershipTransfer]:
+    return await transfer_handler.repository.list_received(request.user.id)
+
+
+@user_invites_router.post(
+    "/ownership-transfers/{organization_id}/{transfer_id}/accept",
+    response_model=OwnershipTransfer,
+)
+async def accept_ownership_transfer(
+    request: Request, organization_id: UUID, transfer_id: UUID
+) -> OwnershipTransfer:
+    return await transfer_handler.resolve(
+        organization_id, transfer_id, request.user.id, "accepted"
+    )
+
+
+@user_invites_router.post(
+    "/ownership-transfers/{organization_id}/{transfer_id}/decline",
+    response_model=OwnershipTransfer,
+)
+async def decline_ownership_transfer(
+    request: Request, organization_id: UUID, transfer_id: UUID
+) -> OwnershipTransfer:
+    return await transfer_handler.resolve(
+        organization_id, transfer_id, request.user.id, "declined"
+    )

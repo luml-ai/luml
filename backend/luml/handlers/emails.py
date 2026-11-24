@@ -4,6 +4,7 @@ from pydantic import EmailStr
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 
+from luml.schemas.organization import OwnershipTransfer
 from luml.settings import config
 
 
@@ -75,4 +76,31 @@ class EmailHandler:
             "open_platform_link": link,
         }
 
+        await asyncio.to_thread(self._email_client.send, message)
+
+    async def send_ownership_transfer_email(
+        self, request: OwnershipTransfer, *, result: bool
+    ) -> None:
+        template = (
+            config.TEMPLATE_ID_OWNERSHIP_TRANSFER_RESULT_EMAIL
+            if result
+            else config.TEMPLATE_ID_OWNERSHIP_TRANSFER_REQUEST_EMAIL
+        )
+        if not template:
+            raise ValueError("Ownership transfer email template is not configured")
+        message = Mail(
+            from_email=self.sender_email,
+            to_emails=request.sender_email if result else request.recipient_email,
+        )
+        message.template_id = template
+        message.dynamic_template_data = {
+            "organization": request.organization_name,
+            "sender": request.sender_email,
+            "recipient": request.recipient_email,
+            "expires_at": request.expires_at.isoformat(),
+            "status": request.status,
+            "open_platform_link": f"{config.APP_EMAIL_URL.rstrip('/')}/invitations"
+            if not result
+            else config.APP_EMAIL_URL,
+        }
         await asyncio.to_thread(self._email_client.send, message)

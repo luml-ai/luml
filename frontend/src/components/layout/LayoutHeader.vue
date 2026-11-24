@@ -45,6 +45,12 @@
 </template>
 
 <script setup lang="ts">
+import { watch } from 'vue'
+import { useRoute } from 'vue-router'
+import { useToast } from 'primevue'
+import { api } from '@/lib/api'
+import { useOrganizationStore } from '@/stores/organization'
+import { simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import UserToolbar from '../user/UserToolbar.vue'
 import { useAuthStore } from '@/stores/auth'
 import { X, Menu } from 'lucide-vue-next'
@@ -67,6 +73,33 @@ type Emits = {
 defineEmits<Emits>()
 
 const authStore = useAuthStore()
+const organizationStore = useOrganizationStore()
+const route = useRoute()
+const toast = useToast()
+watch(
+  () => [organizationStore.currentOrganization?.id, route.fullPath] as const,
+  async ([id]) => {
+    if (!id) return
+    try {
+      const notices = await api.readOwnershipTransferNotices(id)
+      for (const notice of notices) {
+        toast.add(
+          simpleSuccessToast(
+            notice.status === 'accepted'
+              ? `Ownership of ${notice.organization_name} was transferred to ${notice.recipient_email}`
+              : `${notice.recipient_email} declined the ownership transfer`,
+          ),
+        )
+      }
+      if (notices.some((notice) => notice.status === 'accepted')) {
+        await organizationStore.getAvailableOrganizations()
+      }
+    } catch {
+      // retry when the organization is opened again
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped>

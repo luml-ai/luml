@@ -75,7 +75,7 @@ import { getErrorMessage } from '@/helpers/helpers'
 import { useUserStore } from '@/stores/user'
 import { useOrganizationStore } from '@/stores/organization'
 
-type RowKind = 'delete' | 'transfer' | 'leave' | 'transferred'
+type RowKind = 'delete' | 'transfer' | 'leave' | 'requested'
 
 interface OrganizationRow {
   organization: Organization
@@ -84,7 +84,6 @@ interface OrganizationRow {
   picking: boolean
   selectedMemberId: string | null
   transferring: boolean
-  newOwner: Member | null
 }
 
 const dialogPt: DialogPassThroughOptions = {
@@ -128,8 +127,8 @@ function getNote(row: OrganizationRow) {
   if (row.kind === 'transfer') {
     return 'You are the only owner. The organization will be deleted with all its orbits, collections, models, satellites, deployments and bucket secrets, and its other members will lose access. Transfer ownership to keep it.'
   }
-  if (row.kind === 'transferred' && row.newOwner) {
-    return `Ownership transferred to ${getMemberLabel(row.newOwner)}. You will be removed from this organization.`
+  if (row.kind === 'requested') {
+    return 'A transfer request is pending. You remain the owner until it is accepted. Deleting your account now will still delete this organization and the request.'
   }
   return 'You will be removed from this organization.'
 }
@@ -142,7 +141,6 @@ async function buildRow(organization: Organization): Promise<OrganizationRow> {
     picking: false,
     selectedMemberId: null,
     transferring: false,
-    newOwner: null,
   }
   if (organization.role !== OrganizationRoleEnum.owner) return row
 
@@ -174,13 +172,24 @@ async function transfer(row: OrganizationRow) {
   if (!row.selectedMemberId) return
   row.transferring = true
   try {
-    row.newOwner = await api.transferOrganizationOwnership(
+    const request = await api.requestOrganizationOwnership(
       row.organization.id,
       row.selectedMemberId,
     )
-    row.kind = 'transferred'
+    if (request.email_delivery_failed) {
+      toast.add(
+        simpleErrorToast(
+          'Request saved, but the email could not be delivered. The recipient can respond on the Invitations page.',
+        ),
+      )
+    }
+    row.kind = 'requested'
     row.picking = false
-    toast.add(simpleSuccessToast(`Ownership of ${row.organization.name} was transferred.`))
+    toast.add(
+      simpleSuccessToast(
+        `Ownership transfer requested for ${row.organization.name}. Wait for acceptance before deleting your account to preserve it.`,
+      ),
+    )
     organizationStore.getAvailableOrganizations()
   } catch (e) {
     toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to transfer ownership')))

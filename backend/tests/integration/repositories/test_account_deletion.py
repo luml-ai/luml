@@ -19,6 +19,7 @@ from luml.models import (
     UserOrm,
 )
 from luml.repositories.bucket_secrets import BucketSecretRepository
+from luml.repositories.ownership_transfers import OwnershipTransferRepository
 from luml.repositories.tracks import TrackEntryRepository, TrackRepository
 from luml.repositories.users import UserRepository
 from luml.schemas.bucket_secrets import S3BucketSecretCreate
@@ -171,9 +172,9 @@ class TestAccountDeletion:
             )
         )
         assert successor_member is not None
-        await repository.transfer_organization_ownership(
-            organization.id, owner.id, successor_member.id
-        )
+        transfers = OwnershipTransferRepository(engine)
+        request = await transfers.create(organization.id, owner.id, successor_member.id)
+        await transfers.resolve(organization.id, request.id, successor.id, "accepted")
 
         await repository.delete_user(owner.email)
 

@@ -3,6 +3,7 @@ import uuid
 import pytest
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.orbits import OrbitRepository
+from luml.repositories.ownership_transfers import OwnershipTransferRepository
 from luml.repositories.users import UserRepository
 from luml.schemas.bucket_secrets import S3BucketSecretCreate
 from luml.schemas.orbit import OrbitMemberCreate, OrbitRole
@@ -28,13 +29,35 @@ def repository(engine: AsyncEngine) -> UserRepository:
     return UserRepository(engine)
 
 
+@pytest.fixture
+async def seeded_admin_orbit(
+    seeded_orbit: OrbitFixtureData, new_user: CreateUser
+) -> OrbitFixtureData:
+    data = seeded_orbit
+    users = UserRepository(data.engine)
+    successor = await users.create_user(
+        new_user.model_copy(update={"email": f"successor_{uuid.uuid4()}@example.com"})
+    )
+    member = await users.create_organization_member(
+        OrganizationMemberCreate(
+            user_id=successor.id,
+            organization_id=data.organization.id,
+            role=OrgRole.MEMBER,
+        )
+    )
+    transfers = OwnershipTransferRepository(data.engine)
+    request = await transfers.create(data.organization.id, data.user.id, member.id)
+    await transfers.resolve(data.organization.id, request.id, successor.id, "accepted")
+    return data
+
+
 class TestOrganizationMemberRepository:
     async def test_delete_member_preserves_orbit_roles_in_other_organizations(
         self,
         repository: UserRepository,
-        seeded_orbit: OrbitFixtureData,
+        seeded_admin_orbit: OrbitFixtureData,
     ) -> None:
-        data = seeded_orbit
+        data = seeded_admin_orbit
         orbit_repository = OrbitRepository(data.engine)
         other_org = await create_sibling_organization(data.engine, data.user.id)
         secret = await BucketSecretRepository(data.engine).create_bucket_secret(
@@ -83,11 +106,11 @@ class TestOrganizationMemberRepository:
     async def test_organization_exit_rolls_back_all_memberships_on_failure(
         self,
         repository: UserRepository,
-        seeded_orbit: OrbitFixtureData,
+        seeded_admin_orbit: OrbitFixtureData,
         monkeypatch: pytest.MonkeyPatch,
         leave: bool,
     ) -> None:
-        data = seeded_orbit
+        data = seeded_admin_orbit
         orbit_repository = OrbitRepository(data.engine)
         await orbit_repository.create_orbit_member(
             OrbitMemberCreate(
@@ -149,28 +172,30 @@ class TestOrganizationMemberRepository:
     async def test_update_organization_member_changes_role(
         self,
         repository: UserRepository,
-        seeded_organization: OrganizationFixtureData,
+        seeded_organization_with_members: OrganizationWithMembersFixtureData,
     ) -> None:
         updated_member = await repository.update_organization_member(
-            seeded_organization.organization.id,
-            seeded_organization.member.id,
+            seeded_organization_with_members.organization.id,
+            seeded_organization_with_members.members[1].id,
             UpdateOrganizationMember(role=OrgRole.ADMIN),
         )
 
         assert updated_member
-        assert updated_member.id == seeded_organization.member.id
+        assert updated_member.id == seeded_organization_with_members.members[1].id
         assert updated_member.role == OrgRole.ADMIN
 
     async def test_delete_organization_member_removes_member(
         self,
         repository: UserRepository,
-        seeded_organization: OrganizationFixtureData,
+        seeded_organization_with_members: OrganizationWithMembersFixtureData,
     ) -> None:
         await repository.delete_organization_member(
-            seeded_organization.organization.id, seeded_organization.member.id
+            seeded_organization_with_members.organization.id,
+            seeded_organization_with_members.members[1].id,
         )
         fetched_member = await repository.get_organization_member_by_id(
-            seeded_organization.organization.id, seeded_organization.member.id
+            seeded_organization_with_members.organization.id,
+            seeded_organization_with_members.members[1].id,
         )
 
         assert fetched_member is None
@@ -222,9 +247,17 @@ class TestOrganizationMemberRepository:
         repository: UserRepository,
         seeded_organization_with_members: OrganizationWithMembersFixtureData,
     ) -> None:
+        data = seeded_organization_with_members
+        transfers = OwnershipTransferRepository(data.engine)
+        request = await transfers.create(
+            data.organization.id, data.user.id, data.members[-1].id
+        )
+        await transfers.resolve(
+            data.organization.id, request.id, data.members[-1].user.id, "accepted"
+        )
         await repository.update_organization_member(
-            seeded_organization_with_members.organization.id,
-            seeded_organization_with_members.member.id,
+            data.organization.id,
+            data.member.id,
             UpdateOrganizationMember(role=OrgRole.MEMBER),
         )
         await repository.update_organization_member(
@@ -232,15 +265,6 @@ class TestOrganizationMemberRepository:
             seeded_organization_with_members.members[-2].id,
             UpdateOrganizationMember(role=OrgRole.ADMIN),
         )
-        await repository.delete_organization_member(
-            seeded_organization_with_members.organization.id,
-            seeded_organization_with_members.members[-1].id,
-        )
-        await repository.create_owner(
-            seeded_organization_with_members.members[-1].user.id,
-            seeded_organization_with_members.organization.id,
-        )
-
         db_members = await repository.get_organization_members(
             seeded_organization_with_members.organization.id
         )
@@ -258,85 +282,3 @@ class TestOrganizationMemberRepository:
             OrgRole.ADMIN,
             *([OrgRole.MEMBER] * (len(seeded_organization_with_members.members) - 2)),
         ]
-
-    async def test_transfer_organization_ownership_swaps_owner_and_successor(
-        self,
-        repository: UserRepository,
-        seeded_organization: OrganizationFixtureData,
-        new_user: CreateUser,
-    ) -> None:
-        organization_id = seeded_organization.organization.id
-        successor_user = await repository.create_user(
-            new_user.model_copy(
-                update={"email": f"successor_{uuid.uuid4()}@example.com"}
-            )
-        )
-        successor = await repository.create_organization_member(
-            OrganizationMemberCreate(
-                user_id=successor_user.id,
-                organization_id=organization_id,
-                role=OrgRole.MEMBER,
-            )
-        )
-
-        new_owner = await repository.transfer_organization_ownership(
-            organization_id, seeded_organization.user.id, successor.id
-        )
-
-        assert new_owner is not None
-        assert new_owner.id == successor.id
-        assert new_owner.role == OrgRole.OWNER
-        assert new_owner.user.id == successor_user.id
-        assert (
-            await repository.get_organization_member_role(
-                organization_id, seeded_organization.user.id
-            )
-            == OrgRole.ADMIN
-        )
-
-    async def test_transfer_organization_ownership_refuses_invalid_transfers(
-        self,
-        repository: UserRepository,
-        seeded_organization: OrganizationFixtureData,
-        new_user: CreateUser,
-    ) -> None:
-        organization_id = seeded_organization.organization.id
-        member_user = await repository.create_user(
-            new_user.model_copy(update={"email": f"member_{uuid.uuid4()}@example.com"})
-        )
-        member = await repository.create_organization_member(
-            OrganizationMemberCreate(
-                user_id=member_user.id,
-                organization_id=organization_id,
-                role=OrgRole.MEMBER,
-            )
-        )
-        foreign_user = await repository.create_user(
-            new_user.model_copy(update={"email": f"foreign_{uuid.uuid4()}@example.com"})
-        )
-        foreign_organization = (
-            await repository.get_user_organizations(foreign_user.id)
-        )[0]
-        foreign_member = await repository.get_organization_member(
-            foreign_organization.id, foreign_user.id
-        )
-        assert foreign_member is not None
-
-        for owner_user_id, member_id in (
-            (member_user.id, seeded_organization.member.id),
-            (seeded_organization.user.id, seeded_organization.member.id),
-            (seeded_organization.user.id, foreign_member.id),
-            (seeded_organization.user.id, uuid.uuid4()),
-        ):
-            assert (
-                await repository.transfer_organization_ownership(
-                    organization_id, owner_user_id, member_id
-                )
-                is None
-            )
-
-        members = await repository.get_organization_members(organization_id)
-        assert {(item.id, item.role) for item in members} == {
-            (seeded_organization.member.id, OrgRole.OWNER),
-            (member.id, OrgRole.MEMBER),
-        }
