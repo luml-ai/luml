@@ -27,6 +27,10 @@ async function mockAuthenticatedInvitationPage(apiMocks: ApiMocks) {
 }
 
 test.describe('Invitation links', () => {
+  test.beforeEach(async ({ apiMocks }) => {
+    await apiMocks.get('**/v1/users/me/invitations/ownership-transfers', [])
+  })
+
   test('redirects unauthenticated users to sign in and preserves the invitation route', async ({
     page,
     apiMocks,
