@@ -302,6 +302,34 @@ describe('workspace text editing', () => {
     expect(button('Reload')).toBeDefined()
   })
 
+  it('hints at an outside change without locking, but not after its own save', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    await open()
+    await edit()
+    await click('Save')
+    vi.mocked(workspaceApi.readText).mockResolvedValue({
+      ...original,
+      ...{ mtime_ns: '999', revision: 'saved' },
+      text: 'my draft',
+    })
+    await viewer.setProps({ refreshKey: 1 })
+    await settle()
+    expect(viewer.text()).not.toContain('Changed outside Flow')
+
+    vi.mocked(workspaceApi.readText).mockResolvedValue(changed)
+    await viewer.setProps({ refreshKey: 2 })
+    await settle()
+    expect(viewer.text()).toContain('Changed outside Flow at')
+    expect(button('Edit')?.element.disabled).toBe(false)
+    await viewer.setProps({ locks: [lock] })
+    expect(viewer.text()).not.toContain('Changed outside Flow')
+    await viewer.setProps({ locks: [] })
+    vi.advanceTimersByTime(3 * 60 * 1000)
+    await settle()
+    expect(viewer.text()).not.toContain('Changed outside Flow')
+    vi.useRealTimers()
+  })
+
   it('disables editing for an unowned lock and uses its neutral strip', async () => {
     await open()
     await viewer.setProps({ locks: [{ ...lock, actor: null, label: 'an agent' }] })

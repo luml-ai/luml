@@ -46,6 +46,15 @@
             >{{ lock.label === 'an agent' ? 'An agent' : lock.label }} is working on this file</span
           >
         </div>
+        <div
+          v-else-if="changedOutsideAt"
+          class="live-strip"
+          role="status"
+          title="Someone may still be editing it. Saving here warns if the file changes again."
+        >
+          <Info :size="14" class="shrink-0" />
+          <span class="truncate">Changed outside Flow at {{ changedOutsideAt }}</span>
+        </div>
 
         <div class="viewer-body" :class="{ 'opacity-60': lock }">
           <Message v-if="gone && editBase" severity="warn">This file was moved or deleted</Message>
@@ -129,7 +138,7 @@
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { FilePreview, getFileExtension, getFileType, getPreviewLanguage } from '@luml/attachments'
 import { Button, Card, Message, useToast } from 'primevue'
-import { Check, Copy, Lock, Pencil, X } from 'lucide-vue-next'
+import { Check, Copy, Info, Lock, Pencil, X } from 'lucide-vue-next'
 import { workspaceApi, WorkspaceRefusedError } from '@/api/slices/workspace/workspace.api'
 import type { WorkspaceFile, WorkspaceFileLock } from '@/api/slices/workspace/workspace.interface'
 import LumlPackagePreview from './LumlPackagePreview.vue'
@@ -140,6 +149,8 @@ import { getErrorMessage } from '@/helpers/errors'
 import { getSizeText } from '@/helpers/string'
 import { AGENT_COLORS, useFlowStore } from '@/store/flow'
 import { errorToast } from '@/toasts'
+
+const CHANGED_OUTSIDE_MS = 3 * 60 * 1000
 
 const props = defineProps<{
   file: WorkspaceFile
@@ -162,6 +173,18 @@ const loading = ref(false)
 const saving = ref(false)
 const loadError = ref('')
 let readVersion = 0
+// A hint, not a lock: only an agent's reported write locks the file.
+const changedOutsideAt = ref<string>()
+let changedOutsideTimer: ReturnType<typeof setTimeout> | undefined
+function clearChangedOutside() {
+  clearTimeout(changedOutsideTimer)
+  changedOutsideAt.value = undefined
+}
+function markChangedOutside() {
+  clearChangedOutside()
+  changedOutsideAt.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  changedOutsideTimer = setTimeout(clearChangedOutside, CHANGED_OUTSIDE_MS)
+}
 
 const refusedLock = ref<{ label: string; actor?: string }>()
 const lock = computed(
@@ -235,6 +258,13 @@ async function refreshText() {
   try {
     const result = await workspaceApi.readText(props.file.path)
     if (request !== readVersion) return false
+    const previous = disk.value
+    if (
+      previous &&
+      (result.revision !== previous.revision || result.mtime_ns !== previous.mtime_ns)
+    ) {
+      markChangedOutside()
+    }
     disk.value = result
     if (
       editBase.value &&
@@ -272,6 +302,7 @@ watch(
   ([path], [previousPath]) => {
     if (path !== previousPath) {
       discard()
+      clearChangedOutside()
       disk.value = undefined
       saving.value = false
     }
@@ -329,6 +360,7 @@ async function save(force: boolean) {
 
 onBeforeUnmount(() => {
   ++readVersion
+  clearChangedOutside()
   discard()
 })
 defineExpose({ discard, editTarget: computed(() => editBase.value?.target) })
