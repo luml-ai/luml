@@ -3,6 +3,7 @@ import errno
 import os
 import stat
 import struct
+import subprocess
 import sys
 from contextlib import contextmanager
 from pathlib import Path
@@ -23,6 +24,11 @@ from lumlflow.flow.errors import (
 )
 
 from tests.helpers.daemon import daemon_api
+
+
+def _hidden(folder: Path) -> list[str]:
+    """Staging leftovers: every save stages under a dot-name beside the file."""
+    return [entry.name for entry in folder.iterdir() if entry.name.startswith(".")]
 
 
 async def test_read_and_save_utf8_preserves_line_endings_mode_and_precision(tmp_path):
@@ -255,7 +261,7 @@ async def test_save_checks_for_outside_edits_before_publishing(tmp_path, monkeyp
             await api.file_write_text({**params, "text": "mine"})
     assert refused.value.mtime_ns == str(path.stat().st_mtime_ns)
     assert path.read_text() == "outside edit"
-    assert not list(tmp_path.glob(".notes.*.tmp"))
+    assert not _hidden(tmp_path)
 
 
 async def test_save_failure_leaves_original_mode_and_data(tmp_path, monkeypatch):
@@ -273,7 +279,126 @@ async def test_save_failure_leaves_original_mode_and_data(tmp_path, monkeypatch)
             await api.file_write_text({**params, "text": "mine"})
     assert path.stat().st_mode == mode
     assert path.read_text() == "original"
-    assert not list(tmp_path.glob(".notes.*.tmp"))
+    assert not _hidden(tmp_path)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX staging folder")
+async def test_draft_is_owner_only_until_its_access_matches(tmp_path, monkeypatch):
+    path = tmp_path / "notes"
+    path.write_text("original")
+    path.chmod(0o640)
+    preserve = files._preserve_access
+    seen = []
+
+    def check_staging(target, staged, info, **kwargs):
+        folder = staged.parent
+        seen.append(folder)
+        assert folder != target.parent
+        assert folder.parent == target.parent
+        assert stat.S_IMODE(folder.stat().st_mode) & 0o077 == 0
+        preserve(target, staged, info, **kwargs)
+
+    monkeypatch.setattr(files, "_preserve_access", check_staging)
+    async with daemon_api(tmp_path) as api:
+        params = {"path": str(path), **await api.file_read_text({"path": str(path)})}
+        await api.file_write_text({**params, "text": "mine"})
+    assert seen
+    assert path.read_text() == "mine"
+    assert stat.S_IMODE(path.stat().st_mode) == 0o640
+    assert not _hidden(tmp_path)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS inheritable ACLs")
+async def test_draft_inherits_no_aces_from_the_folder(tmp_path, monkeypatch):
+    # Mode 0700 does not override an inherited macOS ACE on the staging folder.
+    subprocess.run(
+        [
+            "chmod",
+            "+a",
+            "everyone allow list,search,read,file_inherit,directory_inherit",
+            str(tmp_path),
+        ],
+        check=True,
+    )
+    path = tmp_path / "notes"
+    path.write_text("original")
+    subprocess.run(["chmod", "+a", "user:nobody deny read", str(path)], check=True)
+    acl = files._mac_acl(path)
+    assert b"inherited" in acl
+    preserve = files._preserve_access
+    seen = []
+
+    def check_staging(target, staged, info, **kwargs):
+        seen.append((files._mac_acl(staged.parent), files._mac_acl(staged)))
+        preserve(target, staged, info, **kwargs)
+
+    monkeypatch.setattr(files, "_preserve_access", check_staging)
+    async with daemon_api(tmp_path) as api:
+        params = {"path": str(path), **await api.file_read_text({"path": str(path)})}
+        await api.file_write_text({**params, "text": "mine"})
+    assert seen
+    assert all(entry == (b"", b"") for entry in seen)
+    assert path.read_text() == "mine"
+    assert files._mac_acl(path) == acl
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS inheritable ACLs")
+@pytest.mark.parametrize("code", [errno.ENOTSUP, errno.EACCES])
+async def test_staging_folder_acl_failure(tmp_path, monkeypatch, code):
+    path = tmp_path / "notes"
+    path.write_text("original")
+
+    def refuse(target, source):
+        raise OSError(code, os.strerror(code))
+
+    monkeypatch.setattr(files, "_set_mac_acl", refuse)
+    async with daemon_api(tmp_path) as api:
+        params = {"path": str(path), **await api.file_read_text({"path": str(path)})}
+        if code == errno.ENOTSUP:  # Nothing to inherit without ACL support.
+            await api.file_write_text({**params, "text": "mine"})
+            assert path.read_text() == "mine"
+        else:
+            with pytest.raises(OsError, match="Permission denied"):
+                await api.file_write_text({**params, "text": "mine"})
+            assert path.read_text() == "original"
+    assert not _hidden(tmp_path)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX staging folder")
+async def test_failed_access_copy_leaves_no_staging_folder(tmp_path, monkeypatch):
+    path = tmp_path / "notes"
+    path.write_text("original")
+
+    def refuse(target, staged, info, **kwargs):
+        raise PermissionError(errno.EACCES, "Permission denied")
+
+    monkeypatch.setattr(files, "_preserve_access", refuse)
+    async with daemon_api(tmp_path) as api:
+        params = {"path": str(path), **await api.file_read_text({"path": str(path)})}
+        with pytest.raises(OsError, match="Permission denied"):
+            await api.file_write_text({**params, "text": "mine"})
+    assert path.read_text() == "original"
+    assert not _hidden(tmp_path)
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32" or os.geteuid() == 0, reason="POSIX directory mode"
+)
+async def test_save_into_unwritable_folder_reports_the_os_error(tmp_path):
+    folder = tmp_path / "locked"
+    folder.mkdir()
+    path = folder / "notes"
+    path.write_text("original")
+    async with daemon_api(tmp_path) as api:
+        params = {"path": str(path), **await api.file_read_text({"path": str(path)})}
+        folder.chmod(0o500)
+        try:
+            with pytest.raises(OsError, match="Permission denied"):
+                await api.file_write_text({**params, "text": "mine"})
+        finally:
+            folder.chmod(0o700)
+    assert path.read_text() == "original"
+    assert not _hidden(folder)
 
 
 async def test_successful_replace_releases_its_temporary_name(tmp_path, monkeypatch):
@@ -289,9 +414,13 @@ async def test_successful_replace_releases_its_temporary_name(tmp_path, monkeypa
     async with daemon_api(tmp_path) as api:
         params = {"path": str(path), **await api.file_read_text({"path": str(path)})}
         await api.file_write_text({**params, "text": "replacement"})
-    (reused,) = tmp_path.glob(".notes.*.tmp")
-    assert reused.read_bytes() == b"another writer"
     assert path.read_text() == "replacement"
+    if sys.platform == "win32":
+        (reused,) = tmp_path.glob(".notes.*.tmp")
+        assert reused.read_bytes() == b"another writer"
+    else:
+        # Only the daemon's own user can reach its owner-only staging folder.
+        assert not _hidden(tmp_path)
 
 
 async def test_rejects_invalid_text_rpc_arguments(tmp_path):

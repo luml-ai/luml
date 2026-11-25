@@ -287,6 +287,21 @@ async def test_only_a_reported_agent_write_locks_not_an_outside_save(
     viewer.close()
 
 
+async def test_a_save_from_the_viewer_announces_the_saved_file(
+    daemon: Daemon, tmp_path: Path
+) -> None:
+    path = tmp_path / "notes.md"
+    path.write_text("original")
+    viewer = await _subscribe(daemon, tmp_path, path)
+    assert await _locks(viewer) == []
+    edit = await daemon.api.file_read_text({"path": str(path)})
+    await daemon.api.file_write_text({**edit, "path": str(path), "text": "saved"})
+    frame = await _frame(viewer, "changed", path)
+    assert frame["directory"] == str(tmp_path)
+    assert await _snapshot(daemon, tmp_path) == []
+    viewer.close()
+
+
 async def test_a_bash_command_locks_the_files_it_changed_for_its_session_only(
     daemon: Daemon, tmp_path: Path
 ) -> None:

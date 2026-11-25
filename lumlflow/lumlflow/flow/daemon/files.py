@@ -290,8 +290,9 @@ def _preserve_access(
         temp = staged.lstat()
         if (temp.st_uid, temp.st_gid) != (info.st_uid, info.st_gid):
             os.chown(staged, info.st_uid, info.st_gid, follow_symlinks=False)
-        if not link:
-            staged.chmod(stat.S_IMODE(info.st_mode))
+        # The ACL goes on before the mode: the mode can widen group access
+        # that only the ACL takes back. On Linux the chmod sets the ACL mask
+        # to the group bits, which already are the source's mask.
         if sys.platform == "darwin":
             libc = ctypes.CDLL(None, use_errno=True)
             # COPYFILE_ACL | COPYFILE_XATTR | COPYFILE_NOFOLLOW
@@ -300,6 +301,12 @@ def _preserve_access(
             ):
                 code = ctypes.get_errno()
                 raise OSError(code, os.strerror(code))
+            # copyfile leaves out inherited ACEs, which a draft staged in a
+            # private folder cannot pick up on its own.
+            if _mac_acl(path) != _mac_acl(staged):
+                _set_mac_acl(staged, path)
+            if not link:
+                staged.chmod(stat.S_IMODE(info.st_mode))
             if moving and _mac_acl(path) != _mac_acl(staged):
                 raise denied
         elif hasattr(os, "listxattr"):
@@ -310,6 +317,8 @@ def _preserve_access(
             for key, value in source.items():
                 if inherited.get(key) != value:
                     os.setxattr(staged, key, value, follow_symlinks=False)
+            if not link:
+                staged.chmod(stat.S_IMODE(info.st_mode))
             if _attributes(staged, moving=moving) != source:
                 raise denied
         else:
@@ -321,6 +330,70 @@ def _preserve_access(
         info.st_mode,
     ):
         raise denied
+
+
+def _set_mac_acl(target: Path, source: Path | None) -> None:
+    """Give ``target`` exactly the extended ACL of ``source``, or none."""
+    libc = ctypes.CDLL(None, use_errno=True)
+    libc.acl_init.argtypes = [ctypes.c_int]
+    libc.acl_init.restype = ctypes.c_void_p
+    libc.acl_get_link_np.argtypes = [ctypes.c_char_p, ctypes.c_int]
+    libc.acl_get_link_np.restype = ctypes.c_void_p
+    libc.acl_set_link_np.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_void_p]
+    libc.acl_set_link_np.restype = ctypes.c_int
+    libc.acl_free.argtypes = [ctypes.c_void_p]
+    libc.acl_free.restype = ctypes.c_int
+    acl = None
+    if source is not None:
+        acl = libc.acl_get_link_np(os.fsencode(source), 0x100)  # EXTENDED
+        code = ctypes.get_errno()
+        if not acl and code != errno.ENOENT:
+            raise OSError(code, os.strerror(code), str(source))
+    if not acl:  # No source, or a source without an extended ACL.
+        acl = libc.acl_init(0)
+        if not acl:
+            code = ctypes.get_errno()
+            raise OSError(code, os.strerror(code))
+    try:
+        if libc.acl_set_link_np(os.fsencode(target), 0x100, acl):
+            code = ctypes.get_errno()
+            raise OSError(code, os.strerror(code), str(target))
+    finally:
+        libc.acl_free(acl)
+
+
+@contextmanager
+def _private_folder(parent: Path, prefix: str) -> Generator[Path]:
+    """An owner-only folder in ``parent`` whose entries inherit no ACEs.
+
+    Mode 0700 does not override a macOS ACL: an inheritable allow on the
+    parent would otherwise let others list the folder and read its entries.
+    """
+    with tempfile.TemporaryDirectory(dir=parent, prefix=prefix) as folder:
+        if sys.platform == "darwin":
+            try:
+                _set_mac_acl(Path(folder), None)
+            except OSError as error:
+                # Without ACL support the folder has nothing to pass on.
+                if error.errno not in (errno.ENOTSUP, errno.EOPNOTSUPP):
+                    raise
+        yield Path(folder)
+
+
+@contextmanager
+def _drafts(path: Path) -> Generator[Path]:
+    """Where a save stages its draft until the draft has the file's access.
+
+    On POSIX that is an owner-only folder beside the file: one filesystem, so
+    publishing stays a rename, and nobody the file's ACL turns away can open
+    the draft while its mode is already the file's. Windows stages beside the
+    file, whose folder's security descriptor the draft must inherit.
+    """
+    if sys.platform == "win32":
+        yield path.parent
+        return
+    with _private_folder(path.parent, ".save-") as folder:
+        yield folder
 
 
 def write_text(
@@ -353,7 +426,11 @@ def write_text(
         raise NotText("text files must be UTF-8") from error
     _check_text(data)
 
-    with os_errors(), atomic.staged_bytes(path, data) as staged:
+    with (
+        os_errors(),
+        _drafts(path) as folder,
+        atomic.staged_bytes(folder / path.name, data) as staged,
+    ):
         info = staged.stat()
 
         def prepare() -> None:
@@ -659,11 +736,11 @@ def move(source: Path, target: Path) -> tuple[os.stat_result, os.stat_result]:
             raise
 
     # Stage and verify the copy before publishing or removing any user data.
-    with tempfile.TemporaryDirectory(dir=target.parent, prefix=".move-") as staged:
+    with _private_folder(target.parent, ".move-") as staged:
         changed_at = source.lstat().st_ctime_ns
         _check_mounts(source)
         versions = _versions(source)
-        copy = Path(staged) / "copy"
+        copy = staged / "copy"
         if stat.S_ISDIR(source.lstat().st_mode):
             shutil.copytree(source, copy, symlinks=True, copy_function=_linking_copy())
         else:
