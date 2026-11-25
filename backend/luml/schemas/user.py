@@ -124,6 +124,12 @@ class ConfirmEmailChangeIn(BaseModel):
     token: str = Field(min_length=1, max_length=4096)
 
 
+class EmailChange(BaseModel):
+    old_email: EmailStr
+    new_email: EmailStr
+    full_name: str | None = None
+
+
 class UpdateUserIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

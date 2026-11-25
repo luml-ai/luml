@@ -2,6 +2,7 @@ from typing import Annotated
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Body,
     Depends,
     HTTPException,
@@ -238,10 +239,14 @@ async def change_email(
 
 @auth_router.post("/confirm-email-change", response_model=DetailResponse)
 async def confirm_email_change(
-    request: Request, response: Response, data: ConfirmEmailChangeIn
+    request: Request,
+    response: Response,
+    data: ConfirmEmailChangeIn,
+    background_tasks: BackgroundTasks,
 ) -> dict[str, str]:
     await limit_auth_attempts(request)
-    await auth_handler.handle_confirm_email_change(data.token)
+    change = await auth_handler.handle_confirm_email_change(data.token)
+    background_tasks.add_task(auth_handler.send_email_changed_notice, change)
     delete_auth_cookies(response)
     return {"detail": "Email changed successfully. Sign in with your new address."}
 

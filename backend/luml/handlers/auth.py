@@ -37,6 +37,7 @@ from luml.schemas.user import (
     CreateUser,
     CreateUserIn,
     CurrentUserOut,
+    EmailChange,
     SignInResponse,
     SignInUser,
     UpdateUser,
@@ -392,7 +393,7 @@ class AuthHandler:
             86400,
         )
 
-    async def handle_confirm_email_change(self, token: str) -> None:
+    async def handle_confirm_email_change(self, token: str) -> EmailChange:
         try:
             payload = jwt.decode(
                 token,
@@ -439,10 +440,15 @@ class AuthHandler:
             raise AuthError(
                 "Email change link is expired, already used or invalid", 400
             )
-        local, domain = new_email.rsplit("@", 1)
+        return EmailChange(
+            old_email=old_email, new_email=new_email, full_name=user.full_name
+        )
+
+    async def send_email_changed_notice(self, change: EmailChange) -> None:
+        local, domain = change.new_email.rsplit("@", 1)
         try:
             await self.__emails_handler.send_email_changed_notice(
-                old_email, f"{local[0]}***@{domain}", user.full_name
+                change.old_email, f"{local[0]}***@{domain}", change.full_name
             )
         except Exception:
             logger.exception("Email change notice could not be delivered")

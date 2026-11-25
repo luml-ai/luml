@@ -5,7 +5,7 @@ import jwt
 import pytest
 from luml.handlers.auth import AuthHandler
 from luml.infra.exceptions import AuthError, EmailDeliveryError
-from luml.schemas.user import AuthProvider, ChangeEmailIn, User
+from luml.schemas.user import AuthProvider, ChangeEmailIn, EmailChange, User
 from pydantic import ValidationError
 
 from tests.support.mocks import CollaboratorMocks
@@ -113,7 +113,7 @@ async def test_confirmation_passes_expected_state_and_sends_masked_notice(
     token = mocks.handler._generate_email_change_token(user, "new@example.com")
     mocks.user_repository.get_user.return_value = user
     mocks.user_repository.change_email.return_value = True
-    await mocks.handler.handle_confirm_email_change(token)
+    change = await mocks.handler.handle_confirm_email_change(token)
     mocks.user_repository.change_email.assert_awaited_once_with(
         user.id,
         user.email,
@@ -123,6 +123,11 @@ async def test_confirmation_passes_expected_state_and_sends_masked_notice(
         ANY,
         user.email_version,
     )
+    assert change == EmailChange(
+        old_email=user.email, new_email="new@example.com", full_name=user.full_name
+    )
+    mocks.emails_handler.send_email_changed_notice.assert_not_awaited()
+    await mocks.handler.send_email_changed_notice(change)
     mocks.emails_handler.send_email_changed_notice.assert_awaited_once_with(
         user.email, "n***@example.com", user.full_name
     )
@@ -165,15 +170,13 @@ async def test_confirmation_rejects_invalid_tokens(
     mocks.user_repository.change_email.assert_not_awaited()
 
 
-async def test_notice_failure_does_not_report_failed_email_change(
+async def test_notice_failure_is_not_raised(
     mocks: CollaboratorMocks[AuthHandler], user: User
 ) -> None:
-    token = mocks.handler._generate_email_change_token(user, "new@example.com")
-    mocks.user_repository.get_user.return_value = user
-    mocks.user_repository.change_email.return_value = True
     mocks.emails_handler.send_email_changed_notice.side_effect = RuntimeError(
         "delivery failed"
     )
-    await mocks.handler.handle_confirm_email_change(token)
-    mocks.user_repository.change_email.assert_awaited_once()
+    await mocks.handler.send_email_changed_notice(
+        EmailChange(old_email=user.email, new_email="new@example.com", full_name=None)
+    )
     mocks.emails_handler.send_email_changed_notice.assert_awaited_once()
