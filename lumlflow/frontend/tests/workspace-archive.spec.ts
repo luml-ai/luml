@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { tableFromArrays, tableToIPC } from 'apache-arrow'
+import { Table, tableFromArrays, tableToIPC } from 'apache-arrow'
 import { Form } from '@primevue/forms'
 import { ProgressBar } from 'primevue'
 import { workspaceApi } from '@/api/slices/workspace/workspace.api'
@@ -190,10 +190,19 @@ describe('Workspace archives', () => {
       const body =
         format === 'csv'
           ? 'id,label\n' + '42,example\n'.repeat(1000) + '43,' + 'x'.repeat(11 * 1024 ** 2)
-          : new Uint8Array(
-              tableToIPC(tableFromArrays({ id: new Int32Array(3 * 1024 ** 2).fill(42) })),
+          : // As `datasets` writes a shard: a stream of 1,000-row record batches, 12 MB in all.
+            new Uint8Array(
+              tableToIPC(
+                new Table(
+                  Array.from(
+                    { length: 3 * 1024 },
+                    () => tableFromArrays({ id: new Int32Array(1000).fill(42) }).batches[0]!,
+                  ),
+                ),
+              ),
             )
-      vi.stubGlobal('fetch', async () => new Response(body))
+      const fetch = vi.fn(async () => new Response(body))
+      vi.stubGlobal('fetch', fetch)
       await open({
         kind: 'dataset',
         manifest,
@@ -205,6 +214,11 @@ describe('Workspace archives', () => {
         { timeout: 10000 },
       )
       expect(wrapper.get('table').text()).toContain('42')
+      // Only the start of the chunk is asked for, not the whole file.
+      const read = (fetch.mock.calls as unknown as [string, RequestInit][]).find(([url]) =>
+        url.includes('first.'),
+      )!
+      expect(new Headers(read[1].headers).get('Range')).toBe(`bytes=0-${10 * 1024 ** 2}`)
     },
   )
 

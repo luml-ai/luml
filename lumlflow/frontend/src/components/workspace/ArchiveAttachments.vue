@@ -50,8 +50,9 @@ onMounted(async () => {
       )
     )
       throw new Error('Invalid attachment index')
-    const url = await workspaceApi.fileUrl(props.path, tar.name)
-    const bytes = await urlPreviewBytes(url, tar.size, options)
+    // A signed URL expires after an hour: a later read asks for a fresh one.
+    const tarUrl = () => workspaceApi.fileUrl(props.path, tar.name)
+    const bytes = await urlPreviewBytes(tarUrl, tar.size, options)
     const attachments = new TarAttachmentsProvider({
       // The member endpoint starts at the first byte of the inner tar.
       fileIndex: { [tar.name]: [0, tar.size] },

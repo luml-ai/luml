@@ -39,6 +39,49 @@ async function fetchPreviewBlob(
   return new Blob(chunks, { type: response.headers.get('Content-Type') || '' })
 }
 
+/**
+ * The first MAX_PREVIEW_SIZE bytes of a source, and whether the file goes on past them. Only
+ * that much is downloaded: a row-limited dataset preview never needs the rest of a large shard.
+ */
+async function previewPrefix(
+  data: string | Blob | AsyncBuffer,
+  signal: AbortSignal,
+): Promise<{ blob: Blob; truncated: boolean }> {
+  if (data instanceof Blob)
+    return { blob: data.slice(0, MAX_PREVIEW_SIZE), truncated: data.size > MAX_PREVIEW_SIZE }
+  if (typeof data !== 'string') {
+    const end = Math.min(data.byteLength, MAX_PREVIEW_SIZE)
+    return {
+      blob: new Blob([await data.slice(0, end)]),
+      truncated: data.byteLength > MAX_PREVIEW_SIZE,
+    }
+  }
+  // One byte past the limit tells a file that ends there from one that goes on.
+  const response = await fetch(data, {
+    signal,
+    headers: { Range: `bytes=0-${MAX_PREVIEW_SIZE}` },
+  })
+  if (!response.ok) throw new Error(`File request failed (${response.status})`)
+  const reader = response.body?.getReader()
+  const chunks: Uint8Array[] = []
+  let length = 0
+  if (reader) {
+    while (length <= MAX_PREVIEW_SIZE) {
+      const { value, done } = await reader.read()
+      if (done) break
+      chunks.push(value)
+      length += value.byteLength
+    }
+    if (length > MAX_PREVIEW_SIZE) await reader.cancel()
+  }
+  const whole = new Blob(chunks as BlobPart[], {
+    type: response.headers.get('Content-Type') || '',
+  })
+  return length > MAX_PREVIEW_SIZE
+    ? { blob: whole.slice(0, MAX_PREVIEW_SIZE), truncated: true }
+    : { blob: whole, truncated: false }
+}
+
 function sizeState(size: number | undefined, limited: boolean) {
   if (size === 0) return 'empty'
   if (limited && size !== undefined && size > MAX_PREVIEW_SIZE) return 'too-big'
@@ -51,6 +94,8 @@ export function useFilePreview(props: FilePreviewProps) {
   const contentUrl = ref('')
   const textContent = ref('')
   const contentBlob = shallowRef<Blob>()
+  // The blob is only the start of the file (a dataset split read for its first rows).
+  const contentTruncated = ref(false)
   const parquetFile = shallowRef<AsyncBuffer>()
   const previewState = ref<PreviewState>(null)
 
@@ -79,6 +124,7 @@ export function useFilePreview(props: FilePreviewProps) {
       contentUrl.value = ''
       textContent.value = ''
       contentBlob.value = undefined
+      contentTruncated.value = false
       parquetFile.value = undefined
       const type = fileType.value
       const streamed = type === 'audio' || type === 'video' || type === 'pdf'
@@ -90,7 +136,9 @@ export function useFilePreview(props: FilePreviewProps) {
 
       const partial =
         (streamed || parquet) && (typeof source !== 'function' || supportsPartialPreview)
-      const limitSize = !partial && !(datasetSplit && type === 'table')
+      // A dataset split shows its first rows: only the start of a larger shard is read.
+      const prefixOnly = !partial && !!datasetSplit && type === 'table'
+      const limitSize = !partial && !prefixOnly
       // A range provider rechecks the length when opening a listed attachment.
       const listedSize = partial && typeof source === 'function' ? undefined : fileSize
       previewState.value = sizeState(listedSize, limitSize)
@@ -125,6 +173,15 @@ export function useFilePreview(props: FilePreviewProps) {
           }
         } else if (streamed && typeof data === 'string') {
           contentUrl.value = data
+        } else if (prefixOnly) {
+          const prefix = await previewPrefix(data, controller.signal)
+          if (!active) return
+          if (prefix.blob.size === 0) {
+            previewState.value = 'empty'
+            return
+          }
+          contentTruncated.value = prefix.truncated
+          contentBlob.value = prefix.blob
         } else {
           const blob =
             typeof data === 'string'
@@ -158,5 +215,14 @@ export function useFilePreview(props: FilePreviewProps) {
     { immediate: true },
   )
 
-  return { fileType, error, contentUrl, textContent, contentBlob, parquetFile, previewState }
+  return {
+    fileType,
+    error,
+    contentUrl,
+    textContent,
+    contentBlob,
+    contentTruncated,
+    parquetFile,
+    previewState,
+  }
 }

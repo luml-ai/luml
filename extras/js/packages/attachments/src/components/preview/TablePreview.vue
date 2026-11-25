@@ -46,6 +46,7 @@ const { tableData, error, loading } = useTablePreview({
   fileName: toRef(() => props.fileName),
   parquetFile: toRef(() => props.parquetFile),
   totalRows: toRef(() => props.totalRows),
+  truncated: toRef(() => props.contentTruncated),
 })
 
 const footer = computed(() => {

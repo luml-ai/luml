@@ -95,6 +95,8 @@ export interface HtmlPreviewProps {
 
 export interface TablePreviewProps {
   contentBlob?: Blob
+  /** `contentBlob` is only the start of the file. */
+  contentTruncated?: boolean
   parquetFile?: AsyncBuffer
   totalRows?: number
   fileName: string

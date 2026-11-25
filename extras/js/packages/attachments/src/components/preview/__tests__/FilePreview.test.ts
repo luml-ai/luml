@@ -186,6 +186,56 @@ describe('standalone preview', () => {
     }
   })
 
+  it('reads only the start of a large dataset CSV split for its first rows', async () => {
+    const row = `${'x'.repeat(100)}\n`
+    const chunk = new TextEncoder().encode(row.repeat(10 * 1024))
+    let sent = 0
+    const cancel = vi.fn()
+    const fetch = vi.fn<(url: string, options: RequestInit) => Promise<Response>>(
+      async () =>
+        new Response(
+          new ReadableStream({
+            // The server ignores Range: 100 MB would follow if the reader kept going.
+            pull(controller) {
+              if (sent >= 100 * 1024 ** 2) return controller.close()
+              sent += chunk.byteLength
+              controller.enqueue(chunk)
+            },
+            cancel,
+          }),
+        ),
+    )
+    vi.stubGlobal('fetch', fetch)
+    vi.stubGlobal('matchMedia', () => ({
+      matches: false,
+      addEventListener() {},
+      removeEventListener() {},
+    }))
+    const wrapper = mount(FilePreview, {
+      props: {
+        fileName: 'data.csv',
+        fileSize: 100 * 1024 ** 2,
+        supportsPartialPreview: true,
+        datasetSplit: true,
+        totalRows: 1_000_000,
+        source: '/split',
+      },
+      global: { plugins: [[PrimeVue, { unstyled: true }]] },
+    })
+    try {
+      await vi.waitFor(() =>
+        expect(wrapper.text()).toContain('Showing first 1,000 of 1,000,000 rows'),
+      )
+      expect(new Headers(fetch.mock.calls[0]![1].headers).get('Range')).toBe(
+        `bytes=0-${10 * 1024 ** 2}`,
+      )
+      expect(cancel).toHaveBeenCalled()
+      expect(sent).toBeLessThan(12 * 1024 ** 2)
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
   it('cancels a full response when the Parquet server ignores Range', async () => {
     const cancel = vi.fn()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new ReadableStream({ cancel }))))

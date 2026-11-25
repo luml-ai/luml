@@ -18,13 +18,25 @@ interface UseTablePreviewOptions {
   fileName: Ref<string>
   parquetFile?: Ref<AsyncBuffer | undefined>
   totalRows?: Ref<number | undefined>
+  /** The blob is only the start of the file. */
+  truncated?: Ref<boolean | undefined>
 }
 
-function parseCSV(text: string, limitRows: boolean): TableData {
-  const table = fromCSV(text)
+function parseCSV(text: string, limitRows: boolean, truncated: boolean): TableData {
+  // A prefix ends inside a row: parse up to its last line break. A line break inside a quoted
+  // value (an odd count of quotes before it) still cuts the last row short, so it is dropped.
+  const kept = truncated ? text.slice(0, text.lastIndexOf('\n') + 1) : text
+  const cutInQuotes = truncated && (kept.match(/"/g)?.length ?? 0) % 2 === 1
+  const table = fromCSV(kept)
   const headers = table.columnNames()
-  const rows = table.objects({ limit: limitRows ? PREVIEW_ROWS : Infinity })
-  return { headers, rows, columnsCount: headers.length, rowsCount: table.totalRows() }
+  const whole = cutInQuotes ? Math.max(0, table.numRows() - 1) : Infinity
+  const rows = table.objects({ limit: Math.min(limitRows ? PREVIEW_ROWS : Infinity, whole) })
+  return {
+    headers,
+    rows,
+    columnsCount: headers.length,
+    rowsCount: truncated ? -1 : table.totalRows(),
+  }
 }
 
 function parseXML(text: string): TableData {
@@ -44,6 +56,7 @@ async function readTable(
   blob: Blob | null | undefined,
   parquetFile: AsyncBuffer | undefined,
   limitRows: boolean,
+  truncated: boolean,
 ): Promise<TableData | null> {
   const ext = getFileExtension(name)
   if (ext === 'parquet') {
@@ -61,10 +74,10 @@ async function readTable(
   if (!blob) return null
   if (ext === 'arrow') {
     const { readArrow } = await import('../utils/arrowPreview')
-    return readArrow(blob, PREVIEW_ROWS)
+    return readArrow(blob, PREVIEW_ROWS, truncated)
   }
   const text = await blob.text()
-  return ext === 'xml' ? parseXML(text) : parseCSV(text, limitRows)
+  return ext === 'xml' ? parseXML(text) : parseCSV(text, limitRows || truncated, truncated)
 }
 
 export function useTablePreview(options: UseTablePreviewOptions) {
@@ -78,8 +91,9 @@ export function useTablePreview(options: UseTablePreviewOptions) {
       options.contentBlob,
       () => options.parquetFile?.value,
       () => options.totalRows?.value !== undefined,
+      () => options.truncated?.value === true,
     ],
-    async ([name, blob, file, limitRows], _, onCleanup) => {
+    async ([name, blob, file, limitRows, truncated], _, onCleanup) => {
       let active = true
       onCleanup(() => {
         active = false
@@ -88,7 +102,7 @@ export function useTablePreview(options: UseTablePreviewOptions) {
       error.value = null
       loading.value = true
       try {
-        const data = await readTable(name, blob, file, limitRows)
+        const data = await readTable(name, blob, file, limitRows, truncated)
         if (active) tableData.value = data
       } catch (e) {
         if (active) error.value = e instanceof Error ? e.message : 'Failed to parse table'

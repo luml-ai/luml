@@ -38,6 +38,7 @@
       <TablePreview
         v-else-if="fileType === 'table'"
         :content-blob="contentBlob"
+        :content-truncated="contentTruncated"
         :parquet-file="parquetFile"
         :total-rows="totalRows"
         :file-name="fileName"
@@ -68,8 +69,16 @@ import type { FilePreviewProps } from '../interfaces/interfaces'
 import { useFilePreview } from '../hooks/useFilePreview'
 
 const props = defineProps<FilePreviewProps>()
-const { fileType, error, contentUrl, contentBlob, textContent, parquetFile, previewState } =
-  useFilePreview(props)
+const {
+  fileType,
+  error,
+  contentUrl,
+  contentBlob,
+  contentTruncated,
+  textContent,
+  parquetFile,
+  previewState,
+} = useFilePreview(props)
 
 const defaultView = computed(() =>
   fileType.value === 'html'
@@ -87,7 +96,10 @@ watch(
   { immediate: true },
 )
 
-defineExpose({ contentBlob })
+// A download reuses the previewed bytes only when they are the whole file.
+defineExpose({
+  contentBlob: computed(() => (contentTruncated.value ? undefined : contentBlob.value)),
+})
 </script>
 
 <style scoped>

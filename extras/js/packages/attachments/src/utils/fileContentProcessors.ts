@@ -30,12 +30,31 @@ export async function processPdfContent(blob: Blob): ProcessorResult {
   }
 }
 
+// A byte order mark, then comments and white space, then the doctype.
+const LEADING_DOCTYPE = /^(?:\xef\xbb\xbf)?(?:\s|<!--[\s\S]*?-->)*<!doctype[^>]*>/i
+
+/**
+ * Where the policy goes: after a leading doctype, which must stay first for the document to
+ * render in standards mode, and before any content that could load a resource.
+ */
+async function policyOffset(blob: Blob): Promise<number> {
+  // Byte by byte as Latin-1: the offset is in bytes and the document's own encoding is kept.
+  const head = new Uint8Array(await blob.slice(0, 64 * 1024).arrayBuffer())
+  const text = Array.from(head, (byte) => String.fromCharCode(byte)).join('')
+  return LEADING_DOCTYPE.exec(text)?.[0].length ?? 0
+}
+
 export async function processHtmlContent(blob: Blob): ProcessorResult {
   // The source is untrusted and can contain subresources pointing outside the project.
   const policy =
     "default-src 'none'; img-src data: blob:; media-src data: blob:; font-src data: blob:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"
+  const offset = await policyOffset(blob)
   const htmlBlob = new Blob(
-    [`<meta http-equiv="Content-Security-Policy" content="${policy}">`, blob],
+    [
+      blob.slice(0, offset),
+      `<meta http-equiv="Content-Security-Policy" content="${policy}">`,
+      blob.slice(offset),
+    ],
     { type: 'text/html' },
   )
   return {
