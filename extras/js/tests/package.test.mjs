@@ -28,7 +28,15 @@ for (const format of ['es', 'umd']) {
       mode: browserPreview ? 'browser-global' : 'production',
     })
     const bundled = browserPreview
-      ? ['hyparquet', 'hyparquet-compressors', ...Object.keys(packageJson.dependencies)]
+      ? [
+          ...Object.keys(externals).filter((peer) => peer.startsWith('@codemirror/')),
+          '@lezer/highlight',
+          'jsonc-parser',
+          'js-yaml',
+          'hyparquet',
+          'hyparquet-compressors',
+          ...Object.keys(packageJson.dependencies),
+        ]
       : []
     const peers = Object.keys(externals).filter((peer) => !bundled.includes(peer))
     const requests = peers.flatMap((peer) => [peer, `${peer}/packaging-test`])

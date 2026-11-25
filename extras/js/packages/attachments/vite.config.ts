@@ -8,8 +8,13 @@ import { dependencies, peerDependencies } from './package.json'
 const peers = Object.keys({ ...peerDependencies, ...dependencies })
 
 // Keep npm imports external in the ESM distribution. In the script-tag
-// distribution, bundle readers without a browser global alongside the preview.
+// distribution, bundle what has no common browser global (code highlighting and
+// readers) alongside the preview, so a host supplies only the globals below.
 const bundledForBrowser = new Set([
+  ...peers.filter((peer) => peer.startsWith('@codemirror/')),
+  '@lezer/highlight',
+  'jsonc-parser',
+  'js-yaml',
   'hyparquet',
   'hyparquet-compressors',
   ...Object.keys(dependencies),
@@ -48,7 +53,6 @@ export default defineConfig(({ mode }) => {
           !id.endsWith('.css') && external.some((peer) => id === peer || id.startsWith(`${peer}/`)),
         output: {
           globals: {
-            '@codemirror/view': 'view',
             vue: 'Vue',
             primevue: 'PrimeVue',
             pinia: 'Pinia',

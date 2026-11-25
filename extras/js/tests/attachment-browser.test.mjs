@@ -13,43 +13,26 @@ const ranges = []
 let externalRequests = 0
 let browser, server, origin
 
-before(async () => {
-  // Load the actual peer implementations under their UMD global names.
-  const peers = {
-    Vue: 'vue',
-    PrimeVue: 'primevue',
-    LucideVueNext: 'lucide-vue-next',
-    aq: 'arquero',
-    Arrow: 'apache-arrow',
-    jsyaml: 'js-yaml',
-    marked: 'marked',
-    jsoncParser: 'jsonc-parser',
-    state: '@codemirror/state',
-    view: '@codemirror/view',
-    language: '@codemirror/language',
-    highlight: '@lezer/highlight',
-  }
-  for (const lang of [
-    'css',
-    'html',
-    'javascript',
-    'json',
-    'markdown',
-    'python',
-    'sql',
-    'xml',
-    'yaml',
-  ]) {
-    peers['lang' + lang[0].toUpperCase() + lang.slice(1)] = '@codemirror/lang-' + lang
-  }
+// The script-tag build's browser globals: everything else is bundled into it.
+const peers = {
+  Vue: 'vue',
+  PrimeVue: 'primevue',
+  LucideVueNext: 'lucide-vue-next',
+  aq: 'arquero',
+  Arrow: 'apache-arrow',
+  marked: 'marked',
+}
+
+// Loads the actual peer implementations under their UMD global names.
+async function hostScript(globals) {
   const host = await build({
     stdin: {
       resolveDir: process.cwd(),
       contents: [
-        ...Object.entries(peers).map(([name, id]) => `import * as ${name} from '${id}'`),
+        ...Object.entries(globals).map(([name, id]) => `import * as ${name} from '${id}'`),
         "import DOMPurify from 'dompurify'",
         "import config from 'primevue/config'",
-        `Object.assign(window, { DOMPurify, ${Object.keys(peers).join(',')} })`,
+        `Object.assign(window, { DOMPurify, ${Object.keys(globals).join(',')} })`,
         `window.preview = props => Vue.createApp(window['luml-attachments'].FilePreview, props).use(config, {unstyled:true}).mount('#app')`,
       ].join('\n'),
     },
@@ -59,7 +42,17 @@ before(async () => {
     minify: true,
     define: { 'process.env.NODE_ENV': '"production"' },
   })
-  const scripts = new Map([['/host.js', host.outputFiles[0].contents]])
+  return host.outputFiles[0].contents
+}
+
+before(async () => {
+  const withoutArrow = Object.fromEntries(
+    Object.entries(peers).filter(([name]) => name !== 'Arrow'),
+  )
+  const scripts = new Map([
+    ['/host.js', await hostScript(peers)],
+    ['/host-without-arrow.js', await hostScript(withoutArrow)],
+  ])
   scripts.set('/luml-attachments.umd.js', await readFile('dist/luml-attachments.umd.js'))
   scripts.set('/worker.js', await readFile('public/attachment-preview-sw.js'))
   // These two MP4 extents contain the index and real VP9/Opus chunks on
@@ -90,10 +83,11 @@ before(async () => {
         })
         .end(data)
     } else {
+      const host = req.url === '/without-arrow' ? '/host-without-arrow.js' : '/host.js'
       res
         .writeHead(200, { 'Content-Type': 'text/html' })
         .end(
-          '<div id="app"></div><script src="/host.js"></script><script src="/luml-attachments.umd.js"></script>',
+          `<div id="app"></div><script src="${host}"></script><script src="/luml-attachments.umd.js"></script>`,
         )
     }
   })
@@ -131,6 +125,41 @@ for (const extension of ['arrow', 'parquet']) {
     }
   })
 }
+
+test('the browser-global script highlights code with its bundled CodeMirror', async () => {
+  const page = await browser.newPage()
+  try {
+    await page.goto(origin)
+    await page.evaluate(() => {
+      window.preview({ fileName: 'train.py', source: new Blob(['def fit(x):\n    return x\n']) })
+    })
+    await page.locator('.cm-content').getByText('return x').waitFor()
+    assert.ok(await page.locator('.cm-lineNumbers').count())
+  } finally {
+    await page.close()
+  }
+})
+
+test('without the Arrow global the script still boots and only Arrow previews fail', async () => {
+  const page = await browser.newPage()
+  const errors = []
+  page.on('pageerror', (error) => errors.push(error))
+  try {
+    await page.goto(origin + '/without-arrow')
+    await page.waitForFunction(() => window['luml-attachments']?.FilePreview)
+    await page.evaluate(() => {
+      window.preview({ fileName: 'notes.json', source: new Blob(['{"rows": 3}']) })
+    })
+    await page.locator('.cm-content').getByText('"rows"').waitFor()
+    await page.evaluate(() => {
+      window.preview({ fileName: 'samples.arrow', source: new Blob([new Uint8Array(16)]) })
+    })
+    await page.getByText('Arrow previews need the Apache Arrow library.').waitFor()
+    assert.deepEqual(errors, [])
+  } finally {
+    await page.close()
+  }
+})
 
 test(
   'a 300 MiB video plays and seeks across the file with partial transfers',
@@ -178,6 +207,93 @@ test(
     }
   },
 )
+
+test('wherever the policy goes after a doctype, Chromium reads it into the head', async () => {
+  const processors = await build({
+    entryPoints: ['src/utils/fileContentProcessors.ts'],
+    bundle: true,
+    format: 'esm',
+    write: false,
+  })
+  const { leadingDoctypeEnd } = await import(
+    'data:text/javascript,' + encodeURIComponent(processors.outputFiles[0].text)
+  )
+  const doctype = '<!doctype html>'
+  const iso2022jp = '<meta charset="iso-2022-jp">'
+  const tricky = [
+    '<!-- a --!> x --> ' + doctype,
+    '<!--->x-->' + doctype,
+    '<!-->x-->' + doctype,
+    '<!----!> x -->' + doctype,
+    '<!---->' + doctype,
+    '<!--!>-->' + doctype,
+    '<!-- --!-->' + doctype,
+    '\x0b' + doctype,
+    '\xa0' + doctype,
+    '\xef\xbb\xbf\f\r\n\t ' + doctype,
+    '\xfe\xff' + doctype,
+    '<!x>' + doctype,
+    '<?xml?>' + doctype,
+    '<!doctype html "a>b">',
+    '<!-- \x1b$B --> <!doctype \x1b(B html>x-->' + iso2022jp,
+  ]
+  // The input stream's structural pieces, characters it does not skip and decoder switches.
+  const pieces = ['<!--', '-->', '--!>', '<!-->', '<!--->', '-', '>', '!', '<', doctype]
+  pieces.push(' ', '\n', '\f', '\x0b', '\xa0', '\x00', '\xef\xbb\xbf', 'x', '<!x>')
+  pieces.push('\x1b$B', '\x1b(B')
+  let seed = 1
+  const random = (n) => {
+    seed = (seed + 0x6d2b79f5) | 0
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t)
+    return ((t ^ (t >>> 14)) >>> 0) % n
+  }
+  const fuzzed = Array.from({ length: 600 }, () => {
+    let html = random(4) ? '' : '\xef\xbb\xbf'
+    for (let unit = random(4); unit >= 0; unit--) {
+      if (!random(3)) html += pieces[random(pieces.length)]
+      else {
+        html += '<!--'
+        for (let piece = random(4); piece > 0; piece--) html += pieces[random(pieces.length)]
+        html += '-->'
+      }
+    }
+    return html + (random(2) ? doctype : '') + (random(3) ? '' : iso2022jp)
+  })
+  const placed = [...tricky, ...fuzzed]
+    .map((html) => [html, leadingDoctypeEnd(html)])
+    .filter(([, end]) => end > 0)
+    .map(([html, end]) => {
+      const policy = '<meta http-equiv="Content-Security-Policy" content="img-src data:">'
+      return html.slice(0, end) + policy + html.slice(end)
+    })
+  assert.ok(placed.length > 50, `Only ${placed.length} documents had a doctype to place after`)
+
+  const page = await browser.newPage()
+  try {
+    await page.goto(origin)
+    // Latin-1 strings, so each character is one byte of the document.
+    const outside = await page.evaluate(async (documents) => {
+      const inHead = async (latin1) => {
+        const bytes = Uint8Array.from(latin1, (character) => character.charCodeAt(0))
+        const frame = document.createElement('iframe')
+        frame.src = URL.createObjectURL(new Blob([bytes], { type: 'text/html' }))
+        await new Promise((resolve) => {
+          frame.onload = resolve
+          document.body.append(frame)
+        })
+        const head = frame.contentDocument.head
+        frame.remove()
+        return Boolean(head?.querySelector('meta[http-equiv]'))
+      }
+      const results = await Promise.all(documents.map(inHead))
+      return documents.filter((_, index) => !results[index])
+    }, placed)
+    assert.deepEqual(outside, [])
+  } finally {
+    await page.close()
+  }
+})
 
 test('sandboxed HTML plays embedded audio while suppressing remote media', async () => {
   const page = await browser.newPage()

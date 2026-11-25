@@ -10,11 +10,13 @@ import {
   tableFromIPC,
   Type,
 } from 'apache-arrow'
+import * as arrow from 'apache-arrow'
 import * as compat from '@uwdata/flechette'
 import { decompress as lz4 } from 'lz4js'
 import { decompress as zstd } from 'fzstd'
 import { formatTimestamp } from './timestamp'
 import { scaledDecimal } from './decimal'
+import { formatFileSize } from './fileTypes'
 
 interface FieldType {
   typeId: number
@@ -52,13 +54,16 @@ function decodeZstd(bytes: Uint8Array) {
   return result.byteOffset % 8 ? result.slice() : result
 }
 
-const codecs = [
-  [CompressionType.LZ4_FRAME, lz4],
-  [CompressionType.ZSTD, decodeZstd],
-] as const
+// A function, not a constant: the script-tag build evaluates this module on load, where a host
+// without the Arrow global must still start.
+const codecs = () =>
+  [
+    [CompressionType.LZ4_FRAME, lz4],
+    [CompressionType.ZSTD, decodeZstd],
+  ] as const
 
 function registerCodecs() {
-  for (const [type, decode] of codecs) {
+  for (const [type, decode] of codecs()) {
     const existing = compressionRegistry.get(type)
     if (!existing?.decode) compressionRegistry.set(type, { ...existing, decode })
   }
@@ -71,7 +76,7 @@ function decode(bytes: Uint8Array) {
   } catch (error) {
     if (!(error instanceof Error && error.message.startsWith('Unrecognized type:'))) throw error
     // Arrow JS 21 lacks the large-list and view layouts written by PyArrow and Polars.
-    for (const [type, decode] of codecs) {
+    for (const [type, decode] of codecs()) {
       if (!compat.getCompressionCodec(type)) {
         // Flechette treats a same-size encode result as an uncompressed buffer.
         compat.setCompressionCodec(type, {
@@ -115,24 +120,31 @@ function decodePrefix(bytes: Uint8Array, limit: number) {
   const stream = FILE_MAGIC.every((byte, index) => bytes[index] === byte)
     ? bytes.subarray(8)
     : bytes
+  // A schema that cannot be read is a broken file, not one cut short.
+  const reader = RecordBatchReader.from(stream).open()
   const batches: RecordBatch[] = []
   let rows = 0
   try {
-    for (const batch of RecordBatchReader.from(stream).open()) {
+    for (const batch of reader) {
       batches.push(batch)
       rows += batch.numRows
       if (rows >= limit) break
     }
-  } catch (error) {
+  } catch {
     // The batch the prefix cut through; the ones before it are whole.
-    if (!batches.length) throw error
   }
-  if (!batches.length) throw new Error('The first rows of this file are too large to preview.')
+  if (!batches.length) {
+    throw new Error(
+      `The first record batch of this file is larger than the ${formatFileSize(bytes.length)} read for preview, so no rows can be shown.`,
+    )
+  }
   return new Table(batches)
 }
 
 /** `truncated`: the blob is only the start of the file; the rows it holds are shown. */
 export async function readArrow(blob: Blob, limit: number, truncated = false) {
+  // The script-tag build takes Arrow from the host's `Arrow` global.
+  if (!arrow?.RecordBatchReader) throw new Error('Arrow previews need the Apache Arrow library.')
   const bytes = new Uint8Array(await blob.arrayBuffer())
   const table = truncated ? decodePrefix(bytes, limit) : decode(bytes)
   const fields = table.schema.fields

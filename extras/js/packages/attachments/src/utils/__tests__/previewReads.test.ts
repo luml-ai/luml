@@ -2,7 +2,7 @@ import { Blob as NodeBlob } from 'node:buffer'
 import { Table, tableFromArrays, tableToIPC } from 'apache-arrow'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readArrow } from '../arrowPreview'
-import { processHtmlContent } from '../fileContentProcessors'
+import { leadingDoctypeEnd, processHtmlContent } from '../fileContentProcessors'
 import { urlPreviewBytes } from '../previewBytes'
 
 beforeEach(() => vi.stubGlobal('Blob', NodeBlob))
@@ -28,6 +28,79 @@ describe('processHtmlContent', () => {
   it('puts the policy first in a document without a doctype', async () => {
     const text = await previewed('<img src="https://example.com/x.png">')
     expect(text).toMatch(/^<meta http-equiv="Content-Security-Policy" [^>]+><img /)
+  })
+})
+
+describe('leadingDoctypeEnd', () => {
+  it('scans many leading comments without a doctype in linear time', () => {
+    // Each further comment used to double the work of the old pattern.
+    const html = '<!-- note -->\n'.repeat(40) + '<html><body>x</body></html>'
+    const start = performance.now()
+    expect(leadingDoctypeEnd(html)).toBe(0)
+    expect(leadingDoctypeEnd('<!-- note -->'.repeat(5000) + '<p>')).toBe(0)
+    expect(performance.now() - start).toBeLessThan(50)
+  })
+
+  it('ends after a doctype that follows comments', () => {
+    const prefix = '<!-- note -->\n'.repeat(40)
+    const html = prefix + '<!DOCTYPE html><html></html>'
+    expect(leadingDoctypeEnd(html)).toBe(prefix.length + '<!DOCTYPE html>'.length)
+  })
+
+  it('finds no doctype after an unclosed comment', () => {
+    expect(leadingDoctypeEnd('<!-- open <!DOCTYPE html><html></html>')).toBe(0)
+  })
+
+  it('skips a whole byte order mark, read as Latin-1 bytes', () => {
+    expect(leadingDoctypeEnd('\xef\xbb\xbf <!doctype html>')).toBe(3 + 1 + 15)
+    expect(leadingDoctypeEnd('\xef\xbb<!doctype html>')).toBe(0)
+  })
+
+  it('needs the doctype to come before any content', () => {
+    expect(leadingDoctypeEnd('<p>x</p><!doctype html>')).toBe(0)
+    expect(leadingDoctypeEnd(' \t\r\n\f<!DocType html>rest')).toBe(5 + 15)
+  })
+
+  it('finds no doctype after a comment the browser ends sooner than at `-->`', () => {
+    expect(leadingDoctypeEnd('<!-->x--><!doctype html>')).toBe(0)
+    expect(leadingDoctypeEnd('<!--->x--><!doctype html>')).toBe(0)
+    expect(leadingDoctypeEnd('<!-- a --!> x --> <!doctype html>')).toBe(0)
+    expect(leadingDoctypeEnd('<!----!> x --> <!doctype html>')).toBe(0)
+    expect(leadingDoctypeEnd('<!-- a <!--!> x --> <!doctype html>')).toBe(0)
+  })
+
+  it('ends a comment where the browser does for every other run of dashes', () => {
+    for (const comment of ['<!---->', '<!----->', '<!---x-->', '<!--!>-->', '<!-- --!-->']) {
+      expect(leadingDoctypeEnd(comment + '<!doctype html>')).toBe(comment.length + 15)
+    }
+  })
+
+  it('counts white space the HTML parser keeps as text as content', () => {
+    expect(leadingDoctypeEnd('\x0b<!doctype html>')).toBe(0)
+    expect(leadingDoctypeEnd('\xa0<!doctype html>')).toBe(0)
+    expect(leadingDoctypeEnd('\x00<!doctype html>')).toBe(0)
+  })
+
+  it('finds no doctype after a bogus comment', () => {
+    expect(leadingDoctypeEnd('<!x><!doctype html>')).toBe(0)
+    expect(leadingDoctypeEnd('<?xml version="1.0"?><!doctype html>')).toBe(0)
+    expect(leadingDoctypeEnd('<!- x -><!doctype html>')).toBe(0)
+  })
+
+  it('ends the doctype at its first `>`, as the browser does even within quotes', () => {
+    expect(leadingDoctypeEnd('<!doctype html "a>b">')).toBe(18)
+  })
+
+  it('gives 0 for control characters that could change how the bytes decode', () => {
+    // In ISO-2022-JP, the escape turns the `-->` that follows into two-byte text.
+    expect(leadingDoctypeEnd('<!-- \x1b$B --> <!doctype \x1b(B html>')).toBe(0)
+    expect(leadingDoctypeEnd('<!-- \x00 --><!doctype html>')).toBe(0)
+    expect(leadingDoctypeEnd('<!-- \xa9 2024 --><!doctype html>')).toBe(15 + 15)
+  })
+
+  it('reads a UTF-16 byte order mark as content', () => {
+    expect(leadingDoctypeEnd('\xff\xfe<!doctype html>')).toBe(0)
+    expect(leadingDoctypeEnd('\xfe\xff<!doctype html>')).toBe(0)
   })
 })
 
@@ -94,6 +167,14 @@ describe('readArrow of a prefix', () => {
 
   it('says so when not even the first batch fits in the prefix', async () => {
     const bytes = arrowFile([5000])
-    await expect(readArrow(new Blob([bytes.slice(0, 400)]), 1000, true)).rejects.toThrow()
+    await expect(readArrow(new Blob([bytes.slice(0, 400)]), 1000, true)).rejects.toThrow(
+      'The first record batch of this file is larger than the 400 B read for preview, so no rows can be shown.',
+    )
+  })
+
+  it('reports a schema it cannot read as it is, not as a batch too large', async () => {
+    const error = await readArrow(new Blob(['not an arrow file']), 1000, true).catch((e) => e)
+    expect(error).toBeInstanceOf(Error)
+    expect(error.message).not.toMatch(/first record batch/)
   })
 })
