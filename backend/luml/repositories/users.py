@@ -273,19 +273,6 @@ class UserRepository(RepositoryBase, CrudMixin):
             )
             return user_id is not None
 
-    async def start_email_change(
-        self, user_id: UUID, email_version: UUID
-    ) -> UUID | None:
-        request_id = uuid4()
-        async with self._get_session() as session, session.begin():
-            updated = await session.scalar(
-                update(UserOrm)
-                .where(UserOrm.id == user_id, UserOrm.email_version == email_version)
-                .values(pending_email_change_id=request_id)
-                .returning(UserOrm.id)
-            )
-            return request_id if updated is not None else None
-
     async def change_email(
         self,
         user_id: UUID,
@@ -295,7 +282,6 @@ class UserRepository(RepositoryBase, CrudMixin):
         token: str,
         expire_at: int,
         email_version: UUID,
-        request_id: UUID,
     ) -> bool:
         try:
             async with self._get_session() as session, session.begin():
@@ -306,7 +292,6 @@ class UserRepository(RepositoryBase, CrudMixin):
                     user is None
                     or user.email != old_email
                     or user.email_version != email_version
-                    or user.pending_email_change_id != request_id
                     or user.hashed_password != hashed_password
                     or user.auth_method != AuthProvider.EMAIL
                     or user.disabled
@@ -329,7 +314,6 @@ class UserRepository(RepositoryBase, CrudMixin):
                 user.email = new_email
                 user.email_verified = True
                 user.email_version = uuid4()
-                user.pending_email_change_id = None
                 await session.flush()
                 return True
         except IntegrityError as error:

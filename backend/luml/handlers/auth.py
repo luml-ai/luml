@@ -26,7 +26,9 @@ from luml.infra.exceptions import (
     EmailDeliveryError,
     RefreshTokenReusedError,
 )
+from luml.infra.redis import redis_client
 from luml.repositories.base import violates
+from luml.repositories.email_change_requests import EmailChangeRequestRepository
 from luml.repositories.token_blacklist import TokenBlackListRepository
 from luml.repositories.users import UserRepository
 from luml.schemas.auth import OAuthLogin, Token
@@ -48,10 +50,15 @@ from luml.settings import config
 
 logger = logging.getLogger(__name__)
 
+EMAIL_CHANGE_LINK_TTL = 86400
+
 
 class AuthHandler:
     __user_repository = UserRepository(engine)
     __token_black_list_repository = TokenBlackListRepository(engine)
+    __email_change_requests = EmailChangeRequestRepository(
+        redis_client, EMAIL_CHANGE_LINK_TTL
+    )
     __emails_handler = EmailHandler()
     _password_hasher: PasswordHasher = PasswordHasher()
 
@@ -365,11 +372,7 @@ class AuthHandler:
             raise AuthError("Invalid current password", 400)
         if user.email.lower() == request.new_email:
             raise AuthError("New email must differ from the current address", 400)
-        request_id = await self.__user_repository.start_email_change(
-            user.id, user.email_version
-        )
-        if request_id is None:
-            raise AuthError("Token has been revoked", 401)
+        request_id = await self.__email_change_requests.start(user.id)
         if not await self.__user_repository.email_exists(request.new_email):
             token = self._generate_email_change_token(
                 user, request.new_email, request_id
@@ -400,7 +403,7 @@ class AuthHandler:
                 "pwh": self._password_fingerprint(user.hashed_password),
                 "jti": str(uuid4()),
             },
-            86400,
+            EMAIL_CHANGE_LINK_TTL,
         )
 
     async def handle_confirm_email_change(self, token: str) -> EmailChange:
@@ -444,6 +447,7 @@ class AuthHandler:
             or user.hashed_password is None
             or payload["pwh"] != self._password_fingerprint(user.hashed_password)
             or old_email == new_email
+            or not await self.__email_change_requests.is_current(user_id, request_id)
         ):
             raise AuthError(
                 "Email change link is expired, already used or invalid", 400
@@ -456,7 +460,6 @@ class AuthHandler:
             token,
             int(payload["exp"]),
             user.email_version,
-            request_id,
         ):
             raise AuthError(
                 "Email change link is expired, already used or invalid", 400
