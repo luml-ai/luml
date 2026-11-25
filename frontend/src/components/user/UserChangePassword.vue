@@ -13,8 +13,9 @@
       <div class="input-wrapper">
         <d-float-label variant="on">
           <d-password
-            id="oldPassword"
+            input-id="oldPassword"
             name="current_password"
+            :input-props="{ autocomplete: 'current-password' }"
             :feedback="false"
             fluid
             toggleMask
@@ -34,8 +35,9 @@
       <div class="input-wrapper">
         <d-float-label variant="on">
           <d-password
-            id="newPassword"
+            input-id="newPassword"
             name="new_password"
+            :input-props="{ autocomplete: 'new-password' }"
             :feedback="false"
             fluid
             toggleMask
@@ -55,8 +57,9 @@
       <div class="input-wrapper">
         <d-float-label variant="on">
           <d-password
-            id="confirmPassword"
+            input-id="confirmPassword"
             name="confirmPassword"
+            :input-props="{ autocomplete: 'new-password' }"
             :feedback="false"
             fluid
             toggleMask
