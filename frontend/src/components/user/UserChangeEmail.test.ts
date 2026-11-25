@@ -92,4 +92,15 @@ describe('change email dialog', () => {
     resolve({ detail: 'Link sent' })
     await flushPromises()
   })
+
+  it('names both inputs through their labels', () => {
+    for (const id of ['new-email', 'current-password']) {
+      const input = wrapper.get(`input#${id}`)
+      expect(wrapper.get(`label[for="${id}"]`).text()).not.toBe('')
+      expect(input.element.tagName).toBe('INPUT')
+    }
+    expect(wrapper.get('input#current-password').attributes('autocomplete')).toBe(
+      'current-password',
+    )
+  })
 })

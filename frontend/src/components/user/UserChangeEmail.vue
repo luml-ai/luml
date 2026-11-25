@@ -21,9 +21,9 @@
     <div>
       <d-float-label variant="on">
         <d-password
-          id="current-password"
+          input-id="current-password"
           name="current_password"
-          autocomplete="current-password"
+          :input-props="{ autocomplete: 'current-password' }"
           :feedback="false"
           toggleMask
           fluid
