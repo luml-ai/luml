@@ -3,8 +3,10 @@ import errno
 import json
 import os
 import sys
+import time
 from collections.abc import AsyncIterator
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -307,6 +309,9 @@ async def test_a_bash_command_locks_the_files_it_changed_for_its_session_only(
 ) -> None:
     before = tmp_path / "before.md"
     before.write_text("untouched")
+    # Older than the slack a command's start allows for a lagging file clock.
+    stamp = before.stat().st_mtime_ns - 10**9
+    os.utime(before, ns=(stamp, stamp))
     during = tmp_path / "report.md"
     _lease(daemon, "claude-code-7", "claude-code")
     viewer = await _subscribe(daemon, tmp_path)
@@ -329,23 +334,75 @@ async def test_a_bash_command_locks_the_files_it_changed_for_its_session_only(
     viewer.close()
 
 
+def _shell_clock(monkeypatch: pytest.MonkeyPatch, now: int) -> list[int]:
+    """Pin the time a shell command's start records; set ``clock[0]``."""
+    clock = [now]
+    monkeypatch.setattr(file_watcher, "time", SimpleNamespace(time_ns=lambda: clock[0]))
+    return clock
+
+
 async def test_overlapping_bash_commands_each_lock_what_they_wrote(
-    daemon: Daemon, tmp_path: Path
+    daemon: Daemon, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     first = tmp_path / "first.md"
     _lease(daemon, "claude-code-7", "claude-code")
     viewer = await _subscribe(daemon, tmp_path)
     assert await _locks(viewer) == []
     shell = daemon.api.methods["file.agent_wrote"]
+    start = time.time_ns()
+    clock = _shell_clock(monkeypatch, start)
 
     await shell({"harness_pid": 7, "shell": "start", "call": "toolu_a"})
     first.write_text("written before the second command started")
-    await asyncio.sleep(0.01)
+    os.utime(first, ns=(start, start + 10**6))
+    clock[0] = start + 10**9
     await shell({"harness_pid": 7, "shell": "start", "call": "toolu_b"})
     await shell({"harness_pid": 7, "shell": "end", "call": "toolu_b"})
     await shell({"harness_pid": 7, "shell": "end", "call": "toolu_a"})
 
     assert [row["path"] for row in await _snapshot(daemon, tmp_path)] == [str(first)]
+    viewer.close()
+
+
+async def test_a_bash_command_takes_a_write_stamped_by_a_lagging_file_clock(
+    daemon: Daemon, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Linux stamps files from a coarse clock that trails time.time_ns(): a
+    # file written right after the command started can look a few ms older.
+    written = tmp_path / "written.md"
+    _lease(daemon, "claude-code-7", "claude-code")
+    viewer = await _subscribe(daemon, tmp_path)
+    assert await _locks(viewer) == []
+    shell = daemon.api.methods["file.agent_wrote"]
+    start = time.time_ns()
+    _shell_clock(monkeypatch, start)
+
+    await shell({"harness_pid": 7, "shell": "start", "call": "toolu_a"})
+    written.write_text("written by the command")
+    os.utime(written, ns=(start, start - 4 * 10**6))
+    await shell({"harness_pid": 7, "shell": "end", "call": "toolu_a"})
+
+    assert [row["path"] for row in await _locks(viewer)] == [str(written)]
+    viewer.close()
+
+
+async def test_a_bash_command_leaves_a_file_written_well_before_it_started(
+    daemon: Daemon, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    earlier = tmp_path / "earlier.md"
+    earlier.write_text("written before the command")
+    _lease(daemon, "claude-code-7", "claude-code")
+    viewer = await _subscribe(daemon, tmp_path)
+    assert await _locks(viewer) == []
+    shell = daemon.api.methods["file.agent_wrote"]
+    start = time.time_ns()
+    _shell_clock(monkeypatch, start)
+    os.utime(earlier, ns=(start, start - 10**9))
+
+    await shell({"harness_pid": 7, "shell": "start", "call": "toolu_a"})
+    await shell({"harness_pid": 7, "shell": "end", "call": "toolu_a"})
+
+    assert await _snapshot(daemon, tmp_path) == []
     viewer.close()
 
 

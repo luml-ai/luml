@@ -21,6 +21,12 @@ from lumlflow.flow.store.flowstore import STORE_DIRNAME
 
 DEBOUNCE_S = 0.3
 _SHELL_FORGOTTEN_NS = 24 * 60 * 60 * 10**9
+# Linux stamps a file from its coarse clock, which trails time.time_ns() by
+# up to a timer tick (10 ms at HZ=100): a file a command writes right after
+# it starts can look older than the start. The cost of the slack: a file
+# somebody else wrote within it before the command started is taken as the
+# command's write too.
+_MTIME_LAG_NS = 20 * 10**6
 Sessions = dict[object, tuple[str, str]]
 
 
@@ -444,6 +450,7 @@ class FileWatcher(FileSystemEventHandler):
         since = self._shells.pop(key, None)
         if since is None:
             return
+        since -= _MTIME_LAG_NS
         written: list[Path] = []
         for root in list(self._watches):
             with suppress(OSError), os.scandir(root) as entries:
