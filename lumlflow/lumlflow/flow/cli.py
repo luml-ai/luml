@@ -845,7 +845,9 @@ def agent_wrote() -> None:
         params: dict[str, Any] = {"harness_pid": os.getppid()}
         if event.get("tool_name") == "Bash":
             pre = event.get("hook_event_name") == "PreToolUse"
+            # A failed command is an end too: it may have written before failing.
             params["shell"] = "start" if pre else "end"
+            params["call"] = str(event.get("tool_use_id") or "")
         elif path := tool_input.get("file_path") or tool_input.get("notebook_path"):
             params["path"] = path
         else:

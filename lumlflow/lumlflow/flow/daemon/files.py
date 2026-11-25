@@ -606,6 +606,29 @@ def _versions(root: Path) -> dict[Path, tuple[int, ...]]:
     return versions
 
 
+def _linking_copy() -> Callable[[str, str], str]:
+    """A `copytree` copy that keeps hard links within the tree as links.
+
+    A file reached by two names is copied once; its other names become links
+    to that copy, so an edit through one is still seen through the other.
+    """
+    copied: dict[tuple[int, int], str] = {}
+
+    def copy(source: str, target: str) -> str:
+        info = os.lstat(source)
+        if info.st_nlink < 2:
+            return shutil.copy2(source, target, follow_symlinks=False)
+        identity = (info.st_dev, info.st_ino)
+        if (first := copied.get(identity)) is not None:
+            os.link(first, target)
+            return target
+        shutil.copy2(source, target, follow_symlinks=False)
+        copied[identity] = target
+        return target
+
+    return copy
+
+
 def move(source: Path, target: Path) -> tuple[os.stat_result, os.stat_result]:
     original_info = source.lstat()
     try:
@@ -642,7 +665,7 @@ def move(source: Path, target: Path) -> tuple[os.stat_result, os.stat_result]:
         versions = _versions(source)
         copy = Path(staged) / "copy"
         if stat.S_ISDIR(source.lstat().st_mode):
-            shutil.copytree(source, copy, symlinks=True)
+            shutil.copytree(source, copy, symlinks=True, copy_function=_linking_copy())
         else:
             shutil.copy2(source, copy, follow_symlinks=False)
         # Verify parent directories before addressing their children. A source

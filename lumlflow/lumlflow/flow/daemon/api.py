@@ -138,6 +138,7 @@ class Api:
         leases: LeaseCheck | None = None,
         revoke_lease: Callable[[str, str], None] | None = None,
         file_sessions: Callable[[], Sessions] | None = None,
+        file_activity: Callable[[object, str], None] | None = None,
         instance_id: str = "",
         harness_service: harnesses.HarnessService | None = None,
     ) -> None:
@@ -159,7 +160,10 @@ class Api:
         self.pending_runs: list[_PendingRun] = []
         self.clock: Callable[[], float] = time.time
         self.file_watcher = FileWatcher(
-            file_sessions or dict, lambda: self.clock(), CLAIM_IDLE_S
+            file_sessions or dict,
+            lambda: self.clock(),
+            CLAIM_IDLE_S,
+            heard=file_activity,
         )
         self.kernel_idle_s = _idle_seconds(KERNEL_IDLE_ENV, KERNEL_IDLE_S)
         self.session_idle_s = _idle_seconds(SESSION_IDLE_ENV, SESSION_IDLE_S)
@@ -542,7 +546,11 @@ class Api:
     async def file_agent_wrote(self, params: dict[str, Any]) -> dict[str, Any]:
         harness_pid = str(params.get("harness_pid", ""))
         if "shell" in params:
-            self.file_watcher.agent_shell(harness_pid, params["shell"] == "start")
+            self.file_watcher.agent_shell(
+                harness_pid,
+                params["shell"] == "start",
+                str(params.get("call") or ""),
+            )
             return {}
         with files.os_errors():
             target = files.regular_file(params.get("path", "")).resolve(strict=True)

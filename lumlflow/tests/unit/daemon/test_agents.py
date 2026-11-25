@@ -99,6 +99,7 @@ async def test_agents_api_records_consent_and_remove_clears_it(
                 theirs,
                 {"matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash", "hooks": ours},
             ],
+            "PostToolUseFailure": [{"matcher": "Bash", "hooks": ours}],
             "PreToolUse": [{"matcher": "Bash", "hooks": ours}],
         }
 
@@ -143,8 +144,49 @@ def test_sync_adds_the_write_hook_to_an_install_set_up_before_it(
         for event, groups in _hooks(settings).items()
     } == {
         "PostToolUse": ["Edit|Write|MultiEdit|NotebookEdit|Bash"],
+        "PostToolUseFailure": ["Bash"],
         "PreToolUse": ["Bash"],
     }
+
+
+def test_hook_sync_keeps_the_persons_commands_in_a_shared_group(
+    tmp_path: Path,
+) -> None:
+    service = _service(tmp_path)
+    service.setup("claude-code", consent=True)
+    settings = tmp_path / "home" / ".claude" / "settings.json"
+    document = json.loads(settings.read_text("utf-8"))
+    group = document["hooks"]["PreToolUse"][0]
+    lint = {"type": "command", "command": "lint"}
+    group["hooks"].append(lint)
+    group["timeout"] = 5
+    settings.write_text(json.dumps(document), encoding="utf-8")
+
+    harnesses.write_hook(service.command, home=tmp_path / "home")
+    synced = _hooks(settings)["PreToolUse"]
+    harnesses.remove_hook(home=tmp_path / "home")
+
+    assert synced[0] == {"matcher": "Bash", "hooks": [lint], "timeout": 5}
+    assert synced[1]["hooks"][0]["command"].endswith("agent wrote")
+    assert _hooks(settings) == {
+        "PreToolUse": [{"matcher": "Bash", "hooks": [lint], "timeout": 5}]
+    }
+
+
+def test_hook_setup_writes_through_a_linked_settings_file(tmp_path: Path) -> None:
+    managed = tmp_path / "dotfiles" / "settings.json"
+    managed.parent.mkdir()
+    managed.write_text(json.dumps({"model": "opus"}), encoding="utf-8")
+    link = tmp_path / "home" / ".claude" / "settings.json"
+    link.parent.mkdir(parents=True)
+    link.symlink_to(managed)
+
+    harnesses.write_hook(["lumlflow"], home=tmp_path / "home")
+
+    assert link.is_symlink()
+    assert link.resolve() == managed.resolve()
+    assert set(_hooks(managed)) == set(harnesses.WRITE_HOOK_MATCHERS)
+    assert json.loads(managed.read_text("utf-8"))["model"] == "opus"
 
 
 @pytest.mark.parametrize(
@@ -162,12 +204,31 @@ def test_sync_adds_the_write_hook_to_an_install_set_up_before_it(
             {"path": "/w/e.ipynb"},
         ),
         (
-            {"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {}},
-            {"shell": "start"},
+            {
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Bash",
+                "tool_use_id": "toolu_1",
+                "tool_input": {},
+            },
+            {"shell": "start", "call": "toolu_1"},
         ),
         (
-            {"hook_event_name": "PostToolUse", "tool_name": "Bash", "tool_input": {}},
-            {"shell": "end"},
+            {
+                "hook_event_name": "PostToolUse",
+                "tool_name": "Bash",
+                "tool_use_id": "toolu_1",
+                "tool_input": {},
+            },
+            {"shell": "end", "call": "toolu_1"},
+        ),
+        (
+            {
+                "hook_event_name": "PostToolUseFailure",
+                "tool_name": "Bash",
+                "tool_use_id": "toolu_2",
+                "tool_input": {},
+            },
+            {"shell": "end", "call": "toolu_2"},
         ),
         ({"tool_name": "Read", "tool_input": {"command": "ls"}}, None),
     ],

@@ -20,6 +20,7 @@ from lumlflow.flow.errors import FileLocked, FlowError, NotAFile
 from lumlflow.flow.store.flowstore import STORE_DIRNAME
 
 DEBOUNCE_S = 0.3
+_SHELL_FORGOTTEN_NS = 24 * 60 * 60 * 10**9
 Sessions = dict[object, tuple[str, str]]
 
 
@@ -70,8 +71,11 @@ class FileWatcher(FileSystemEventHandler):
         sessions: Callable[[], Sessions],
         clock: Callable[[], float],
         idle_s: float,
+        *,
+        heard: Callable[[object, str], None] | None = None,
     ) -> None:
         self._sessions = sessions
+        self._heard = heard
         self._clock = clock
         self._idle_s = idle_s
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -83,7 +87,7 @@ class FileWatcher(FileSystemEventHandler):
         self._changes: dict[Path, set[Path]] = {}
         self._watch_timer: asyncio.TimerHandle | None = None
         self._dirty_locks: set[Path] = set()
-        self._shells: dict[str, int] = {}
+        self._shells: dict[tuple[str, str], int] = {}
 
     def subscribe(
         self, sub: Subscription, directory: str, file: str | None
@@ -421,27 +425,45 @@ class FileWatcher(FileSystemEventHandler):
         if (lock := self._locks.get(path)) and self._matches(path, lock):
             raise FileLocked(f"{lock.label} is working on this file", label=lock.label)
 
-    def agent_shell(self, harness_pid: str, started: bool) -> None:
+    def agent_shell(self, harness_pid: str, started: bool, call: str = "") -> None:
         """A harness's shell command started or ended. It does not say which
         files it wrote, so at its end every listed file it may have changed is
-        taken as its write. A person's save in that window is taken too."""
+        taken as its write. A person's save in that window is taken too.
+
+        Commands of one harness can overlap: each end is paired with its own
+        start by the tool call's id."""
+        key = (harness_pid, call)
         if started:
-            self._shells[harness_pid] = time.time_ns()
+            now = time.time_ns()
+            # A command whose end never came (a killed harness) is let go.
+            for held, since in list(self._shells.items()):
+                if now - since >= _SHELL_FORGOTTEN_NS:
+                    del self._shells[held]
+            self._shells[key] = now
             return
-        since = self._shells.pop(harness_pid, None)
+        since = self._shells.pop(key, None)
         if since is None:
             return
+        written: list[Path] = []
         for root in list(self._watches):
             with suppress(OSError), os.scandir(root) as entries:
                 for entry in entries:
                     with suppress(OSError):
                         if entry.stat(follow_symlinks=False).st_mtime_ns >= since:
-                            self.agent_wrote(Path(entry.path), harness_pid)
+                            written.append(Path(entry.path))
+        self._agent_wrote(written, harness_pid)
 
     def agent_wrote(self, path: Path, harness_pid: str) -> None:
         """Lock a file an agent's harness reported writing. A disk change alone
         never locks: the person's own editors write files too. Only the session
         that harness runs owns the lock, not every agent working in Flow."""
+        info = path.lstat()
+        if stat.S_ISREG(info.st_mode):
+            self._agent_wrote([path], harness_pid)
+
+    def _agent_wrote(self, paths: list[Path], harness_pid: str) -> None:
+        # One expiry and one snapshot per subscription for the whole batch:
+        # a command that wrote hundreds of files must not stall the daemon.
         self.expire()
         # An MCP session's actor ends with its harness's process id.
         owners = [
@@ -449,16 +471,24 @@ class FileWatcher(FileSystemEventHandler):
             for session, held in self._sessions().items()
             if harness_pid and held[0].rpartition("-")[2] == harness_pid
         ]
-        if not owners:
+        if not owners or not paths:
             return
-        info = path.lstat()
-        if not stat.S_ISREG(info.st_mode):
-            return
+        if self._heard is not None:
+            for owner, (actor, _) in owners:
+                self._heard(owner, actor)
         session, (actor, label) = (
             owners[0] if len(owners) == 1 else (None, (None, "an agent"))
         )
-        lock = _Lock(session, actor, label, self._clock(), info)
-        if path.parent not in self._watches:
-            lock.pin_unwatched(path)
-        self._locks[path] = lock
-        self._announce({path.parent})
+        now = self._clock()
+        directories: set[Path] = set()
+        for path in paths:
+            with suppress(OSError):
+                info = path.lstat()
+                if not stat.S_ISREG(info.st_mode):
+                    continue
+                lock = _Lock(session, actor, label, now, info)
+                if path.parent not in self._watches:
+                    lock.pin_unwatched(path)
+                self._locks[path] = lock
+                directories.add(path.parent)
+        self._announce(directories)

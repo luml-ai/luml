@@ -502,7 +502,7 @@ class Hub:
         session = FlowSession(
             ref,
             store,
-            self._workspace_of(ref),
+            self._workspace_of(key),
             key=key,
             tracker=self.tracker,
             streams=self._streams,
@@ -512,8 +512,10 @@ class Hub:
         self.watches.hold(session.watch.root)
         return session
 
-    def _workspace_of(self, ref: FlowRef) -> Path:
-        return ref.path.parent
+    def _workspace_of(self, key: Path) -> Path:
+        # The folder of the notebook on disk, not of the link it was opened
+        # by: its kernel runs there and imports that project's packages.
+        return key.parent
 
     async def close_session(
         self,
@@ -593,10 +595,14 @@ class Hub:
         with files.os_errors():
             if target is not None:
                 files.check_destination(source, target)
+            # A notebook opened through a link is reached by its own path too:
+            # moving its real folder closes it as moving the link does.
+            real = _session_key(source.parent) / source.name
             affected = [
                 session
                 for session in self.opened()
                 if session.ref.path.is_relative_to(source)
+                or session.key.is_relative_to(real)
             ]
             if close_open is not True and any(
                 not isinstance(close_open, list) or s.session_id not in close_open

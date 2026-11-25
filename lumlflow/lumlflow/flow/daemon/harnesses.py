@@ -28,10 +28,12 @@ CONSENT_RECORD_NAME = "agents.json"
 # a file an agent wrote without blaming the person's own editors for theirs.
 WRITE_HOOK_HARNESS = "claude-code"
 # Bash is reported before and after it runs: a command does not say which
-# files it wrote, so the daemon takes the files changed while it ran.
+# files it wrote, so the daemon takes the files changed while it ran. A failed
+# command ends with its own event and may have written before it failed.
 WRITE_HOOK_MATCHERS = {
     "PreToolUse": "Bash",
     "PostToolUse": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+    "PostToolUseFailure": "Bash",
 }
 WRITE_HOOK_VERB = ("agent", "wrote")
 
@@ -681,6 +683,10 @@ def _update_hooks(
     home: Path | None, ours: Callable[[str], dict[str, Any] | None]
 ) -> None:
     path = (home or Path.home()) / ".claude" / "settings.json"
+    # A settings file managed as a link is updated where it points, so the
+    # link keeps following the person's managed copy.
+    if path.is_symlink():
+        path = path.resolve()
     try:
         document = json.loads(path.read_bytes()) if path.exists() else {}
     except ValueError as error:
@@ -693,7 +699,9 @@ def _update_hooks(
         groups = hooks.pop(event, [])
         if not isinstance(groups, list):
             raise HarnessConfigError(f"`{path}` has unexpected {event} hooks")
-        groups = [group for group in groups if not _our_hook(group)]
+        groups = [
+            kept for group in groups if (kept := _without_ours(group)) is not None
+        ]
         if (group := ours(event)) is not None:
             groups.append(group)
         if groups:
@@ -706,13 +714,23 @@ def _update_hooks(
         atomic_write_bytes(path, (json.dumps(updated, indent=2) + "\n").encode())
 
 
-def _our_hook(group: object) -> bool:
+def _without_ours(group: object) -> object:
+    """A matcher group without lumlflow's command, or None when that command
+    was all it held. The person's commands and the group's settings stay."""
     hooks = group.get("hooks") if isinstance(group, dict) else None
-    return isinstance(hooks, list) and any(
+    if not isinstance(group, dict) or not isinstance(hooks, list):
+        return group
+    theirs = [hook for hook in hooks if not _our_hook(hook)]
+    if len(theirs) == len(hooks):
+        return group
+    return {**group, "hooks": theirs} if theirs else None
+
+
+def _our_hook(hook: object) -> bool:
+    return (
         isinstance(hook, dict)
         and str(hook.get("command", "")).endswith(shlex.join(WRITE_HOOK_VERB))
         and SERVER_NAME in str(hook.get("command", ""))
-        for hook in hooks
     )
 
 

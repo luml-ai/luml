@@ -1,5 +1,6 @@
 import asyncio
 import errno
+import json
 import os
 import struct
 import sys
@@ -654,3 +655,74 @@ def test_cross_device_move_removes_extra_inherited_access(tmp_path, monkeypatch)
         assert not {"system.posix_acl_access", "system.posix_acl_default"} & set(
             os.listxattr(path)
         )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="requires symlinks")
+async def test_moving_the_real_folder_of_a_linked_notebook_asks_to_close_it(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    real = make_workspace(tmp_path / "elsewhere" / "real", flows=("sales",))
+    (root / "sales.flow").symlink_to(real / "sales.flow", target_is_directory=True)
+    dest = tmp_path / "dest"
+    dest.mkdir()
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": str(root / "sales.flow")})
+        with pytest.raises(FlowOpen):
+            await api.file_move({"path": str(real), "destination": str(dest)})
+        with pytest.raises(FlowOpen):
+            await api.file_delete({"path": str(real)})
+        assert real.is_dir()
+        await api.file_delete({"path": str(real), "close_open": True})
+        assert api.hub.opened() == []
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="requires symlinks")
+async def test_a_notebook_opened_through_a_link_runs_in_its_own_project(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    real = make_workspace(tmp_path / "other", flows=("sales",))
+    (root / "sales.flow").symlink_to(real / "sales.flow", target_is_directory=True)
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": str(root / "sales.flow")})
+        (session,) = api.hub.opened()
+        assert session.ref.path == root / "sales.flow"
+        assert session.workspace_dir == real.resolve()
+        assert session.kernel.workspace_dir == real.resolve()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="hard links on POSIX")
+def test_cross_device_folder_move_keeps_hard_links_together(tmp_path, monkeypatch):
+    source = tmp_path / "data"
+    source.mkdir()
+    (source / "a.csv").write_text("rows")
+    os.link(source / "a.csv", source / "b.csv")
+    (source / "nested").mkdir()
+    os.link(source / "a.csv", source / "nested" / "c.csv")
+    dest = tmp_path / "dest"
+    dest.mkdir()
+    rename = files._rename
+
+    def cross_device(src, target):
+        if src == source:
+            raise OSError(errno.EXDEV, "Cross-device link")
+        rename(src, target)
+
+    monkeypatch.setattr(files, "_rename", cross_device)
+    files.move(source, dest / "data")
+    moved = dest / "data"
+    assert (moved / "a.csv").samefile(moved / "b.csv")
+    assert (moved / "a.csv").samefile(moved / "nested" / "c.csv")
+    assert (moved / "a.csv").stat().st_nlink == 3
+    assert not source.exists()
+
+
+def test_a_file_name_that_is_not_utf8_survives_the_json_reply() -> None:
+    name = os.fsdecode(b"/w/report-\xff.csv") if os.name != "nt" else "/w/r\udcff"
+    body = web._JSON({"result": {"files": [{"path": name}]}}).body
+
+    returned = json.loads(body)["result"]["files"][0]["path"]
+    assert returned == name
+    if os.name != "nt":
+        assert os.fsencode(returned) == b"/w/report-\xff.csv"

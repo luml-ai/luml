@@ -314,6 +314,72 @@ async def test_a_bash_command_locks_the_files_it_changed_for_its_session_only(
     viewer.close()
 
 
+async def test_overlapping_bash_commands_each_lock_what_they_wrote(
+    daemon: Daemon, tmp_path: Path
+) -> None:
+    first = tmp_path / "first.md"
+    _lease(daemon, "claude-code-7", "claude-code")
+    viewer = await _subscribe(daemon, tmp_path)
+    assert await _locks(viewer) == []
+    shell = daemon.api.methods["file.agent_wrote"]
+
+    await shell({"harness_pid": 7, "shell": "start", "call": "toolu_a"})
+    first.write_text("written before the second command started")
+    await asyncio.sleep(0.01)
+    await shell({"harness_pid": 7, "shell": "start", "call": "toolu_b"})
+    await shell({"harness_pid": 7, "shell": "end", "call": "toolu_b"})
+    await shell({"harness_pid": 7, "shell": "end", "call": "toolu_a"})
+
+    assert [row["path"] for row in await _snapshot(daemon, tmp_path)] == [str(first)]
+    viewer.close()
+
+
+async def test_a_bash_command_locks_its_batch_with_one_snapshot(
+    daemon: Daemon, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _lease(daemon, "claude-code-7", "claude-code")
+    viewer = await _subscribe(daemon, tmp_path)
+    assert await _locks(viewer) == []
+    shell = daemon.api.methods["file.agent_wrote"]
+    snapshots = Mock(wraps=daemon.api.file_watcher._snapshot)
+    monkeypatch.setattr(daemon.api.file_watcher, "_snapshot", snapshots)
+
+    await shell({"harness_pid": 7, "shell": "start", "call": "toolu_a"})
+    for index in range(40):
+        (tmp_path / f"out-{index}.csv").write_text("x")
+    await shell({"harness_pid": 7, "shell": "end", "call": "toolu_a"})
+
+    assert snapshots.call_count == 1
+    assert len(await _locks(viewer)) == 40
+    viewer.close()
+
+
+async def test_a_reported_write_keeps_its_agent_from_going_quiet(
+    daemon: Daemon, tmp_path: Path
+) -> None:
+    path = tmp_path / "notes.md"
+    path.touch()
+    now = 0.0
+    daemon.clock = lambda: now
+    daemon.api.clock = lambda: now
+    leases = _lease(daemon, "claude-code-7", "claude-code")
+    daemon._heard_from(leases, "claude-code-7")
+    subscription = await _subscribe(daemon, tmp_path)
+    assert await _locks(subscription) == []
+
+    now = QUIET_AFTER_S - 60
+    await _wrote(daemon, path, 7)
+    assert [row["actor"] for row in await _locks(subscription)] == ["claude-code-7"]
+    now = QUIET_AFTER_S + 1
+    await daemon.end_quiet()
+
+    assert leases == {(None, "claude-code-7", "claude-code")}
+    assert [row["actor"] for row in await _snapshot(daemon, tmp_path)] == [
+        "claude-code-7"
+    ]
+    subscription.close()
+
+
 async def test_creating_renaming_and_moving_from_the_daemon_skips_agent_locks(
     daemon: Daemon, tmp_path: Path
 ) -> None:

@@ -34,6 +34,19 @@ _REFUSED = 400
 _NO_METHOD = 404
 _INTERNAL = 500
 
+
+class _JSON(JSONResponse):
+    """JSON in ASCII escapes.
+
+    A POSIX file name that is not UTF-8 reaches Python as a lone surrogate,
+    which raw UTF-8 cannot encode; as an escape it reaches the browser and
+    comes back as the same name.
+    """
+
+    def render(self, content: Any) -> bytes:
+        return json.dumps(content, separators=(",", ":")).encode("ascii")
+
+
 _DOWNLOAD_EXTENSIONS = {
     "frame": ".arrow",
     "metric": ".json",
@@ -106,7 +119,7 @@ def _flow_router(hub: Hub, api: Api, streams: Streams, *, token: str) -> APIRout
         except Exception as failure:
             logger.exception("HTTP RPC `%s` failed", method_name)
             return _failed(str(failure), status=_INTERNAL)
-        return JSONResponse({"result": result})
+        return _JSON({"result": result})
 
     @router.get(DOWNLOAD_PATH)
     async def download(request: Request) -> Response:
@@ -150,7 +163,7 @@ def _flow_router(hub: Hub, api: Api, streams: Streams, *, token: str) -> APIRout
         if request.headers.get(TOKEN_HEADER) != token:
             return _unauthorized()
         expires = int(time.time()) + 3600
-        return JSONResponse(
+        return _JSON(
             {
                 "expires": expires,
                 "signature": _preview_signature(token, path, name, expires),
@@ -255,7 +268,7 @@ async def _write(socket: WebSocket, subscription: Subscription) -> None:
     """
     with contextlib.suppress(WebSocketDisconnect, RuntimeError):
         while True:
-            await socket.send_json(await subscription.next())
+            await socket.send_text(json.dumps(await subscription.next()))
 
 
 async def _read(
@@ -368,7 +381,7 @@ def _failed(
     error: dict[str, Any] = {"message": message, **details}
     if kind is not None:
         error["kind"] = kind
-    return JSONResponse({"error": error}, status_code=status)
+    return _JSON({"error": error}, status_code=status)
 
 
 def _download_name(slug: str, output: str, record: OutputRecord, path: Path) -> str:

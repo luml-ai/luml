@@ -70,6 +70,7 @@ class Daemon:
             leases=self._leases,
             revoke_lease=self._revoke_lease,
             file_sessions=self._file_sessions,
+            file_activity=self._file_activity,
             instance_id=self.instance_id,
         )
         self.watcher = Watcher(self.hub)
@@ -424,6 +425,14 @@ class Daemon:
             if leases
         }
 
+    def _file_activity(self, writer: object, actor: str) -> None:
+        # A write the agent's harness reports is activity of its session, as
+        # a notebook call is: an agent editing only through its shell or edit
+        # tools does not go quiet and lose its locks.
+        leased = self._client_leases.get(writer)  # type: ignore[call-overload]
+        if leased:
+            self._heard_from(leased, actor)
+
     def _leases(self) -> Leases:
         return {
             lease
@@ -776,7 +785,9 @@ def _reply(
         error if error is not None else result
     )
     if not writer.is_closing():
-        writer.write(json.dumps(message, ensure_ascii=False).encode("utf-8") + b"\n")
+        # ASCII escapes carry a file name that is not UTF-8 (a lone surrogate)
+        # through to the client and back, where raw UTF-8 cannot encode it.
+        writer.write(json.dumps(message).encode("ascii") + b"\n")
 
 
 def _reply_unaddressed(writer: asyncio.StreamWriter, error: dict[str, Any]) -> None:
@@ -784,8 +795,7 @@ def _reply_unaddressed(writer: asyncio.StreamWriter, error: dict[str, Any]) -> N
         writer.write(
             json.dumps(
                 {"jsonrpc": "2.0", "id": None, "error": error},
-                ensure_ascii=False,
-            ).encode("utf-8")
+            ).encode("ascii")
             + b"\n"
         )
 
