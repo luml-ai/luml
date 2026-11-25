@@ -432,6 +432,87 @@ describe('Workspace file selection', () => {
     }
   })
 
+  describe('catch-up after a stream (re)connects', () => {
+    const later = '2026-10-01T00:00:05Z'
+    async function settle(calls: number) {
+      const list = vi.mocked(workspaceApi.listFlows)
+      await vi.waitFor(() => expect(list.mock.calls.length).toBe(calls))
+      await flushPromises()
+    }
+    async function catchUp(socket = Socket.latest) {
+      const calls = vi.mocked(workspaceApi.listFlows).mock.calls.length
+      socket.onopen?.()
+      socket.receive({ channel: 'files', type: 'locks', locks: [], idle_after_s: 180 })
+      await settle(calls + 1)
+    }
+
+    it('keeps the preview of a newly selected file unless the listing shows it moved', async () => {
+      const other = { ...file, name: 'other.md', path: '/project/other.md' }
+      files = [file, other]
+      const router = await render({ directory: '/project', file: file.path })
+      await catchUp()
+      expect(viewer().props('refreshKey')).toBe(0)
+      const first = Socket.latest
+      await router.push({ query: { directory: '/project', file: other.path } })
+      await flushPromises()
+      expect(Socket.latest).not.toBe(first)
+      await catchUp()
+      expect(viewer().props('file')).toEqual(other)
+      expect(viewer().props('refreshKey')).toBe(0)
+    })
+
+    it('reloads after a lagged catch-up although a sibling refresh already listed the change', async () => {
+      const list = vi.mocked(workspaceApi.listFlows)
+      await render({ directory: '/project', file: file.path })
+      const socket = Socket.latest
+      await catchUp(socket)
+      files = [{ ...file, modified_at: later }]
+      const calls = list.mock.calls.length
+      socket.receive({
+        channel: 'files',
+        type: 'changed',
+        directory: '/project',
+        path: '/project/other.md',
+      })
+      await settle(calls + 1)
+      expect(viewer().props('file')).toEqual(files[0])
+      expect(viewer().props('refreshKey')).toBe(0)
+      socket.receive({ channel: 'files', type: 'lagged' })
+      socket.receive({ channel: 'files', type: 'locks', locks: [], idle_after_s: 180 })
+      await settle(calls + 2)
+      expect(viewer().props('refreshKey')).toBe(1)
+    })
+
+    it('reloads the same file after the stream reconnects', async () => {
+      await render({ directory: '/project', file: file.path })
+      await catchUp()
+      expect(viewer().props('refreshKey')).toBe(0)
+      await catchUp()
+      expect(viewer().props('refreshKey')).toBe(1)
+    })
+
+    it('reloads a newly selected file that changed after its preview loaded', async () => {
+      const list = vi.mocked(workspaceApi.listFlows)
+      await render({ directory: '/project', file: file.path })
+      const socket = Socket.latest
+      socket.onopen?.()
+      files = [{ ...file, modified_at: later }]
+      const calls = list.mock.calls.length
+      socket.receive({
+        channel: 'files',
+        type: 'changed',
+        directory: '/project',
+        path: '/project/other.md',
+      })
+      await settle(calls + 1)
+      expect(viewer().props('file')).toEqual(files[0])
+      expect(viewer().props('refreshKey')).toBe(0)
+      socket.receive({ channel: 'files', type: 'locks', locks: [], idle_after_s: 180 })
+      await settle(calls + 2)
+      expect(viewer().props('refreshKey')).toBe(1)
+    })
+  })
+
   it('omits ordinary creation and watching when a notebook lists itself', async () => {
     const directory = '/project/analysis.flow'
     vi.mocked(workspaceApi.listFlows).mockResolvedValue({

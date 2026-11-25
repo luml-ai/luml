@@ -90,6 +90,10 @@ const gone = ref(false)
 const dirty = ref(false)
 const changed = ref(0)
 const refreshKey = ref(0)
+// The open file's metadata as of the preview's last (re)load, and the file the files stream
+// was last opened for.
+let loaded: { path: string; version: number; file?: WorkspaceFile } | undefined
+let streamedFile: string | undefined
 
 function navigate(path: string) {
   return router.push({ query: { directory: path } })
@@ -203,6 +207,7 @@ watch(
       }
     }
     refreshKey.value = version
+    if (loaded?.path !== path || loaded.version !== version) loaded = { path, version, file }
     gone.value = !file
     selectedFile.value = file ??
       selectedFile.value ?? {
@@ -237,6 +242,10 @@ watch(
     locks.value = []
     const token = streamToken()
     if (!folder || notebook || !token) return
+    // Only the first catch-up of a stream opened for a newly selected file may skip reloading
+    // it, since the preview is loading that file anyway. A later one may follow missed frames.
+    let freshFile = file !== streamedFile
+    streamedFile = file
     const stream = new FlowStream({ token })
     let timer: ReturnType<typeof setTimeout> | undefined
     let expiry: ReturnType<typeof setTimeout> | undefined
@@ -257,26 +266,39 @@ watch(
     let running = false
     let pending = false
     let refreshFile = false
+    let checkFile = false
     let catchUp = true
-    function queueRefresh(includesFile: boolean) {
-      refreshFile ||= includesFile
+    function fileMoved() {
+      const listed = store.files.find((entry) => entry.path === file)
+      const shown = loaded && loaded.path === file ? loaded.file : undefined
+      return (
+        !shown || !listed || listed.modified_at !== shown.modified_at || listed.size !== shown.size
+      )
+    }
+    function queueRefresh(includesFile: boolean, ifFileMoved = false) {
+      if (ifFileMoved) checkFile = true
+      else refreshFile ||= includesFile
       pending = true
       if (running || timer !== undefined) return
       timer = setTimeout(async () => {
         timer = undefined
         running = true
         pending = false
-        const updateFile = refreshFile
+        const check = checkFile
+        let updateFile = refreshFile
         refreshFile = false
+        checkFile = false
         await refreshListing()
         running = false
         if (!active) return
+        if (!updateFile && check && file) updateFile = fileMoved()
         if (updateFile) changed.value++
         if (pending) queueRefresh(false)
       }, 50)
     }
     stream.onStatus((status) => {
       if (status === 'open') catchUp = true
+      else if (status === 'dropped') freshFile = false
     })
     const off = stream.onFrame((frame) => {
       if (!('channel' in frame)) {
@@ -291,10 +313,12 @@ watch(
         showLocks(frame.locks, frame.idle_after_s * 1000)
         if (catchUp) {
           catchUp = false
-          queueRefresh(true)
+          queueRefresh(!freshFile, freshFile)
+          freshFile = false
         }
       } else if (frame.type === 'lagged') {
         catchUp = true
+        freshFile = false
         stream.watchFiles(folder, subscribedFile)
       } else if (
         frame.directory === folder ||
