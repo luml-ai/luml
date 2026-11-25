@@ -93,14 +93,19 @@ class EmailHandler:
             to_emails=request.sender_email if result else request.recipient_email,
         )
         message.template_id = template
-        message.dynamic_template_data = {
-            "organization": request.organization_name,
-            "sender": request.sender_email,
-            "recipient": request.recipient_email,
-            "expires_at": request.expires_at.isoformat(),
-            "status": request.status,
-            "open_platform_link": f"{config.APP_EMAIL_URL.rstrip('/')}/invitations"
-            if not result
-            else config.APP_EMAIL_URL,
-        }
+        app_url = config.APP_EMAIL_URL.rstrip("/")
+        if result:
+            organization_url = f"{app_url}/organization/{request.organization_id}"
+            message.dynamic_template_data = {
+                "organization": request.organization_name,
+                "recipient": request.recipient_email,
+                "status": request.status,
+                "open_platform_link": organization_url,
+            }
+        else:
+            message.dynamic_template_data = {
+                "invite_sender": request.sender_email,
+                "organization": request.organization_name,
+                "open_platform_link": f"{app_url}/invitations",
+            }
         await asyncio.to_thread(self._email_client.send, message)

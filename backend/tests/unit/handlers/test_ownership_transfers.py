@@ -40,6 +40,8 @@ async def test_transfer_email_template_recipient_and_link(
     handler = EmailHandler(sender_email="sender@example.com")
     client = Mock()
     monkeypatch.setattr(handler, "_email_client", client)
+    if result:
+        transfer = transfer.model_copy(update={"status": "accepted"})
     await handler.send_ownership_transfer_email(transfer, result=result)
     message = client.send.call_args.args[0].get()
     assert message["template_id"] == (
@@ -49,8 +51,20 @@ async def test_transfer_email_template_recipient_and_link(
     assert personalization["to"][0]["email"] == (
         transfer.sender_email if result else transfer.recipient_email
     )
-    assert personalization["dynamic_template_data"]["open_platform_link"] == (
-        "https://app.example.com/" if result else "https://app.example.com/invitations"
+    assert personalization["dynamic_template_data"] == (
+        {
+            "organization": "Test organization",
+            "recipient": "member@example.com",
+            "status": "accepted",
+            "open_platform_link": "https://app.example.com/organization/"
+            f"{transfer.organization_id}",
+        }
+        if result
+        else {
+            "invite_sender": "owner@example.com",
+            "organization": "Test organization",
+            "open_platform_link": "https://app.example.com/invitations",
+        }
     )
 
 
