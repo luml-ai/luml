@@ -1,5 +1,8 @@
+import importlib
+import pkgutil
 import re
 
+import luml.models
 from alembic import command
 from luml.models import Base
 from sqlalchemy import text
@@ -57,6 +60,8 @@ def _catalog(connection: Connection, schema: str) -> Catalog:
 
 
 def _migrated_and_models_catalogs(connection: Connection) -> tuple[Catalog, Catalog]:
+    for module in pkgutil.iter_modules(luml.models.__path__):
+        importlib.import_module(f"{luml.models.__name__}.{module.name}")
     connection.execute(text(f'CREATE SCHEMA "{MODELS_SCHEMA}"'))
     Base.metadata.create_all(
         connection.execution_options(schema_translate_map={None: MODELS_SCHEMA})
