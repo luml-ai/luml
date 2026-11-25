@@ -429,9 +429,9 @@ class Daemon:
         # A write the agent's harness reports is activity of its session, as
         # a notebook call is: an agent editing only through its shell or edit
         # tools does not go quiet and lose its locks.
-        leased = self._client_leases.get(writer)  # type: ignore[call-overload]
-        if leased:
-            self._heard_from(leased, actor)
+        for connection, leased in self._client_leases.items():
+            if connection is writer:
+                self._heard_from(leased, actor)
 
     def _leases(self) -> Leases:
         return {
