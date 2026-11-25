@@ -16,8 +16,8 @@ class DeploymentOrm(TimestampMixin, Base):
     __tablename__ = "deployments"
     __table_args__ = (
         CheckConstraint(
-            "status in ('pending','active','failed',"
-            "'deletion_pending', 'not_responding', 'deletion_failed')",
+            "status in ('pending','active','failed','deletion_failed',"
+            "'deletion_pending','not_responding')",
             name="deployments_status_check",
         ),
         CheckConstraint(
@@ -83,7 +83,7 @@ class DeploymentOrm(TimestampMixin, Base):
         postgresql.JSONB, nullable=False, default=dict, server_default="{}"
     )
     schemas: Mapped[dict[str, Any]] = mapped_column(
-        postgresql.JSONB, nullable=True, default=None
+        postgresql.JSONB, nullable=True, default=None, server_default="{}"
     )
     error_message: Mapped[dict[str, Any]] = mapped_column(
         postgresql.JSONB, nullable=True, default=None
