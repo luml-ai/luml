@@ -28,6 +28,9 @@ class UserOrm(TimestampMixin, Base):
         server_default=text("gen_random_uuid()"),
         nullable=False,
     )
+    pending_email_change_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
     hashed_api_key: Mapped[str] = mapped_column(String, nullable=True)
     organizations_limit: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default="5"

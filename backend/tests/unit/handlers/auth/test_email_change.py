@@ -1,5 +1,6 @@
 from time import time
 from unittest.mock import ANY
+from uuid import uuid4
 
 import jwt
 import pytest
@@ -11,12 +12,15 @@ from pydantic import ValidationError
 from tests.support.mocks import CollaboratorMocks
 from tests.unit.handlers.auth.conftest import Passwords
 
+REQUEST_ID = uuid4()
+
 
 async def test_request_sends_bound_link_without_changing_email(
     mocks: CollaboratorMocks[AuthHandler], user: User, passwords: Passwords
 ) -> None:
     mocks.user_repository.get_user.return_value = user
     mocks.user_repository.email_exists.return_value = False
+    mocks.user_repository.start_email_change.return_value = REQUEST_ID
     result = await mocks.handler.handle_change_email(
         user.email,
         ChangeEmailIn(
@@ -28,11 +32,15 @@ async def test_request_sends_bound_link_without_changing_email(
         "detail": "If this address can be used, we have sent a confirmation link to it"
     }
     mocks.user_repository.update_user.assert_not_awaited()
+    mocks.user_repository.start_email_change.assert_awaited_once_with(
+        user.id, user.email_version
+    )
     sent = mocks.emails_handler.send_email_change_confirmation.await_args.args
     assert sent[0] == "new@example.com"
     token = sent[1].split("token=")[1]
     payload = jwt.decode(token, mocks.handler.secret_key, algorithms=["HS256"])
     assert payload["uid"] == str(user.id)
+    assert payload["rid"] == str(REQUEST_ID)
     assert payload["sub"] == user.email
     assert payload["new_email"] == "new@example.com"
     assert payload["pwh"] == mocks.handler._password_fingerprint(user.hashed_password)
@@ -55,6 +63,7 @@ async def test_taken_and_free_addresses_have_identical_responses(
     )
     assert free == taken
     mocks.emails_handler.send_email_change_confirmation.assert_awaited_once()
+    assert mocks.user_repository.start_email_change.await_count == 2
 
 
 @pytest.mark.parametrize("scenario", ["password", "same", "same-case", "sso"])
@@ -81,6 +90,24 @@ async def test_invalid_request_sends_no_mail(
         await mocks.handler.handle_change_email(
             user.email, request, expected_identity=(user.id, user.email_version)
         )
+    mocks.emails_handler.send_email_change_confirmation.assert_not_awaited()
+    mocks.user_repository.start_email_change.assert_not_awaited()
+
+
+async def test_request_after_identity_change_sends_no_mail(
+    mocks: CollaboratorMocks[AuthHandler], user: User, passwords: Passwords
+) -> None:
+    mocks.user_repository.get_user.return_value = user
+    mocks.user_repository.start_email_change.return_value = None
+    with pytest.raises(AuthError):
+        await mocks.handler.handle_change_email(
+            user.email,
+            ChangeEmailIn(
+                new_email="new@example.com", current_password=passwords.password
+            ),
+            expected_identity=(user.id, user.email_version),
+        )
+    mocks.user_repository.email_exists.assert_not_awaited()
     mocks.emails_handler.send_email_change_confirmation.assert_not_awaited()
 
 
@@ -110,7 +137,9 @@ async def test_confirmation_delivery_failure_does_not_update_user(
 async def test_confirmation_passes_expected_state_and_sends_masked_notice(
     mocks: CollaboratorMocks[AuthHandler], user: User
 ) -> None:
-    token = mocks.handler._generate_email_change_token(user, "new@example.com")
+    token = mocks.handler._generate_email_change_token(
+        user, "new@example.com", REQUEST_ID
+    )
     mocks.user_repository.get_user.return_value = user
     mocks.user_repository.change_email.return_value = True
     change = await mocks.handler.handle_confirm_email_change(token)
@@ -122,6 +151,7 @@ async def test_confirmation_passes_expected_state_and_sends_masked_notice(
         token,
         ANY,
         user.email_version,
+        REQUEST_ID,
     )
     assert change == EmailChange(
         old_email=user.email, new_email="new@example.com", full_name=user.full_name
@@ -137,7 +167,9 @@ async def test_confirmation_passes_expected_state_and_sends_masked_notice(
 async def test_confirmation_rejects_changed_state(
     mocks: CollaboratorMocks[AuthHandler], user: User, change: str
 ) -> None:
-    token = mocks.handler._generate_email_change_token(user, "new@example.com")
+    token = mocks.handler._generate_email_change_token(
+        user, "new@example.com", REQUEST_ID
+    )
     if change == "password":
         user.hashed_password = "changed"
     elif change == "email":
