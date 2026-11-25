@@ -1,8 +1,5 @@
 from enum import StrEnum
 
-from pydantic import BaseModel
-
-from luml.schemas.base import BaseOrmConfig
 from luml.schemas.orbit import OrbitRole
 from luml.schemas.organization import OrgRole
 
@@ -35,18 +32,6 @@ class Action(StrEnum):
     DEPLOY = "deploy"
     ACCEPT = "accept"
     REJECT = "reject"
-
-
-class OrgPermission(BaseModel, BaseOrmConfig):
-    role: OrgRole | str
-    resource: Resource
-    action: Action
-
-
-class OrbitPermission(BaseModel, BaseOrmConfig):
-    role: OrbitRole | str
-    resource: Resource
-    action: Action
 
 
 organization_permissions = {
