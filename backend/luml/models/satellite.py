@@ -92,7 +92,9 @@ class SatelliteQueueOrm(TimestampMixin, Base):
         String, nullable=False, default="pending", server_default="pending"
     )
     scheduled_at: Mapped[datetime] = mapped_column(
-        postgresql.TIMESTAMP(timezone=True), nullable=False, server_default="now()"
+        postgresql.TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
     )
     started_at: Mapped[datetime | None] = mapped_column(
         postgresql.TIMESTAMP(timezone=True), nullable=True
