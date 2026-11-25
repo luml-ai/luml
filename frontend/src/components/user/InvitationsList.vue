@@ -53,7 +53,9 @@
       </div>
     </div>
   </div>
-  <div v-else class="placeholder">There are currently no invitations awaiting response.</div>
+  <div v-else-if="!invitationsStore.ownershipTransfers.length" class="placeholder">
+    There are currently no invitations awaiting response.
+  </div>
 </template>
 
 <script setup lang="ts">

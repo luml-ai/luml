@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const apiMocks = vi.hoisted(() => ({
   getInvitations: vi.fn(),
+  getOwnershipTransfers: vi.fn(),
   acceptInvitation: vi.fn(),
   rejectInvitation: vi.fn(),
 }))
@@ -16,12 +17,16 @@ vi.mock('@/lib/api', () => ({ api: apiMocks }))
 vi.mock('@/stores/organization', () => ({ useOrganizationStore: () => organizationStore }))
 
 import { useInvitationsStore } from '../invitations'
-import type { Invitation } from '@/lib/api/api.interfaces'
+import type { Invitation, OwnershipTransfer } from '@/lib/api/api.interfaces'
 
 const invitation = {
   id: 'invite-1',
   organization_id: 'organization-1',
 } as Invitation
+const ownershipTransfer = {
+  id: 'transfer-1',
+  organization_id: 'organization-2',
+} as OwnershipTransfer
 
 describe('invitations store', () => {
   beforeEach(() => {
@@ -122,5 +127,56 @@ describe('invitations store', () => {
     store.invitations = [invitation]
     await expect(store.rejectInvitation(invitation.id)).rejects.toThrow()
     expect(store.invitations).toEqual([invitation])
+  })
+
+  it('flags pending ownership transfers without organization invitations', async () => {
+    apiMocks.getOwnershipTransfers.mockResolvedValue([ownershipTransfer])
+    const store = useInvitationsStore()
+    expect(store.hasPendingInvitations).toBe(false)
+
+    await store.getOwnershipTransfers()
+
+    expect(store.invitations).toEqual([])
+    expect(store.ownershipTransfers).toEqual([ownershipTransfer])
+    expect(store.hasPendingInvitations).toBe(true)
+  })
+
+  it('flags pending organization invitations without ownership transfers', () => {
+    const store = useInvitationsStore()
+
+    store.invitations = [invitation]
+
+    expect(store.hasPendingInvitations).toBe(true)
+  })
+
+  it('keeps loaded ownership transfers when a reload fails', async () => {
+    apiMocks.getOwnershipTransfers
+      .mockResolvedValueOnce([ownershipTransfer])
+      .mockRejectedValueOnce(new Error('unavailable'))
+    const store = useInvitationsStore()
+    await store.getOwnershipTransfers()
+
+    await expect(store.getOwnershipTransfers()).rejects.toThrow('unavailable')
+
+    expect(store.ownershipTransfers).toEqual([ownershipTransfer])
+    expect(store.ownershipTransfersLoadError).toBe(true)
+  })
+
+  it('drops ownership transfers that arrive after a reset', async () => {
+    let resolveTransfers: (value: OwnershipTransfer[]) => void = () => {}
+    apiMocks.getOwnershipTransfers.mockReturnValue(
+      new Promise<OwnershipTransfer[]>((resolve) => {
+        resolveTransfers = resolve
+      }),
+    )
+    const store = useInvitationsStore()
+    const request = store.getOwnershipTransfers()
+
+    store.reset()
+    resolveTransfers([ownershipTransfer])
+    await request
+
+    expect(store.ownershipTransfers).toEqual([])
+    expect(store.hasPendingInvitations).toBe(false)
   })
 })

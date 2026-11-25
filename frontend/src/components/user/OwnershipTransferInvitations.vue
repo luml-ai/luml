@@ -42,27 +42,25 @@
 
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import { Button, Dialog, useToast } from 'primevue'
 import { api } from '@/lib/api'
 import type { OwnershipTransfer } from '@/lib/api/api.interfaces'
+import { useInvitationsStore } from '@/stores/invitations'
 import { useOrganizationStore } from '@/stores/organization'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
 
-const requests = ref<OwnershipTransfer[]>([])
+const invitationsStore = useInvitationsStore()
+const { ownershipTransfers: requests, ownershipTransfersLoadError: error } =
+  storeToRefs(invitationsStore)
 const selected = ref<OwnershipTransfer | null>(null)
 const loading = ref(false)
-const error = ref(false)
 const toast = useToast()
 const organizationStore = useOrganizationStore()
 
 async function load() {
-  try {
-    requests.value = await api.getOwnershipTransfers()
-    error.value = false
-  } catch {
-    error.value = true
-  }
+  await invitationsStore.getOwnershipTransfers().catch(() => undefined)
 }
 
 async function respond(request: OwnershipTransfer, action: 'accept' | 'decline') {

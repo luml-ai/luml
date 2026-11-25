@@ -92,7 +92,10 @@ export const useUserStore = defineStore('user', () => {
         stale = true
       })
       if (id) {
-        await invitationsStore.getInvitations().catch(() => undefined)
+        await Promise.all([
+          invitationsStore.getInvitations().catch(() => undefined),
+          invitationsStore.getOwnershipTransfers().catch(() => undefined),
+        ])
         if (!stale && user.value?.id === id) {
           await organizationStore.getAvailableOrganizations()
         }

@@ -19,6 +19,7 @@ const api = vi.hoisted(() => ({
   getMe: vi.fn(),
   logout: vi.fn(),
   getInvitations: vi.fn(),
+  getOwnershipTransfers: vi.fn(),
   getOrganizations: vi.fn(),
   getOrganizationOrbits: vi.fn(),
   orbitCollections: { getCollection: vi.fn(), getCollectionsTags: vi.fn() },
@@ -53,6 +54,7 @@ describe('logout state cleanup', () => {
     vi.resetAllMocks()
     api.getMe.mockResolvedValue({ id: 'user-1' })
     api.getInvitations.mockResolvedValue([])
+    api.getOwnershipTransfers.mockResolvedValue([])
     api.getOrganizations.mockResolvedValue([])
     api.getOrganizationOrbits.mockResolvedValue([])
     vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -103,6 +105,9 @@ describe('logout state cleanup', () => {
     s.secrets.secretsList = [{ id: 'secret-1' }] as typeof s.secrets.secretsList
     s.secrets.showCreator()
     s.invitations.invitations = [{ id: 'invitation-1' }] as typeof s.invitations.invitations
+    s.invitations.ownershipTransfers = [
+      { id: 'transfer-1' },
+    ] as typeof s.invitations.ownershipTransfers
     if (fails) api.logout.mockRejectedValue(new Error('Network unavailable'))
 
     await s.auth.logout()
@@ -131,6 +136,7 @@ describe('logout state cleanup', () => {
     expect(s.secrets.secretsList).toEqual([])
     expect(s.secrets.creatorVisible).toBe(false)
     expect(s.invitations.invitations).toEqual([])
+    expect(s.invitations.ownershipTransfers).toEqual([])
   })
 
   it('resets persisted and store state even without a loaded user', async () => {
@@ -160,6 +166,7 @@ describe('logout state cleanup', () => {
     expect(s.user.getUserId).toBeUndefined()
     expect(s.auth.isAuth).toBe(false)
     expect(api.getInvitations).not.toHaveBeenCalled()
+    expect(api.getOwnershipTransfers).not.toHaveBeenCalled()
     expect(api.getOrganizations).not.toHaveBeenCalled()
   })
 

@@ -1,6 +1,6 @@
 <template>
   <div class="user-notification">
-    <div v-if="invitationsStore.invitations.length" class="user-notification__circle"></div>
+    <div v-if="invitationsStore.hasPendingInvitations" class="user-notification__circle"></div>
     <d-button
       rounded
       severity="help"

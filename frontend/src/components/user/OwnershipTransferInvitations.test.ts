@@ -1,4 +1,5 @@
 import { flushPromises, shallowMount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, expect, it, vi } from 'vitest'
 import OwnershipTransferInvitations from './OwnershipTransferInvitations.vue'
 
@@ -46,6 +47,7 @@ function setup() {
   })
 }
 beforeEach(() => {
+  setActivePinia(createPinia())
   vi.resetAllMocks()
   mocks.get.mockResolvedValue([request])
   mocks.respond.mockResolvedValue({})
