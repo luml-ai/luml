@@ -1,6 +1,9 @@
 import asyncio
+import importlib
+import pkgutil
 from logging.config import fileConfig
 
+import luml.models
 from alembic import context
 from luml.models import Base
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -16,6 +19,9 @@ config = context.config
 # This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name, disable_existing_loggers=False)
+
+for module in pkgutil.iter_modules(luml.models.__path__):
+    importlib.import_module(f"{luml.models.__name__}.{module.name}")
 
 # add your model's MetaData object here
 target_metadata = Base.metadata
@@ -63,6 +69,7 @@ def do_run_migrations(connection: Connection) -> None:
         connection=connection,
         target_metadata=target_metadata,
         compare_type=True,
+        compare_server_default=True,
     )
     with context.begin_transaction():
         context.run_migrations()
