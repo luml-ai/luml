@@ -194,6 +194,15 @@ class UserRepository(RepositoryBase, CrudMixin):
 
     async def delete_signup(self, user_id: UUID) -> None:
         async with self._get_session() as session, session.begin():
+            if (
+                await session.scalar(
+                    select(UserOrm.id)
+                    .where(UserOrm.id == user_id, UserOrm.email_verified.is_(False))
+                    .with_for_update()
+                )
+                is None
+            ):
+                return
             owned_organizations = select(OrganizationMemberOrm.organization_id).where(
                 OrganizationMemberOrm.user_id == user_id,
                 OrganizationMemberOrm.role == OrgRole.OWNER,

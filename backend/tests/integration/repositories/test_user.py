@@ -108,6 +108,33 @@ class TestUserRepository:
         assert remaining == {other_org.id}
         assert await repository.get_user(other.email) is not None
 
+    async def test_delete_signup_keeps_an_activated_account(
+        self, repository: UserRepository
+    ) -> None:
+        signup = CreateUser(
+            email=f"test_{uuid.uuid4()}@example.com",
+            full_name="Signup User",
+            disabled=False,
+            email_verified=False,
+            auth_method=AuthProvider.EMAIL,
+            photo=None,
+            hashed_password="hashed_password",
+        )
+        user = await repository.create_user(signup)
+        organization = (await repository.get_user_organizations(user.id))[0]
+        await repository.update_user(
+            UpdateUser(email=signup.email, email_verified=True)
+        )
+
+        await repository.delete_signup(user.id)
+
+        kept = await repository.get_user(signup.email)
+        assert kept is not None
+        assert kept.email_verified
+        assert [org.id for org in await repository.get_user_organizations(user.id)] == [
+            organization.id
+        ]
+
     async def test_get_user_returns_user(
         self, repository: UserRepository, seeded_user: UserFixtureData
     ) -> None:
