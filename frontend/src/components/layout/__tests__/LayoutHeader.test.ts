@@ -10,12 +10,15 @@ const mocks = vi.hoisted(() => ({
   toast: vi.fn(),
 }))
 const route = reactive({ fullPath: '/organization/example' })
+const organization = reactive({ currentOrganization: { id: 'example' } as { id: string } | null })
 vi.mock('vue-router', () => ({ useRoute: () => route }))
 vi.mock('@/lib/api', () => ({ api: { readOwnershipTransferNotices: mocks.read } }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ isAuth: true }) }))
 vi.mock('@/stores/organization', () => ({
   useOrganizationStore: () => ({
-    currentOrganization: { id: 'example' },
+    get currentOrganization() {
+      return organization.currentOrganization
+    },
     getAvailableOrganizations: mocks.refresh,
     getOrganizationDetails: mocks.refreshDetails,
   }),
@@ -28,8 +31,9 @@ vi.mock('primevue', async (importOriginal) => ({
 beforeEach(() => {
   vi.resetAllMocks()
   route.fullPath = '/organization/example'
+  organization.currentOrganization = { id: 'example' }
 })
-it('shows the previous owner the result once and refreshes their role without navigation', async () => {
+it('shows the previous owner the result once and refreshes their role', async () => {
   mocks.read
     .mockResolvedValueOnce([
       { status: 'accepted', organization_name: 'Example', recipient_email: 'new@example.com' },
@@ -44,11 +48,25 @@ it('shows the previous owner the result once and refreshes their role without na
   )
   expect(mocks.refresh).toHaveBeenCalledOnce()
   expect(mocks.refreshDetails).toHaveBeenCalledExactlyOnceWith('example')
+  expect(mocks.toast).toHaveBeenCalledOnce()
+  wrapper.unmount()
+})
+
+it('reads the notices once per organization instead of on every navigation', async () => {
+  mocks.read.mockResolvedValue([])
+  const wrapper = shallowMount(LayoutHeader, {
+    global: { stubs: { RouterLink: true, 'd-button': true } },
+  })
+  await flushPromises()
   route.fullPath = '/organization/example/orbits'
   await flushPromises()
-  expect(mocks.toast).toHaveBeenCalledOnce()
-  expect(mocks.refreshDetails).toHaveBeenCalledOnce()
-  expect(route.fullPath).toBe('/organization/example/orbits')
+  route.fullPath = '/organization/example/orbits?tab=members'
+  await flushPromises()
+  expect(mocks.read).toHaveBeenCalledExactlyOnceWith('example')
+  organization.currentOrganization = { id: 'other' }
+  await flushPromises()
+  expect(mocks.read).toHaveBeenCalledTimes(2)
+  expect(mocks.read).toHaveBeenLastCalledWith('other')
   wrapper.unmount()
 })
 

@@ -46,7 +46,6 @@
 
 <script setup lang="ts">
 import { watch } from 'vue'
-import { useRoute } from 'vue-router'
 import { useToast } from 'primevue'
 import { api } from '@/lib/api'
 import { useOrganizationStore } from '@/stores/organization'
@@ -74,11 +73,10 @@ defineEmits<Emits>()
 
 const authStore = useAuthStore()
 const organizationStore = useOrganizationStore()
-const route = useRoute()
 const toast = useToast()
 watch(
-  () => [organizationStore.currentOrganization?.id, route.fullPath] as const,
-  async ([id]) => {
+  () => organizationStore.currentOrganization?.id,
+  async (id) => {
     if (!id) return
     try {
       const notices = await api.readOwnershipTransferNotices(id)
