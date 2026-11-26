@@ -74,7 +74,7 @@ router.afterEach(() => {
 <style scoped>
 .wrapper {
   min-height: 100svh;
-  padding-bottom: 60px;
+  padding-bottom: 30px;
   overflow-x: hidden;
 }
 .header {

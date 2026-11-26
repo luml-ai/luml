@@ -1,9 +1,11 @@
 // @vitest-environment node
 
 import { readFile } from 'node:fs/promises'
-import StyleDictionary from 'style-dictionary'
+import { createRequire } from 'node:module'
+import { createThemeDictionary, themes } from '@luml/design-tokens/config.mjs'
 import { describe, expect, it } from 'vitest'
-import config from '../../../../style-dictionary.config.mjs'
+
+const require = createRequire(import.meta.url)
 
 const components = [
   'autocomplete',
@@ -15,14 +17,26 @@ const components = [
   'treeselect',
 ]
 
+const declarations = (css: string) =>
+  Object.fromEntries(
+    [...css.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map(([, name, value]) => [
+      name,
+      (value ?? '').replace(/\s+/g, ' ').trim(),
+    ]),
+  )
+
+const generate = async (name: string) => {
+  const theme = themes.find((item: { name: string }) => item.name === name)
+  if (!theme) {
+    throw new Error(`Theme ${name} not found`)
+  }
+  const [file] = await createThemeDictionary(theme).formatPlatform('css')
+  return file.output as string
+}
+
 describe.each(['light', 'dark'])('%s theme CSS', (theme) => {
-  it('resolves form-field focus-ring lengths without changing other lengths', async () => {
-    const dictionary = new StyleDictionary({
-      ...config,
-      source: [`tokens/tokens-styles-${theme}.json`],
-    })
-    const [file] = await dictionary.formatPlatform(theme)
-    const css = file.output as string
+  it('generates form-field focus-ring lengths without invalid object values', async () => {
+    const css = await generate(theme)
 
     expect(css).not.toContain('[object Object]')
     for (const component of components) {
@@ -36,13 +50,12 @@ describe.each(['light', 'dark'])('%s theme CSS', (theme) => {
     expect(css).toContain('--p-tabs-tab-focus-ring-offset: -1px;')
   })
 
-  it('ships CSS without invalid object values', async () => {
-    const css = await readFile(`src/assets/theme/${theme}-theme.css`, 'utf8')
+  it('ships CSS that matches the generator output', async () => {
+    const shipped = await readFile(
+      require.resolve(`@luml/design-tokens/${theme}-theme.css`),
+      'utf8',
+    )
 
-    expect(css).not.toContain('[object Object]')
-    for (const component of components) {
-      expect(css).toContain(`--p-${component}-focus-ring-width: 0px;`)
-      expect(css).toContain(`--p-${component}-focus-ring-offset: 0px;`)
-    }
+    expect(declarations(shipped)).toEqual(declarations(await generate(theme)))
   })
 })

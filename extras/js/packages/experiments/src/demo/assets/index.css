@@ -1,5 +1,4 @@
-@import './theme/light-theme.css';
-@import './theme/dark-theme.css';
+@import '@luml/design-tokens/index.css';
 @import './null.css';
 
 body {

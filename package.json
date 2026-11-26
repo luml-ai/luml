@@ -1,10 +1,14 @@
 {
 	"name": "@luml/workspace",
 	"private": true,
+	"scripts": {
+		"tokens": "npm run build -w @luml/design-tokens"
+	},
 	"workspaces": [
 		"frontend",
 		"extras/js/packages/*",
-		"lumlflow/frontend"
+		"lumlflow/frontend",
+		"satellite/monitoring-ui"
 	],
 	"devDependencies": {
 		"vite": "^6.4.5",

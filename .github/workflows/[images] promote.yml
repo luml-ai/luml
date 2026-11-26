@@ -11,6 +11,9 @@ on:
       - satellite/implementations/docker/**
       - satellite/implementations/kubernetes/**
       - satellite/monitoring-ui/**
+      - extras/js/packages/design-tokens/**
+      - package.json
+      - package-lock.json
       - satellite/.env.example
       - satellite/docker-compose.yml
       - satellite/otel-collector-config.yaml
@@ -74,6 +77,9 @@ jobs:
               satellite/implementations/docker/**
               satellite/implementations/kubernetes/**
               satellite/monitoring-ui/**
+              extras/js/packages/design-tokens/**
+              package.json
+              package-lock.json
               satellite/.env.example
               satellite/docker-compose.yml
               satellite/otel-collector-config.yaml
@@ -88,6 +94,9 @@ jobs:
               satellite/implementations/docker/**
               satellite/implementations/kubernetes/**
               satellite/monitoring-ui/**
+              extras/js/packages/design-tokens/**
+              package.json
+              package-lock.json
               satellite/.env.example
               satellite/docker-compose.yml
               satellite/otel-collector-config.yaml
@@ -102,6 +111,9 @@ jobs:
               satellite/implementations/docker/**
               satellite/implementations/kubernetes/**
               satellite/monitoring-ui/**
+              extras/js/packages/design-tokens/**
+              package.json
+              package-lock.json
               satellite/.env.example
               satellite/docker-compose.yml
               satellite/otel-collector-config.yaml
@@ -116,6 +128,9 @@ jobs:
               satellite/implementations/docker/**
               satellite/implementations/kubernetes/**
               satellite/monitoring-ui/**
+              extras/js/packages/design-tokens/**
+              package.json
+              package-lock.json
               satellite/.env.example
               satellite/docker-compose.yml
               satellite/otel-collector-config.yaml

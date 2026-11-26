@@ -100,7 +100,6 @@ Run from inside `extras/js/packages/experiments/`, or use `--workspace=extras/js
 | `npm run type-check` | Runs `vue-tsc` for type checking only |
 | `npm run lint` | Runs ESLint with auto-fix |
 | `npm run format` | Formats `src/` with Prettier |
-| `npm run style` | Regenerates demo theme CSS variables from design tokens in `tokens/` |
 
 > `npm run build` runs `vue-tsc --build` and `vite build` concurrently via `npm-run-all2`.
 
@@ -302,11 +301,9 @@ extras/js/packages/experiments/
 │   ├── constants/                    # Colors, column names
 │   ├── utils/                        # Search, exception helpers
 │   └── demo/                         # Standalone demo app (not published)
-├── tokens/                           # Design token JSON files
 ├── dist/                             # Build output
 ├── vite.config.ts
 ├── tsconfig.app.json
 ├── tsconfig.build.json
-├── style-dictionary.config.mjs
 └── package.json
 ```

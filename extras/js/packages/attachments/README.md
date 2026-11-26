@@ -97,7 +97,6 @@ Run from inside `extras/js/packages/attachments/`, or use `--workspace=extras/js
 | `npm test` | Runs SVG preview regression tests (requires `npx playwright install chromium`) |
 | `npm run lint` | Runs ESLint with auto-fix |
 | `npm run format` | Formats `src/` with Prettier |
-| `npm run style` | Regenerates demo theme CSS variables from design tokens in `tokens/` |
 
 > `npm run build` runs `vue-tsc --build` and `vite build` concurrently via `npm-run-all2`.
 
@@ -287,11 +286,9 @@ extras/js/packages/attachments/
 │   │   ├── fileTypes.ts               # Extension → type mapping, size formatting
 │   │   └── fileContentProcessors.ts   # Blob processing per file type
 │   └── demo/                          # Standalone demo app (not published)
-├── tokens/                            # Design token JSON files
 ├── dist/                              # Build output
 ├── vite.config.ts
 ├── tsconfig.app.json
 ├── tsconfig.build.json
-├── style-dictionary.config.mjs
 └── package.json
 ```

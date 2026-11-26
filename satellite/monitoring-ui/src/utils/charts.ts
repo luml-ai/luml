@@ -1,0 +1,98 @@
+import type { Series, SeriesPoint } from '@/api/monitoring/interfaces'
+import type { ApexOptions } from 'apexcharts'
+import {
+  CHART_LEGEND_HEIGHT,
+  CHART_LEGEND_LABEL_LENGTH,
+  CHART_MARKER_SIZE,
+  DEFAULT_CHART_COLOR,
+  SERIES_CHART_META,
+  type ChartMeta,
+} from '@/constants/charts'
+
+const numberFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 })
+const compactFormat = new Intl.NumberFormat('en-US', {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+})
+
+export function formatChartValue(value: number | null | undefined, unit?: string | null): string {
+  if (value == null || !Number.isFinite(value)) return '—'
+  if (unit === 'ratio') return `${numberFormat.format(value * 100)}%`
+  if (unit === 'ms') return `${Math.round(value)} ms`
+  if (Math.abs(value) >= 10000) return compactFormat.format(value)
+  return numberFormat.format(value)
+}
+
+const preciseFormat = new Intl.NumberFormat('en-US', { maximumSignificantDigits: 6 })
+
+export function formatPreciseValue(value: number | null | undefined, unit?: string | null): string {
+  if (value == null || !Number.isFinite(value)) return '—'
+  if (unit === 'ratio') return `${preciseFormat.format(value * 100)}%`
+  if (unit === 'ms') return `${preciseFormat.format(value)} ms`
+  return preciseFormat.format(value)
+}
+
+const CHART_LABEL_ESCAPES: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+}
+
+export function escapeChartLabel(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => CHART_LABEL_ESCAPES[char] ?? char)
+}
+
+export function toChartPoints(points: SeriesPoint[]): [number, number | null][] {
+  return points.map((point) => [new Date(point.t).getTime(), point.value])
+}
+
+export function hasIsolatedPoints(points: SeriesPoint[]): boolean {
+  return points.some(
+    (point, index) =>
+      point.value != null && points[index - 1]?.value == null && points[index + 1]?.value == null,
+  )
+}
+
+export function getMarkerSize(points: SeriesPoint[]): number {
+  return hasIsolatedPoints(points) ? CHART_MARKER_SIZE : 0
+}
+
+export function isFlatZero(points: SeriesPoint[]): boolean {
+  return (
+    points.some((point) => point.value != null) &&
+    points.every((point) => point.value == null || point.value === 0)
+  )
+}
+
+export function truncateChartLabel(value: string): string {
+  const characters = Array.from(value)
+  return characters.length > CHART_LEGEND_LABEL_LENGTH
+    ? `${characters.slice(0, CHART_LEGEND_LABEL_LENGTH - 1).join('')}…`
+    : value
+}
+
+export function getChartLegend(labels: string[]): ApexOptions['legend'] {
+  return {
+    show: true,
+    position: 'top',
+    horizontalAlign: 'right',
+    fontSize: '12px',
+    floating: true,
+    height: CHART_LEGEND_HEIGHT,
+    formatter: (_name: string, opts?: { seriesIndex: number }) =>
+      escapeChartLabel(truncateChartLabel(labels[opts?.seriesIndex ?? 0] ?? '')),
+  }
+}
+
+export function getSeriesCharts(series: Series[]): (ChartMeta & { series: Series })[] {
+  return series.map((entry) => ({
+    series: entry,
+    ...(SERIES_CHART_META[entry.key] ?? {
+      title: entry.label,
+      subtitle: '',
+      color: DEFAULT_CHART_COLOR,
+    }),
+  }))
+}

@@ -114,7 +114,6 @@ Run these from inside `frontend/`, or append `--workspace=frontend` from the rep
 | `npm run build` | Type-checks **and** builds for production (runs in parallel via `npm-run-all2`) |
 | `npm run build-only` | Vite build only — skips TypeScript checking |
 | `npm run build-storybook` | Builds a static Storybook site to `storybook-static/` |
-| `npm run style` | Regenerates theme CSS variables from design tokens in `tokens/` |
 
 > `npm run build` is equivalent to running `vue-tsc --build --force` and `vite build` concurrently.
 
@@ -146,12 +145,11 @@ frontend/
 │   ├── main.ts                  # App bootstrap — Vue, Pinia, Router, PrimeVue setup
 │   ├── App.vue                  # Root component
 │   │
-│   ├── assets/                  # Global styles and compiled design tokens
+│   ├── assets/                  # Global styles
 │   │   ├── main.css             # Global styles
 │   │   ├── base.css             # Base reset
 │   │   ├── null.css             # Additional reset
-│   │   ├── tables.css           # Table styles
-│   │   └── theme/               # Generated CSS variables (output of `npm run style`)
+│   │   └── tables.css           # Table styles
 │   │
 │   ├── components/              # Reusable Vue components grouped by feature
 │   │   ├── ui/                  # Primitive presentational components — no business logic
@@ -204,7 +202,6 @@ frontend/
 │   ├── webworker.js             # Data processing Web Worker
 │   └── data/                    # Sample datasets
 │
-├── tokens/                      # Design token source files (JSON, synced from Figma)
 │
 ├── tests/                       # Vitest global setup
 │
@@ -216,7 +213,6 @@ frontend/
 ├── tsconfig.app.json            # App TypeScript config — paths, DOM target
 ├── eslint.config.js             # ESLint 9 flat config
 ├── .prettierrc.json             # Prettier: no semis, single quotes, 100 char width
-├── style-dictionary.config.mjs  # Design token build config
 └── .env                         # Default environment variables (dev)
 ```
 
@@ -264,13 +260,7 @@ Python wheels and WASM binaries are pre-bundled in `public/` and loaded on deman
 
 ### Design tokens
 
-CSS variables for light and dark themes are generated from JSON token files using **Style Dictionary**. Source files live in `tokens/` and are synced from Figma. To regenerate after editing them:
-
-```bash
-npm run style
-```
-
-Output is written to `src/assets/theme/light-theme.css` and `src/assets/theme/dark-theme.css`.
+CSS variables for light and dark themes come from the shared workspace package `@luml/design-tokens` (`extras/js/packages/design-tokens`) and are imported in `src/assets/main.css`. See that package's README to regenerate them.
 
 ### API layer
 

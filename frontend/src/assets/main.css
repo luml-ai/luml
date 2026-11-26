@@ -2,8 +2,7 @@
 @import url('https://cdn.jsdelivr.net/npm/@vue-flow/core@1.42.1/dist/style.css');
 @import url('https://cdn.jsdelivr.net/npm/@vue-flow/core@1.42.1/dist/theme-default.css');
 @import './null.css';
-@import './theme/light-theme.css';
-@import './theme/dark-theme.css';
+@import '@luml/design-tokens/index.css';
 @import './base.css';
 @import './vue-flow.css';
 @import './scalar.css';

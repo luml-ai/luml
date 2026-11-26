@@ -23,7 +23,6 @@ export default defineConfigWithVueTs(
       '**/__tests__/**',
       'public/**',
       'eslint.config.js',
-      'style-dictionary.config.mjs',
       'src/stories/**',
       'playwright-report/**',
     ],

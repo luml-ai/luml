@@ -1,6 +1,10 @@
 <template>
   <div class="monitoring-page">
-    <Breadcrumb :model="breadcrumbs" :pt="{ root: { style: 'padding-left: 0' } }">
+    <Breadcrumb
+      :model="breadcrumbs"
+      :pt="{ root: { style: 'padding-left: 0' } }"
+      class="breadcrumbs"
+    >
       <template #item="{ item, props: itemProps }">
         <RouterLink v-if="item.route" v-slot="{ href, navigate }" :to="item.route" custom>
           <a :href="href" v-bind="itemProps.action" @click="navigate">{{ item.label }}</a>
@@ -200,11 +204,16 @@ onUnmounted(() => {
   padding-top: 18px;
 }
 
+.breadcrumbs {
+  margin-bottom: 16px;
+}
+
 .monitoring-frame {
   width: 100%;
-  height: calc(100vh - 160px);
+  height: calc(100vh - 156px);
   border: none;
   border-radius: 8px;
   background-color: var(--p-card-background);
+  margin: -16px;
 }
 </style>

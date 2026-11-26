@@ -18,6 +18,7 @@ on:
       - 'lumlflow/**'
       # The SDK and Flow install it from source (tool.uv.sources).
       - 'relay/**'
+      - 'satellite/monitoring-ui/**'
       - 'dev/backend.env'
       - 'dev/seed.py'
       - 'package.json'
@@ -35,6 +36,7 @@ on:
       - 'sdk/**'
       - 'lumlflow/**'
       - 'relay/**'
+      - 'satellite/monitoring-ui/**'
       - 'dev/backend.env'
       - 'dev/seed.py'
       - 'package.json'
