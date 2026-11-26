@@ -59,7 +59,7 @@ known-first-party = ["clients", "handlers", "services", "utils"]
 split-on-trailing-comma = true
 
 [tool.ty.src]
-include = ["clients", "handlers", "services", "utils", "conda_manager.py", "conda_worker.py", "main.py", "openapi_generator.py", "server.py", "telemetry.py", "tests"]
+include = ["clients", "handlers", "services", "utils", "compute_mode.py", "conda_manager.py", "conda_worker.py", "main.py", "openapi_generator.py", "server.py", "telemetry.py", "tests"]
 
 [tool.ty.terminal]
 error-on-warning = true

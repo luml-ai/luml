@@ -71,6 +71,7 @@ How it works:
 `tabular_pyfunc.py`, the file that is copied into the artifact:
 
 ```python
+from fnnx.utils import to_thread
 from fnnx.variants.pyfunc import PyFunc
 
 
@@ -89,8 +90,10 @@ class TabularModel(PyFunc):
         return {"y": self.model.predict(rows)}
 
     async def compute_async(self, inputs: dict, dynamic_attributes: dict) -> dict:
-        return self.compute(inputs, dynamic_attributes)
+        return await to_thread(self.fnnx_context.executor, self.compute, inputs, dynamic_attributes)
 ```
+
+A pyfunc that does not support async raises `NotImplementedError` from `compute_async` before doing any work.
 
 The build script:
 
@@ -152,6 +155,7 @@ so the deployment asks for it and the artifact never contains it.
 `chain_pyfunc.py`:
 
 ```python
+from fnnx.utils import to_thread
 from fnnx.variants.pyfunc import PyFunc
 
 
@@ -175,7 +179,7 @@ class SupportAnswer(PyFunc):
         return {"answer": {"text": response.choices[0].message.content}}
 
     async def compute_async(self, inputs: dict, dynamic_attributes: dict) -> dict:
-        return self.compute(inputs, dynamic_attributes)
+        return await to_thread(self.fnnx_context.executor, self.compute, inputs, dynamic_attributes)
 ```
 
 The build script:

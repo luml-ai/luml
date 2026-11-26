@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import sys
@@ -5,6 +6,7 @@ from typing import Any
 
 import uvicorn
 
+from compute_mode import ComputeMode, classify_compute
 from openapi_generator import OpenAPIGenerator
 from services.base_service import HTTPException
 from services.service import UvicornService
@@ -59,17 +61,28 @@ try:
 
     from telemetry import model_span
 
+    compute_mode, compute_mode_reason = classify_compute(extracted_path)
+    logger.info("Compute mode %s: %s", compute_mode.value, compute_mode_reason)
+    use_sync_compute = compute_mode == ComputeMode.SYNC
+
     async def compute_model(
         inputs: dict,
         dynamic_attributes: dict,
         headers: dict[str, str] | None = None,
     ) -> dict:
+        global use_sync_compute
+
         async with model_span(headers or {}):
-            try:
-                result = await handler.compute_async(inputs, dynamic_attributes)
-            except NotImplementedError:
-                logger.info("compute_async not implemented, falling back to sync compute")
-                result = handler.compute(inputs, dynamic_attributes)
+            if use_sync_compute:
+                result = await asyncio.to_thread(handler.compute, inputs, dynamic_attributes)
+            else:
+                try:
+                    result = await handler.compute_async(inputs, dynamic_attributes)
+                except NotImplementedError:
+                    if not use_sync_compute:
+                        use_sync_compute = True
+                        logger.warning("compute_async not implemented, switching to sync compute")
+                    result = await asyncio.to_thread(handler.compute, inputs, dynamic_attributes)
             return to_jsonable(result)
 
     openapi_gen = None
