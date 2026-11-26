@@ -8,6 +8,7 @@ import type { PlotStatus } from '../dynamic-metrics.interface'
 import { plotlyService } from '@/services/PlotlyService'
 import { ThemeKey } from '@/lib/theme/ThemeProvider'
 import { MetricBucketStore } from '@/metric-buckets/MetricBucketStore'
+import { traceUid } from '@/lib/metric-charts/bucketTraces'
 import { BucketCache } from '@/metric-buckets/BucketCache'
 import type { BucketReadRequest } from '@/metric-buckets/planner'
 import type { ModelInfo } from '@/interfaces/interfaces'
@@ -138,7 +139,7 @@ function traces(element?: HTMLElement): Trace[] {
 }
 
 function lineOf(modelId: string, element?: HTMLElement): Trace {
-  const line = traces(element).find((trace) => trace.uid === `${modelId}-line`)
+  const line = traces(element).find((trace) => trace.uid === traceUid(modelId, 'line'))
   if (!line) throw new Error(`No line for ${modelId}`)
   return line
 }
@@ -521,6 +522,41 @@ describe('DynamicMetricsItem lifecycle', () => {
 
     expect(source.abortedCalls).toBe(1)
     expect(mock.calls.length).toBe(rendersAfterUnmount)
+  })
+
+  it('can leave the metrics tab while the chart library loads', async () => {
+    const getPlotly = vi.mocked(plotlyService.getPlotly)
+    const waiting: (() => void)[] = []
+    getPlotly.mockImplementation(
+      () => new Promise((resolve) => waiting.push(() => resolve(plotlyMock.current as never))),
+    )
+    try {
+      const wrapper = mount(DynamicMetricsItem, {
+        props: {
+          store: new MetricBucketStore(new FakeBucketSource({ m1: { loss: points(0, 9) } }), {
+            debounceMs: 0,
+          }),
+          metricName: 'loss',
+          modelIds: ['m1'],
+          fullRange: { first: 0, last: 9 },
+          modelsInfo: MODELS,
+        },
+        global: {
+          provide: { [ThemeKey]: ref('light') },
+          stubs: { DynamicMetricsItemContent: ContentStub, ProgressSpinner: true },
+        },
+      })
+      await settle()
+      expect(waiting.length).toBeGreaterThan(0)
+
+      wrapper.unmount()
+      waiting.forEach((finish) => finish())
+      await settle()
+
+      expect(mock.calls).toHaveLength(0)
+    } finally {
+      getPlotly.mockImplementation(async () => plotlyMock.current as never)
+    }
   })
 
   it('fills the fullscreen chart opened during a load from the same read', async () => {

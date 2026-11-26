@@ -3,10 +3,14 @@ import json
 import os
 import platform
 import re
+import stat
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
+from typing import Any
 
 if sys.platform == "win32":
     import msvcrt
@@ -15,9 +19,10 @@ else:
 
 from lumlflow import __version__
 from lumlflow.flow.atomic import atomic_write_bytes
+from lumlflow.flow.daemon.files import entry_path
 from lumlflow.flow.dsl.tree import EXCLUDED_DIRS
-from lumlflow.flow.errors import FlowAmbiguous, FlowError, FlowNotFound
-from lumlflow.flow.store.flowstore import FLOW_SUFFIX, store_dir
+from lumlflow.flow.errors import FlowAmbiguous, FlowError, FlowNotFound, OsError
+from lumlflow.flow.store.flowstore import FLOW_SUFFIX, STORE_DIRNAME, store_dir
 
 STATE_DIR_ENV = "LUMLFLOW_STATE_DIR"
 LOGS_DIRNAME = "logs"
@@ -73,13 +78,44 @@ class DaemonRecord:
         return json.dumps(self.__dict__, sort_keys=True).encode("utf-8")
 
 
+def entry_row(path: Path, *, file: bool) -> dict[str, Any] | None:
+    try:
+        info = path.lstat()
+        link = stat.S_ISLNK(info.st_mode)
+        size: int | None = info.st_size
+        if link:
+            try:
+                info = path.stat()
+                size = info.st_size
+            except OSError:
+                size = None
+        if file and (
+            stat.S_ISDIR(info.st_mode) or not (link or stat.S_ISREG(info.st_mode))
+        ):
+            return None
+    except (FileNotFoundError, NotADirectoryError):
+        return None  # Removed between the scan and reading this page.
+    except OSError as failure:
+        raise OsError(failure.strerror or str(failure)) from failure
+    row: dict[str, Any] = {
+        "name": path.name,
+        "path": str(path),
+        "modified_at": datetime.fromtimestamp(info.st_mtime, UTC).isoformat(),
+        "is_symlink": link,
+    }
+    if file:
+        row["size"] = size
+    return row
+
+
 @dataclass(frozen=True)
 class DirectoryListing:
     flows: list[FlowRef]
     folders: list[Path]
+    files: list[Path]
 
 
-def list_directory(root: Path) -> DirectoryListing:
+def list_directory(root: Path, *, show_hidden: bool = False) -> DirectoryListing:
     root = root.resolve()
     if root.name.endswith(FLOW_SUFFIX) and root.is_dir():
         return DirectoryListing(
@@ -87,34 +123,39 @@ def list_directory(root: Path) -> DirectoryListing:
                 FlowRef(name=root.name[: -len(FLOW_SUFFIX)], path=root, relpath=".")
             ],
             folders=[],
+            files=[],
         )
     try:
-        entries = sorted(os.scandir(root), key=lambda entry: entry.name)
+        with os.scandir(root) as scan:
+            entries = sorted(scan, key=lambda e: (e.name.casefold(), e.name))
     except (FileNotFoundError, NotADirectoryError):
         raise FlowError(f"there is no directory `{root}`") from None
-    except OSError:
-        raise FlowError(f"cannot read `{root}`") from None
+    except OSError as failure:
+        raise OsError(f"cannot read `{root}`: {failure.strerror}") from failure
     flows: list[FlowRef] = []
     folders: list[Path] = []
+    files: list[Path] = []
     for entry in entries:
-        # One level, never descended: a linked directory cannot loop.
-        try:
-            if not entry.is_dir():
-                continue
-        except OSError:
+        name = entry.name
+        if name == STORE_DIRNAME or (
+            not show_hidden and (name.startswith(".") or name in EXCLUDED_DIRS)
+        ):
             continue
-        if entry.name.endswith(FLOW_SUFFIX):
-            path = Path(entry.path)
-            flows.append(
-                FlowRef(
-                    name=entry.name[: -len(FLOW_SUFFIX)],
-                    path=path.resolve() if entry.is_symlink() else path,
-                    relpath=entry.name,
-                )
-            )
-        elif entry.name not in EXCLUDED_DIRS and not entry.name.startswith("."):
-            folders.append(root / entry.name)
-    return DirectoryListing(flows=flows, folders=folders)
+        path = Path(entry.path)
+        try:
+            if entry.is_dir():
+                target = path.resolve() if entry.is_symlink() else path
+                if target.name.endswith(FLOW_SUFFIX):
+                    flows.append(FlowRef(name.removesuffix(FLOW_SUFFIX), path, name))
+                else:
+                    folders.append(path)
+            elif entry.is_symlink() or entry.is_file():
+                files.append(path)
+        except OSError:
+            if entry.is_symlink():
+                files.append(path)  # An inaccessible or looping link.
+    flows.sort(key=lambda ref: (ref.name.casefold(), ref.name))
+    return DirectoryListing(flows=flows, folders=folders, files=files)
 
 
 Lister = Callable[[Path], DirectoryListing]
@@ -128,7 +169,7 @@ def select_flow(
     lister: Lister | None = None,
 ) -> FlowRef:
     root = root.resolve()
-    lister = lister or list_directory
+    lister = lister or partial(list_directory, show_hidden=True)
     if name is not None:
         return _addressed(root, name, lister)
     standing = _standing_flow(cwd or root)
@@ -315,20 +356,21 @@ def _unlock(handle: int) -> None:
 
 def _addressed(root: Path, name: str, lister: Lister) -> FlowRef:
     if Path(name).is_absolute():
-        return _at_path(root, Path(name).resolve())
+        return _at_path(root, entry_path(Path(name), strict=False))
     wanted = name.strip("/")
     if ".." in Path(wanted).parts:
         raise FlowError(f"`{name}` is not a path a flow can be named by")
     if len(Path(wanted).parts) > 1:
         if not wanted.endswith(FLOW_SUFFIX):
             wanted += FLOW_SUFFIX
-        return _at_path(root, (root / wanted).resolve())
+        path = root / wanted
+        return _at_path(root, entry_path(path, strict=False))
     bare = wanted.removesuffix(FLOW_SUFFIX)
     standing = _standing_flow(root)
     if standing is not None and bare == standing.name:
         return standing
     path = root / f"{bare}{FLOW_SUFFIX}"
-    if bare and path.is_dir():
+    if bare and path.is_dir() and path.resolve().name.endswith(FLOW_SUFFIX):
         return FlowRef(name=bare, path=path, relpath=path.name)
     raise _missing(root, name, lister)
 
@@ -351,42 +393,18 @@ def _missing(root: Path, name: str, lister: Lister) -> FlowNotFound:
 
 
 def _at_path(root: Path, path: Path) -> FlowRef:
-    if path == root and path.name.endswith(FLOW_SUFFIX):
-        if not path.is_dir():
-            raise FlowNotFound(f"there is no flow at `{path}`")
-        return FlowRef(
-            name=path.name[: -len(FLOW_SUFFIX)],
-            path=path,
-            relpath=path.name,
-        )
-    if path.is_relative_to(root):
+    if not path.is_dir() or not path.resolve().name.endswith(FLOW_SUFFIX):
+        raise FlowNotFound(f"there is no flow at `{path}`")
+    if path == root:
+        relative = path.name
+    elif path.is_relative_to(root):
         relpath = path.relative_to(root)
-        if path.is_dir() and _discoverable(relpath):
-            return FlowRef(
-                name=path.name[: -len(FLOW_SUFFIX)],
-                path=path,
-                relpath=relpath.as_posix(),
-            )
-        raise FlowNotFound(f"there is no flow at `{path}`")
-    return _outside_flow(path)
-
-
-def _discoverable(relpath: Path) -> bool:
-    """Whether `relpath` names a `.flow` directory with no `.flow` directory
-    above it. A folder a listing hides is still reached by its path."""
-
-    *above, name = relpath.parts or ("",)
-    return name.endswith(FLOW_SUFFIX) and not any(
-        part.endswith(FLOW_SUFFIX) for part in above
-    )
-
-
-def _outside_flow(path: Path) -> FlowRef:
-    if not (path.is_dir() and path.name.endswith(FLOW_SUFFIX)):
-        raise FlowNotFound(f"there is no flow at `{path}`")
-    return FlowRef(
-        name=path.name[: -len(FLOW_SUFFIX)], path=path, relpath=path.as_posix()
-    )
+        if any(p.name.endswith(FLOW_SUFFIX) for p in relpath.parents):
+            raise FlowNotFound(f"there is no flow at `{path}`")
+        relative = relpath.as_posix()
+    else:
+        relative = path.as_posix()
+    return FlowRef(path.name.removesuffix(FLOW_SUFFIX), path, relative)
 
 
 def _standing_flow(directory: Path) -> FlowRef | None:

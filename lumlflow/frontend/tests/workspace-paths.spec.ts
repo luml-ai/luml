@@ -8,6 +8,9 @@ vi.mock('@/api/slices/workspace/workspace.api', async (importOriginal) => ({
       directory: directory ?? 'C:\\start',
       flows: [],
       folders: [],
+      files: [],
+      total: 0,
+      next_offset: null,
     })),
   },
 }))
@@ -59,7 +62,7 @@ describe('workspace navigation', () => {
     await vi.runAllTimersAsync()
     await up
 
-    expect(workspaceApi.listFlows).toHaveBeenLastCalledWith('C:\\Users\\me')
+    expect(workspaceApi.listFlows).toHaveBeenLastCalledWith('C:\\Users\\me', false, 0)
     expect(store.currentDirectory).toBe('C:\\Users\\me')
   })
 })
@@ -79,5 +82,16 @@ describe('pathSegments', () => {
       { name: 'p', path: 'C:\\p' },
       { name: 'team', path: 'C:\\p\\team' },
     ])
+  })
+
+  it('keeps a backslash inside a posix name', () => {
+    expect(pathSegments(String.raw`/work/run\42.luml`)).toEqual([
+      { name: 'work', path: '/work' },
+      { name: String.raw`run\42.luml`, path: String.raw`/work/run\42.luml` },
+    ])
+  })
+
+  it('keeps a trailing backslash of a posix name', () => {
+    expect(pathSegments('/x/a\\').at(-1)).toEqual({ name: 'a\\', path: '/x/a\\' })
   })
 })

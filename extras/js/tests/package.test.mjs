@@ -21,9 +21,24 @@ if (packageJson.name === '@luml/experiments') {
 }
 
 for (const format of ['es', 'umd']) {
-  test(`library builds externalize every peer, runtime dependency and subpath (${format})`, async () => {
-    const { config } = await loadConfigFromFile({ command: 'build', mode: 'production' })
-    const peers = Object.keys(externals)
+  test(`library builds externalize the expected dependencies and subpaths (${format})`, async () => {
+    const browserPreview = packageJson.name === '@luml/attachments' && format === 'umd'
+    const { config } = await loadConfigFromFile({
+      command: 'build',
+      mode: browserPreview ? 'browser-global' : 'production',
+    })
+    const bundled = browserPreview
+      ? [
+          ...Object.keys(externals).filter((peer) => peer.startsWith('@codemirror/')),
+          '@lezer/highlight',
+          'jsonc-parser',
+          'js-yaml',
+          'hyparquet',
+          'hyparquet-compressors',
+          ...Object.keys(packageJson.dependencies),
+        ]
+      : []
+    const peers = Object.keys(externals).filter((peer) => !bundled.includes(peer))
     const requests = peers.flatMap((peer) => [peer, `${peer}/packaging-test`])
     const unrelated = `${peers[0]}-unrelated`
     const result = await build({

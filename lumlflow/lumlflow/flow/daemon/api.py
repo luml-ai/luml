@@ -11,10 +11,12 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
+from functools import partial
 from pathlib import Path
 from typing import Any, Literal, get_args
 
-from lumlflow.flow.daemon import envs, handoff, harnesses, queries, workspace
+from lumlflow.flow.daemon import envs, files, handoff, harnesses, queries, workspace
+from lumlflow.flow.daemon.file_watcher import FileWatcher, Sessions
 from lumlflow.flow.daemon.hub import FlowSession, Hub
 from lumlflow.flow.daemon.projections import Projection
 from lumlflow.flow.daemon.workspace import FlowRef
@@ -27,6 +29,7 @@ from lumlflow.flow.errors import (
     FlowError,
     FlowNotFound,
     LaneMoved,
+    NotAFile,
     ValueNotStored,
 )
 from lumlflow.flow.ids import new_ulid
@@ -133,6 +136,9 @@ class Api:
         stop: Callable[[], None] | None = None,
         attachments: AttachmentCheck | None = None,
         leases: LeaseCheck | None = None,
+        revoke_lease: Callable[[str, str], None] | None = None,
+        file_sessions: Callable[[], Sessions] | None = None,
+        file_activity: Callable[[object, str], None] | None = None,
         instance_id: str = "",
         harness_service: harnesses.HarnessService | None = None,
     ) -> None:
@@ -143,6 +149,7 @@ class Api:
         self._stop = stop
         self._attachments = attachments
         self._leases = leases
+        self._revoke_lease = revoke_lease
         self._harnesses = harness_service or harnesses.HarnessService()
         # Upload jobs in flight. A task nothing references may be collected
         # mid-upload; the set holds each until its done callback drops it.
@@ -152,6 +159,12 @@ class Api:
         self._claims: dict[tuple[str, str, str], _Claim] = {}
         self.pending_runs: list[_PendingRun] = []
         self.clock: Callable[[], float] = time.time
+        self.file_watcher = FileWatcher(
+            file_sessions or dict,
+            lambda: self.clock(),
+            CLAIM_IDLE_S,
+            heard=file_activity,
+        )
         self.kernel_idle_s = _idle_seconds(KERNEL_IDLE_ENV, KERNEL_IDLE_S)
         self.session_idle_s = _idle_seconds(SESSION_IDLE_ENV, SESSION_IDLE_S)
         self.methods: dict[str, Method] = {
@@ -162,7 +175,9 @@ class Api:
             "tree": self.tree,
             "graph": self.graph,
             "diff": self.diff,
+            "ui.attach": self.ui_attach,
             "workspace.list": self.workspace_list,
+            "workspace.file": self.workspace_file,
             "agents.harnesses": self.agents_harnesses,
             "agents.setup": self.agents_setup,
             "agents.remove": self.agents_remove,
@@ -171,6 +186,15 @@ class Api:
             "flow.checkout": self.flow_checkout,
             "flow.delete": self.flow_delete,
             "flow.rename": self.flow_rename,
+            "flow.move": self.flow_move,
+            "file.rename": self.file_rename,
+            "file.move": self.file_move,
+            "file.delete": self.file_delete,
+            "file.mkdir": self.file_mkdir,
+            "file.create": self.file_create,
+            "file.read_text": self.file_read_text,
+            "file.write_text": self.file_write_text,
+            "file.agent_wrote": self.file_agent_wrote,
             "flow.duplicate": self.flow_duplicate,
             "flows.open": self.flows_open,
             "cells.list": self.cells_list,
@@ -184,6 +208,8 @@ class Api:
             "asset.preview": self.asset_preview,
             "asset.page": self.asset_page,
             "asset.download": self.asset_download,
+            "file.inspect": self.file_inspect,
+            "file.publish": self.file_publish,
             "asset.publish": self.asset_publish,
             "experiment.publish": self.experiment_publish,
             "export": self.export,
@@ -317,9 +343,31 @@ class Api:
             session, [str(name) for name in params.get("branches") or []]
         )
 
+    async def ui_attach(self, params: dict[str, Any]) -> dict[str, Any]:
+        directory = self._directory(params)
+        self.hub.check_available(directory)
+        return {"directory": str(directory)}
+
     async def workspace_list(self, params: dict[str, Any]) -> dict[str, Any]:
         directory = self._directory(params)
-        listing = self.hub.listing(directory)
+        offset = params.get("offset", 0)
+        limit = params.get("limit", 2000)
+        show_hidden = params.get("show_hidden", False)
+        if type(offset) is not int or offset < 0:
+            raise FlowError("`offset` must be a nonnegative integer")
+        if type(limit) is not int or limit < 1:
+            raise FlowError("`limit` must be a positive integer")
+        if not isinstance(show_hidden, bool):
+            raise FlowError("`show_hidden` must be a boolean")
+        end = offset + min(limit, 2000)
+        listing = self.hub.listing(directory, show_hidden=show_hidden)
+        folder_start = len(listing.flows)
+        file_start = folder_start + len(listing.folders)
+        total = file_start + len(listing.files)
+        folders = listing.folders[
+            max(0, offset - folder_start) : max(0, end - folder_start)
+        ]
+        files = listing.files[max(0, offset - file_start) : max(0, end - file_start)]
         return {
             "directory": str(directory),
             "flows": [
@@ -327,13 +375,27 @@ class Api:
                     "name": ref.name,
                     "path": ref.address,
                     "relative_path": ref.relpath,
+                    "is_symlink": ref.path.is_symlink(),
                 }
-                for ref in listing.flows
+                for ref in listing.flows[offset:end]
             ],
             "folders": [
-                {"name": folder.name, "path": str(folder)} for folder in listing.folders
+                row for p in folders if (row := workspace.entry_row(p, file=False))
             ],
+            "files": [row for p in files if (row := workspace.entry_row(p, file=True))],
+            "total": total,
+            "next_offset": end if end < total else None,
         }
+
+    async def workspace_file(self, params: dict[str, Any]) -> dict[str, Any]:
+        try:
+            path = files.ordinary_entry(params.get("path", ""), strict=False)
+        except NotAFile:
+            return {"file": None}
+        row = workspace.entry_row(path, file=True)
+        if row is not None:
+            row["path"] = params["path"]
+        return {"file": row}
 
     def sync_agents(self) -> list[dict[str, Any]]:
         return self._harnesses.sync()
@@ -361,6 +423,8 @@ class Api:
 
     async def flow_open(self, params: dict[str, Any]) -> dict[str, Any]:
         ref = self.resolve(_flow_name(params), directory=self._directory(params))
+        # The UI is told at once; Hub.open itself would wait for the operation.
+        self.hub.check_available(ref.path)
         session = await self.hub.open(ref, actor=_actor(params))
         session.experiment_states.clear()
         if params.get("worktree", True):
@@ -380,15 +444,128 @@ class Api:
         )
         return await self._flow_brief(session) | _projection(projection)
 
+    def _mutation_flow(self, params: dict[str, Any]) -> FlowRef:
+        name = params.get("flow")
+        if name is not None and (not isinstance(name, str) or not name or "\0" in name):
+            raise FlowError("a notebook name or path is required")
+        with files.os_errors():
+            return self.resolve(name, directory=self._directory(params))
+
     async def flow_delete(self, params: dict[str, Any]) -> dict[str, Any]:
-        ref = self.resolve(_flow_name(params), directory=self._directory(params))
-        await self.hub.delete_flow(ref)
+        ref = self._mutation_flow(params)
+        await self.hub.delete_flow(ref, close_open=params.get("close_open", False))
         return {"deleted": ref.name, "path": ref.address}
 
     async def flow_rename(self, params: dict[str, Any]) -> dict[str, Any]:
-        ref = self.resolve(_flow_name(params), directory=self._directory(params))
-        renamed = await self.hub.rename_flow(ref, str(params.get("name") or ""))
+        ref = self._mutation_flow(params)
+        renamed = await self.hub.rename_flow(
+            ref,
+            files.valid_name(params.get("name")),
+            close_open=params.get("close_open", False),
+        )
         return {"renamed": renamed.name, "path": renamed.address, "from": ref.address}
+
+    async def flow_move(self, params: dict[str, Any]) -> dict[str, Any]:
+        address = files.absolute_path(params.get("flow", params.get("path")))
+        with files.os_errors():
+            ref = self.resolve(str(address))
+        destination = files.directory_path(params.get("destination", ""))
+        target = FlowRef(ref.name, destination / ref.path.name, ref.path.name)
+        moved = await self.hub.move_flow(
+            ref,
+            target,
+            close_open=params.get("close_open", False),
+        )
+        return {"moved": moved.name, "path": moved.address, "from": ref.address}
+
+    async def file_rename(self, params: dict[str, Any]) -> dict[str, Any]:
+        source = files.item_path(params.get("path", ""))
+        target = files.target_path(
+            source.parent,
+            params.get("name", ""),
+            directory=not source.is_symlink() and source.is_dir(),
+        )
+        return await self._change_path(source, target, params)
+
+    async def file_move(self, params: dict[str, Any]) -> dict[str, Any]:
+        source = files.item_path(params.get("path", ""))
+        destination = files.directory_path(params.get("destination", ""))
+        return await self._change_path(source, destination / source.name, params)
+
+    async def file_delete(self, params: dict[str, Any]) -> dict[str, Any]:
+        source = files.item_path(params.get("path", ""))
+        return await self._change_path(source, None, params)
+
+    async def _change_path(
+        self, source: Path, target: Path | None, params: dict[str, Any]
+    ) -> dict[str, Any]:
+        await self.hub.change_path(
+            source,
+            target,
+            close_open=params.get("close_open", False),
+            written=self.file_watcher.prepare_move(source)
+            if target is not None
+            else None,
+        )
+        return {"path": str(target or source)}
+
+    async def file_create(self, params: dict[str, Any]) -> dict[str, Any]:
+        return self._create_entry(params, folder=False)
+
+    async def file_mkdir(self, params: dict[str, Any]) -> dict[str, Any]:
+        return self._create_entry(params, folder=True)
+
+    async def file_read_text(self, params: dict[str, Any]) -> dict[str, Any]:
+        target = files.text_target(params.get("path", ""))
+        self.hub.check_available(target)
+        text, info, revision = await asyncio.to_thread(files.read_text, target)
+        return {
+            "text": text,
+            "target": str(target),
+            "mtime_ns": str(info.st_mtime_ns),
+            "revision": revision,
+        }
+
+    async def file_write_text(self, params: dict[str, Any]) -> dict[str, Any]:
+        target = files.text_target(
+            params.get("path", ""), self.file_watcher.check_write
+        )
+        self.hub.check_available(target)
+        # Keep the check and replacement in one event-loop turn so another RPC
+        # cannot split the save.
+        info, revision = files.write_text(
+            target,
+            params.get("text"),
+            params.get("mtime_ns"),
+            params.get("revision"),
+            check_lock=self.file_watcher.check_write,
+            force=params.get("force", False),
+        )
+        return {"mtime_ns": str(info.st_mtime_ns), "revision": revision}
+
+    async def file_agent_wrote(self, params: dict[str, Any]) -> dict[str, Any]:
+        harness_pid = str(params.get("harness_pid", ""))
+        if "shell" in params:
+            self.file_watcher.agent_shell(
+                harness_pid,
+                params["shell"] == "start",
+                str(params.get("call") or ""),
+            )
+            return {}
+        with files.os_errors():
+            target = files.regular_file(params.get("path", "")).resolve(strict=True)
+            self.file_watcher.agent_wrote(target, harness_pid)
+        return {}
+
+    def _create_entry(self, params: dict[str, Any], *, folder: bool) -> dict[str, Any]:
+        target = files.target_path(
+            files.directory_path(params.get("directory", "")),
+            params.get("name", ""),
+            directory=folder,
+        )
+        self.hub.check_available(target)
+        files.create(target, folder=folder)
+        return {"path": str(target)}
 
     async def flow_duplicate(self, params: dict[str, Any]) -> dict[str, Any]:
         actor = _actor(params)
@@ -628,6 +805,33 @@ class Api:
             "path": str(destination),
         }
 
+    async def file_inspect(self, params: dict[str, Any]) -> dict[str, Any]:
+        from lumlflow.flow.daemon.archives import inspect_archive, luml_file
+
+        path = luml_file(params.get("path", ""))
+        return await asyncio.to_thread(inspect_archive, path)
+
+    async def file_publish(self, params: dict[str, Any]) -> dict[str, Any]:
+        from lumlflow.flow.daemon.archives import luml_file
+
+        path = luml_file(params.get("path", ""))
+        form = _publish_form(params)
+        with (
+            files.os_errors(),
+            tempfile.NamedTemporaryFile(suffix=".luml", delete=False) as snapshot,
+        ):
+            bundle = Path(snapshot.name)
+        try:
+            with files.os_errors():
+                await files.finish_operation(
+                    asyncio.to_thread(shutil.copyfile, path, bundle)
+                )
+            job_id = self._start_upload(bundle, form, cleanup=[bundle])
+        except BaseException:
+            bundle.unlink(missing_ok=True)
+            raise
+        return {"job_id": job_id}
+
     async def asset_publish(self, params: dict[str, Any]) -> dict[str, Any]:
         session, branch, slug, output, record = await self.stored_output(params)
         here = queries.read(session, branch)
@@ -643,7 +847,7 @@ class Api:
             session, here, uid, slug, output, record
         )
         try:
-            job_id = self._start_upload(bundle, form)
+            job_id = self._start_upload(bundle, form, cleanup=[bundle])
         except Exception:
             bundle.unlink(missing_ok=True)
             raise
@@ -772,7 +976,9 @@ class Api:
             raise
         return destination, packaged
 
-    def _start_upload(self, bundle: Path, form: dict[str, Any]) -> str:
+    def _start_upload(
+        self, bundle: Path, form: dict[str, Any], *, cleanup: list[Path]
+    ) -> str:
         from lumlflow.api.luml import artifact_handler
         from lumlflow.schemas.luml import ArtifactIn, UploadFileForm
 
@@ -784,7 +990,7 @@ class Api:
             artifact=ArtifactIn.model_validate(form["artifact"]),
         )
         return self._spawn_upload(
-            lambda job_id: artifact_handler.upload_file(upload, job_id), [bundle]
+            lambda job_id: artifact_handler.upload_file(upload, job_id), cleanup
         )
 
     def _start_experiment_upload(
@@ -1046,7 +1252,9 @@ class Api:
             "leased": bool(params.get("lease")),
         }
 
-    async def agent_end(self, params: dict[str, Any]) -> dict[str, Any]:
+    async def agent_end(
+        self, params: dict[str, Any], *, revoke_lease: bool = True
+    ) -> dict[str, Any]:
         actor = str(params.get("actor") or "")
         session = await self._session(
             params,
@@ -1065,6 +1273,8 @@ class Api:
             intent=params.get("intent") or f"{registered.label} finished",
             actor=registered.actor,
         )
+        if revoke_lease and self._revoke_lease is not None:
+            self._revoke_lease(session.ref.address, registered.actor)
         self._announce_agents(session)
         return {
             "flow": session.ref.address,
@@ -1234,12 +1444,13 @@ class Api:
 
     def resolve(self, name: str | None, *, directory: Path | None = None) -> FlowRef:
         directory = directory or self.directory
-        if name is None or Path(name).is_absolute() or _nested(name):
-            return workspace.select_flow(directory, name=name, lister=self.hub.listing)
-        here = self.hub.lookup(name, directory)
-        if here is not None:
-            return here
-        return workspace.select_flow(directory, name=name, lister=self.hub.listing)
+        if name is not None and not Path(name).is_absolute() and not _nested(name):
+            here = self.hub.lookup(name, directory)
+            if here is not None:
+                return here
+        return workspace.select_flow(
+            directory, name=name, lister=partial(self.hub.listing, show_hidden=True)
+        )
 
     async def sweep_idle(self) -> None:
         """Stop the kernels nothing has used lately, then let go of the flows
@@ -1489,11 +1700,13 @@ class Api:
             session.store.index.head_step(row.branch_id)
         )
 
-    def forget_agent(self, actor: str) -> None:
-        for key in [held for held in self._lane_seen if held[1] == actor]:
-            del self._lane_seen[key]
+    def forget_agent(self, actor: str, *, flow: str | None = None) -> None:
+        for key in tuple(self._lane_seen):
+            if key[1] == actor and (flow is None or key[0] == flow):
+                del self._lane_seen[key]
         for session in self.hub.opened():
-            self._release_where(session, lambda claim: claim.actor == actor)
+            if flow is None or session.ref.address == flow:
+                self._release_where(session, lambda claim: claim.actor == actor)
 
     def claim(self, method: str, params: dict[str, Any], *, label: str) -> None:
         if not _names_a_cell(params):
@@ -1573,6 +1786,7 @@ class Api:
         self._announce_claims(session)
 
     def expire_claims(self) -> None:
+        self.file_watcher.expire()
         now = self.clock()
         for session in self.hub.opened():
             if self._expire(session.ref.address, now):
@@ -2070,27 +2284,32 @@ def _leaves(session: FlowSession, branch: str) -> list[str]:
 
 
 def _publish_form(params: dict[str, Any]) -> dict[str, Any]:
+    from pydantic import ValidationError
+
+    from lumlflow.schemas.luml import ArtifactIn
+
+    destination = ("organization_id", "orbit_id", "collection_id")
     missing = [
         key
-        for key in ("organization_id", "orbit_id", "collection_id")
-        if not params.get(key)
+        for key in destination
+        if not isinstance(params.get(key), str) or not params[key].strip()
     ]
     if missing:
         raise FlowError(
             "publishing to LUML needs " + ", ".join(f"`{key}`" for key in missing)
         )
-    artifact = dict(params.get("artifact") or {})
-    if not str(artifact.get("name") or "").strip():
+    try:
+        artifact = ArtifactIn.model_validate(params.get("artifact", {}), strict=True)
+    except ValidationError as failure:
+        raise FlowError("invalid artifact name, description or tags") from failure
+    if not artifact.name or not artifact.name.strip():
         raise FlowError("publishing to LUML needs `artifact.name`")
-    return {
-        "organization_id": params["organization_id"],
-        "orbit_id": params["orbit_id"],
-        "collection_id": params["collection_id"],
+    return {key: params[key] for key in destination} | {
         "artifact": {
-            "name": str(artifact["name"]).strip(),
-            "description": artifact.get("description") or None,
-            "tags": [str(tag) for tag in artifact.get("tags") or []],
-        },
+            "name": artifact.name.strip(),
+            "description": artifact.description or None,
+            "tags": artifact.tags or [],
+        }
     }
 
 

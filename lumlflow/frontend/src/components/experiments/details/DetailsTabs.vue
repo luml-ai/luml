@@ -1,12 +1,12 @@
 <template>
-  <Tabs :value="currentRouteName">
+  <Tabs :value="activeLabel">
     <TabList :pt="TABLIST_PT">
       <Tab
         v-for="tab in items"
         :key="tab.label"
-        :value="tab.route.name"
+        :value="tab.label"
         class="tab"
-        @click="$router.push(tab.route)"
+        @click="select(tab)"
       >
         <component :is="tab.icon" :size="14" />
         <span>{{ tab.label }}</span>
@@ -19,7 +19,7 @@
 import { ROUTE_NAMES } from '@/router/router.const'
 import { LayoutDashboard, Table2, Braces, Paperclip, ListTree } from 'lucide-vue-next'
 import { Tabs, TabList, Tab } from 'primevue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { computed } from 'vue'
 import { TABLIST_PT } from './details.const'
 
@@ -51,9 +51,20 @@ const items = [
   },
 ]
 
-const route = useRoute()
+// With a model the tabs switch local state, so they also work outside the experiment routes.
+const model = defineModel<string>()
 
-const currentRouteName = computed(() => route.name as string)
+const route = useRoute()
+const router = useRouter()
+
+const activeLabel = computed(
+  () => model.value ?? items.find((tab) => tab.route.name === route.name)?.label ?? '',
+)
+
+function select(tab: (typeof items)[number]) {
+  if (model.value === undefined) router.push(tab.route)
+  else model.value = tab.label
+}
 </script>
 
 <style scoped>

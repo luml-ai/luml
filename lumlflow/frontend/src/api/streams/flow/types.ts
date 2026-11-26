@@ -1,3 +1,4 @@
+import type { WorkspaceFileLock } from '@/api/slices/workspace/workspace.interface'
 import type { AgentSessionRecord } from '@/flow/api/types'
 
 export type MaterializationState = 'running' | 'succeeded' | 'failed' | 'cancelled'
@@ -119,7 +120,13 @@ export interface StreamErrorFrame {
   message: string
 }
 
+export type FilesFrame =
+  | { channel: 'files'; type: 'changed'; directory: string; path: string }
+  | { channel: 'files'; type: 'locks'; locks: WorkspaceFileLock[]; idle_after_s: number }
+  | { channel: 'files'; type: 'lagged' }
+
 export type StreamFrame =
+  | FilesFrame
   | TransactionFrame
   | KernelFrame
   | StateFrame

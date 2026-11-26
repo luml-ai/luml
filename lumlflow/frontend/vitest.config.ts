@@ -5,11 +5,13 @@ import vue from '@vitejs/plugin-vue'
 export default defineConfig({
   plugins: [vue()],
   resolve: {
+    dedupe: ['vue', 'pinia'],
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
   test: {
+    server: { deps: { inline: ['@luml/experiments'] } },
     environment: 'jsdom',
     include: ['src/**/*.{test,spec}.ts', 'tests/**/*.spec.ts'],
     setupFiles: ['tests/setup.ts'],

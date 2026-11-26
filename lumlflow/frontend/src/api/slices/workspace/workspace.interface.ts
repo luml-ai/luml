@@ -6,17 +6,58 @@ export interface WorkspaceFlow {
   name: string
   path: string
   relative_path: string
+  is_symlink: boolean
 }
 
 export interface WorkspaceFolder {
+  modified_at: string
+  is_symlink: boolean
   name: string
   path: string
+}
+
+export interface WorkspaceFile extends WorkspaceFolder {
+  size: number | null
+}
+
+export interface ArchiveFile {
+  name: string
+  size: number
+}
+
+export interface ArchiveInspection {
+  kind: 'experiment' | 'model' | 'dataset' | 'unknown'
+  manifest: Record<string, unknown> | null
+  files: ArchiveFile[]
+  splits?: {
+    subset: string
+    name: string
+    format: 'parquet' | 'csv' | 'arrow'
+    files: string[]
+    num_rows: number | null
+  }[]
+  variant?: 'tabular' | 'hf' | null
+}
+
+export interface WorkspaceFileLock {
+  path: string
+  actor: string | null
+  label: string
+  last: number
+}
+
+export interface FileRevision {
+  mtime_ns: string
+  revision: string
 }
 
 export interface WorkspaceListing {
   directory: string
   flows: WorkspaceFlow[]
   folders: WorkspaceFolder[]
+  files: WorkspaceFile[]
+  total: number
+  next_offset: number | null
 }
 
 export interface CreatedFlow {

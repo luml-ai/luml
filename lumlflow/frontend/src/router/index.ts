@@ -1,3 +1,4 @@
+import { browserToken } from '@/flow/api/token'
 import { createRouter, createWebHistory } from 'vue-router'
 import { ROUTE_NAMES, ROUTES } from './router.const'
 import MainTemplate from '@/layouts/MainTemplate.vue'
@@ -12,6 +13,9 @@ import AttachmentsView from '@/pages/details/AttachmentsView.vue'
 import ExperimentsComparison from '@/pages/comparison/ExperimentsComparison.vue'
 import GroupsComparisonPage from '@/pages/comparison/GroupsComparisonPage.vue'
 import WorkspaceFlowPage from '@/pages/workspaces/WorkspaceFlowPage.vue'
+
+// Vue Router caches the launch URL when it creates browser history.
+browserToken()
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -84,6 +88,14 @@ const router = createRouter({
           name: ROUTE_NAMES.EXPERIMENTS_COMPARISON,
           path: ROUTES[ROUTE_NAMES.EXPERIMENTS_COMPARISON],
           component: ExperimentsComparison,
+        },
+        {
+          name: ROUTE_NAMES.WORKSPACE_EXPERIMENT,
+          path: ROUTES[ROUTE_NAMES.WORKSPACE_EXPERIMENT],
+          component: () => import('@/pages/workspaces/ArchiveExperimentPage.vue'),
+          props: (route) => ({
+            path: typeof route.query.file === 'string' ? route.query.file : '',
+          }),
         },
         {
           name: ROUTE_NAMES.WORKSPACE_FLOW,

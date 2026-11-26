@@ -44,11 +44,21 @@ export default defineConfigWithVueTs(
   vueTsConfigs.recommended,
 
   {
+    files: ['public/attachment-preview-sw.js'],
+    languageOptions: { parserOptions: { projectService: false } },
+  },
+
+  {
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
     },
+  },
+
+  {
+    files: ['public/attachment-preview-sw.js'],
+    languageOptions: { parserOptions: { projectService: false } },
   },
 
   skipFormatting,

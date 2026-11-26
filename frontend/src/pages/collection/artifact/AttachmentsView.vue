@@ -29,6 +29,7 @@ async function initializeProvider() {
   try {
     await init({
       downloader,
+      previewWorkerUrl: `${import.meta.env.BASE_URL}attachment-preview-sw.js`,
       fileIndex: artifact.file_index,
       attachmentsIndex,
       findAttachmentsTarPath: FnnxService.findAttachmentsTarPath,

@@ -1,52 +1,356 @@
 <template>
   <div>
     <div class="mb-6">
-      <div class="flex items-center justify-between gap-4 mb-1">
-        <div class="flex items-center">
-          <span>Notebooks</span>
-          <UiPreviewBadge />
-        </div>
+      <div class="flex items-center justify-between gap-4">
+        <Message severity="secondary" size="small" variant="simple">
+          <template #icon>
+            <TriangleAlert :size="14" class="text-(--p-message-warn-simple-color)" />
+          </template>
+          This feature is in preview and can change.
+        </Message>
         <OpenFlowsSummary />
       </div>
-      <WorkspacePath />
+      <div class="flex items-center gap-4">
+        <WorkspacePath class="min-w-0" @navigate="navigate" />
+        <WorkspaceCreateMenu
+          class="ml-auto mr-(--p-card-body-padding) shrink-0"
+          @created-file="openFile"
+        />
+      </div>
     </div>
-    <WorkspaceFolder :items="workspaceStore.sortedItems" class="mb-4" />
-    <CreateNewFlow v-if="!workspaceStore.isDirectoryLoading" :existing-names="existingFlowNames" />
+    <div :class="{ 'content-split': selectedFile }">
+      <WorkspaceFolder
+        :items="store.sortedItems"
+        :selected-path="filePath"
+        :before-operation="beforeOperation"
+        @open-file="openFile"
+        @navigate="navigate"
+      />
+      <WorkspaceFileViewer
+        v-if="selectedFile"
+        :key="selectedFile.path"
+        ref="viewer"
+        :file="selectedFile"
+        :gone="gone"
+        :locks="locks"
+        :refresh-key="refreshKey"
+        @dirty="dirty = $event"
+        @saved="refreshListing"
+        @reloaded="refreshListing"
+        @close="openFile(undefined)"
+      />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import UiPreviewBadge from '@/components/ui/UiPreviewBadge.vue'
-import { useToast } from 'primevue'
-import { useIntervalFn } from '@vueuse/core'
-import { computed, onBeforeMount } from 'vue'
-import { useRoute } from 'vue-router'
+import { useEventListener, useIntervalFn } from '@vueuse/core'
+import { TriangleAlert } from 'lucide-vue-next'
+import { Message, useConfirm, useToast } from 'primevue'
+import { computed, onMounted, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
+import {
+  onBeforeRouteLeave,
+  onBeforeRouteUpdate,
+  useRoute,
+  useRouter,
+  type RouteLocationNormalized,
+} from 'vue-router'
+import { workspaceApi, WorkspaceRefusedError } from '@/api/slices/workspace/workspace.api'
+import type {
+  WorkspaceFile,
+  WorkspaceFileLock,
+  WorkspaceListing,
+} from '@/api/slices/workspace/workspace.interface'
+import { FlowStream, streamToken } from '@/api/streams/flow'
+import WorkspaceFolder from '@/components/workspace/folder/WorkspaceFolder.vue'
+import OpenFlowsSummary from '@/components/workspace/OpenFlowsSummary.vue'
+import WorkspaceCreateMenu from '@/components/workspace/WorkspaceCreateMenu.vue'
+import WorkspaceFileViewer from '@/components/workspace/WorkspaceFileViewer.vue'
+import WorkspacePath from '@/components/workspace/WorkspacePath.vue'
+import { baseName, parentDirectory } from '@/helpers/path'
 import { OPEN_FLOWS_REFRESH_MS, useWorkspaceStore } from '@/store/workspace'
 import { errorToast } from '@/toasts'
-import WorkspaceFolder from '@/components/workspace/folder/WorkspaceFolder.vue'
-import CreateNewFlow from '@/components/workspace/CreateNewFlow.vue'
-import OpenFlowsSummary from '@/components/workspace/OpenFlowsSummary.vue'
-import WorkspacePath from '@/components/workspace/WorkspacePath.vue'
 
 const route = useRoute()
+const router = useRouter()
 const toast = useToast()
-const workspaceStore = useWorkspaceStore()
-
-const existingFlowNames = computed(() =>
-  workspaceStore.sortedItems.filter((item) => item.type === 'flow').map((item) => item.name),
+const confirm = useConfirm()
+const store = useWorkspaceStore()
+const directory = computed(() =>
+  typeof route.query.directory === 'string' ? route.query.directory : undefined,
 )
+const filePath = computed(() =>
+  typeof route.query.file === 'string' ? route.query.file : undefined,
+)
+const selectedFile = ref<WorkspaceFile>()
+const viewer = useTemplateRef('viewer')
+const locks = ref<WorkspaceFileLock[]>([])
+const listingMissing = ref(false)
+const gone = ref(false)
+const dirty = ref(false)
+const changed = ref(0)
+const refreshKey = ref(0)
+// The open file's metadata as of the preview's last (re)load, and the file the files stream
+// was last opened for.
+let loaded: { path: string; version: number; file?: WorkspaceFile } | undefined
+let streamedFile: string | undefined
 
-// useIntervalFn clears itself when the page unmounts.
-useIntervalFn(() => workspaceStore.fetchOpenFlows(), OPEN_FLOWS_REFRESH_MS)
+function navigate(path: string) {
+  return router.push({ query: { directory: path } })
+}
 
-onBeforeMount(async () => {
+function openFile(path?: string) {
+  return router.push({ query: { directory: store.currentDirectory, file: path } })
+}
+
+async function confirmDiscard() {
+  if (!dirty.value) return true
+  return new Promise<boolean>((resolve) =>
+    confirm.require({
+      header: 'Discard unsaved changes?',
+      message: `You have unsaved changes in ${selectedFile.value?.name}. Discard them and continue?`,
+      acceptProps: { label: 'Discard and continue', severity: 'warn', variant: 'outlined' },
+      rejectProps: { label: 'Cancel' },
+      accept: () => resolve(true),
+      reject: () => resolve(false),
+      onHide: () => resolve(false),
+    }),
+  )
+}
+
+async function beforeOperation(path: string) {
+  const separator = path.includes('/') ? '/' : '\\'
+  const prefix = path.endsWith(separator) ? path : path + separator
+  const affected = [filePath.value, viewer.value?.editTarget].some(
+    (file) => file === path || file?.startsWith(prefix),
+  )
+  if (!affected) return true
+  const accepted = await confirmDiscard()
+  if (accepted) viewer.value?.discard()
+  return accepted
+}
+
+// A newer navigation can cancel a slow one, even when it only changes the file.
+const prepared = new WeakMap<RouteLocationNormalized, { page: WorkspaceListing; hidden: boolean }>()
+const stopAfterNavigation = router.afterEach((to, from, failure) => {
+  if (failure) return
+  const listing = prepared.get(to)
+  if (listing) {
+    store.openListing(listing.page, listing.hidden)
+    listingMissing.value = false
+  }
+  if (to.query.directory !== from.query.directory && dirty.value) viewer.value?.discard()
+})
+onBeforeUnmount(stopAfterNavigation)
+onBeforeRouteLeave(confirmDiscard)
+onBeforeRouteUpdate(async (to, from) => {
+  if (to.query.file === from.query.file && to.query.directory === from.query.directory) return true
+  if (!(await confirmDiscard())) return false
+  if (
+    to.query.directory !== from.query.directory &&
+    to.query.directory !== store.currentDirectory
+  ) {
+    try {
+      const path = typeof to.query.directory === 'string' ? to.query.directory : undefined
+      const hidden = store.showHidden
+      const page = await workspaceApi.listFlows(path, hidden, 0)
+      prepared.set(to, { page, hidden })
+    } catch (error) {
+      toast.add(errorToast(error))
+      return false
+    }
+  }
+  return true
+})
+useEventListener(window, 'beforeunload', (event) => {
+  if (dirty.value) event.preventDefault()
+})
+
+useIntervalFn(() => store.fetchOpenFlows(), OPEN_FLOWS_REFRESH_MS)
+onMounted(async () => {
+  const path = directory.value
   try {
-    const directory = typeof route.query.directory === 'string' ? route.query.directory : undefined
-    await workspaceStore.fetchDirectory(directory)
+    await store.fetchDirectory(path)
+    if (!path && !directory.value && store.currentDirectory) {
+      await router.replace({ query: { directory: store.currentDirectory, file: filePath.value } })
+    }
   } catch (error) {
     toast.add(errorToast(error))
   }
 })
+
+// A bookmarked file can be hidden or beyond the visible listing pages. Look up
+// its metadata independently, leaving the person's listing and page count intact.
+watch(
+  [filePath, () => store.files, changed, listingMissing],
+  async ([path, files, version, missing], _, onCleanup) => {
+    let active = true
+    onCleanup(() => {
+      active = false
+    })
+    if (selectedFile.value?.path !== path) {
+      selectedFile.value = undefined
+      gone.value = false
+      dirty.value = false
+    }
+    if (!path) return
+    if (!store.currentDirectory || store.isDirectoryLoading) return
+    let file = missing ? undefined : files.find((entry) => entry.path === path)
+    if (!file) {
+      try {
+        const result = await workspaceApi.fileInfo(path)
+        if (!active) return
+        file = result.file ?? undefined
+      } catch (error) {
+        if (active) toast.add(errorToast(error))
+        return
+      }
+    }
+    refreshKey.value = version
+    if (loaded?.path !== path || loaded.version !== version) loaded = { path, version, file }
+    gone.value = !file
+    selectedFile.value = file ??
+      selectedFile.value ?? {
+        name: baseName(path),
+        path,
+        size: null,
+        modified_at: '',
+        is_symlink: false,
+      }
+  },
+  { immediate: true },
+)
+
+async function refreshListing() {
+  try {
+    await store.refreshDirectory()
+    listingMissing.value = false
+  } catch (error) {
+    if (
+      error instanceof WorkspaceRefusedError &&
+      error.kind === 'FlowError' &&
+      error.message.startsWith('there is no directory')
+    )
+      listingMissing.value = true
+    toast.add(errorToast(error))
+  }
+}
+
+watch(
+  [() => store.currentDirectory, filePath, () => store.isNotebookListing],
+  ([folder, file, notebook], _, onCleanup) => {
+    locks.value = []
+    const token = streamToken()
+    if (!folder || notebook || !token) return
+    // Only the first catch-up of a stream opened for a newly selected file may skip reloading
+    // it, since the preview is loading that file anyway. A later one may follow missed frames.
+    let freshFile = file !== streamedFile
+    streamedFile = file
+    const stream = new FlowStream({ token })
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let expiry: ReturnType<typeof setTimeout> | undefined
+    function showLocks(snapshot: WorkspaceFileLock[], idleMs: number) {
+      clearTimeout(expiry)
+      const now = Date.now()
+      locks.value = snapshot.filter((lock) => lock.last + idleMs > now)
+      if (locks.value.length) {
+        const next = locks.value.reduce(
+          (first, lock) => Math.min(first, lock.last + idleMs),
+          Infinity,
+        )
+        expiry = setTimeout(() => showLocks(locks.value, idleMs), next - now)
+      }
+    }
+    let subscribedFile = file
+    let active = true
+    let running = false
+    let pending = false
+    let refreshFile = false
+    let checkFile = false
+    let catchUp = true
+    function fileMoved() {
+      const listed = store.files.find((entry) => entry.path === file)
+      const shown = loaded && loaded.path === file ? loaded.file : undefined
+      return (
+        !shown || !listed || listed.modified_at !== shown.modified_at || listed.size !== shown.size
+      )
+    }
+    function queueRefresh(includesFile: boolean, ifFileMoved = false) {
+      if (ifFileMoved) checkFile = true
+      else refreshFile ||= includesFile
+      pending = true
+      if (running || timer !== undefined) return
+      timer = setTimeout(async () => {
+        timer = undefined
+        running = true
+        pending = false
+        const check = checkFile
+        let updateFile = refreshFile
+        refreshFile = false
+        checkFile = false
+        await refreshListing()
+        running = false
+        if (!active) return
+        if (!updateFile && check && file) updateFile = fileMoved()
+        if (updateFile) changed.value++
+        if (pending) queueRefresh(false)
+      }, 50)
+    }
+    stream.onStatus((status) => {
+      if (status === 'open') catchUp = true
+      else if (status === 'dropped') freshFile = false
+    })
+    const off = stream.onFrame((frame) => {
+      if (!('channel' in frame)) {
+        if (subscribedFile) {
+          subscribedFile = undefined
+          stream.watchFiles(folder)
+        } else toast.add(errorToast(new Error(frame.message)))
+        return
+      }
+      if (frame.channel !== 'files') return
+      if (frame.type === 'locks') {
+        showLocks(frame.locks, frame.idle_after_s * 1000)
+        if (catchUp) {
+          catchUp = false
+          queueRefresh(!freshFile, freshFile)
+          freshFile = false
+        }
+      } else if (frame.type === 'lagged') {
+        catchUp = true
+        freshFile = false
+        stream.watchFiles(folder, subscribedFile)
+      } else if (
+        frame.directory === folder ||
+        frame.path === file ||
+        frame.directory === parentDirectory(file ?? '')
+      ) {
+        queueRefresh(frame.path === file || frame.path === frame.directory)
+      }
+    })
+    stream.watchFiles(folder, subscribedFile)
+    stream.connect()
+    onCleanup(() => {
+      active = false
+      off()
+      clearTimeout(expiry)
+      clearTimeout(timer)
+      stream.close()
+    })
+  },
+  { immediate: true },
+)
 </script>
 
-<style scoped></style>
+<style scoped>
+.content-split {
+  display: grid;
+  grid-template-columns: minmax(0, 400px) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+.content-split > .viewer {
+  position: sticky;
+  top: 0;
+}
+</style>

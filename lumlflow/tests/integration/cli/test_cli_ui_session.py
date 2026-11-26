@@ -2,6 +2,7 @@ import sys
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -105,6 +106,7 @@ def test_attaching_opens_the_running_daemon_with_its_session_token(
 ) -> None:
     running = session_token_for(store)
     monkeypatch.setattr(client, "discover", lambda: _record(store))
+    monkeypatch.setattr(client, "attach", MagicMock())
     assert _launch_token() == running
 
 

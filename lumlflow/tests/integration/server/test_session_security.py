@@ -190,3 +190,84 @@ def test_normal_http_attachments_work(client: TestClient) -> None:
         client.get(path, params={"parent_path": "nested"}).json()[0]["path"]
         == "nested/report.txt"
     )
+
+
+@pytest.mark.parametrize("inside_store", [True, False])
+def test_an_experiment_folder_linked_within_the_store_serves_its_attachments(
+    client: TestClient, tmp_path: Path, inside_store: bool
+) -> None:
+    tracker = experiments_handler.tracker
+    experiment_id = tracker.start_experiment(name="archived")
+    tracker.log_attachment("nested/report.txt", "hello", experiment_id=experiment_id)
+    store = tmp_path / "experiments"
+    moved = (
+        store / "archive" if inside_store else tmp_path / "elsewhere"
+    ) / experiment_id
+    moved.parent.mkdir()
+    (store / experiment_id).rename(moved)
+    try:
+        (store / experiment_id).symlink_to(moved, target_is_directory=True)
+    except OSError as err:
+        if getattr(err, "winerror", None) == 1314:
+            pytest.skip("Symlink creation requires admin privileges on Windows")
+        raise
+    client.headers["Authorization"] = f"Bearer {client.app.state.session_token}"
+    path = f"/api/experiments/{experiment_id}/attachments"
+    params = {"file_path": "nested/report.txt"}
+    content = client.get(path + "/content", params=params)
+    preview = client.post(path + "/preview", params=params)
+    if inside_store:
+        assert content.content == b"hello"
+        assert preview.json()["size"] == 5
+    else:
+        assert content.status_code == preview.status_code == 404
+
+
+def test_attachment_byte_ranges_require_authentication(client: TestClient) -> None:
+    tracker = experiments_handler.tracker
+    experiment_id = tracker.start_experiment(name="ranges")
+    tracker.log_attachment("nested/data.csv", "abcdef", experiment_id=experiment_id)
+    url = f"/api/experiments/{experiment_id}/attachments/content"
+    params = {"file_path": "nested/data.csv"}
+    headers = {"Range": "bytes=2-4", "Origin": "http://localhost:5173"}
+    assert client.get(url, params=params, headers=headers).status_code == 401
+    client.headers["Authorization"] = f"Bearer {client.app.state.session_token}"
+    part = client.get(url, params=params, headers=headers)
+    assert part.status_code == 206
+    assert part.content == b"cde"
+    assert part.headers["content-range"] == "bytes 2-4/6"
+    assert "content-range" in part.headers[
+        "access-control-expose-headers"
+    ].lower().split(", ")
+
+
+def test_native_preview_authorizes_ranges_only_for_the_selected_attachment(
+    client: TestClient,
+) -> None:
+    tracker = experiments_handler.tracker
+    experiment = tracker.start_experiment(name="native preview")
+    tracker.log_attachment("a.wav", "abcdef", experiment_id=experiment)
+    tracker.log_attachment("b.wav", "xyz", experiment_id=experiment)
+    issue = f"/api/experiments/{experiment}/attachments/preview"
+    params = {"file_path": "a.wav"}
+    assert client.post(issue, params=params).status_code == 401
+    ticket = client.post(
+        issue,
+        params=params,
+        headers={"Authorization": f"Bearer {client.app.state.session_token}"},
+    ).json()
+    scoped = {
+        **params,
+        "experiment_id": experiment,
+        "expires": ticket["expires"],
+        "signature": ticket["signature"],
+    }
+    path = "/api/experiments/preview/content"
+    response = client.get(path, params=scoped, headers={"Range": "bytes=1-3"})
+    assert response.status_code == 206
+    assert response.content == b"bcd"
+    assert client.get(path, params={**scoped, "file_path": "b.wav"}).status_code == 401
+    with patch(
+        "lumlflow.api.experiments.time.time", return_value=ticket["expires"] + 1
+    ):
+        assert client.get(path, params=scoped).status_code == 401

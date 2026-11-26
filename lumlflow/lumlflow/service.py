@@ -23,7 +23,7 @@ from lumlflow.api.models import models_router
 from lumlflow.infra.exceptions import ApplicationError, CodedError
 from lumlflow.settings import get_config
 
-OPEN_API_PATHS = frozenset({"/api/auth/status"})
+OPEN_API_PATHS = frozenset({"/api/auth/status", "/api/experiments/preview/content"})
 ALLOWED_ORIGINS = (
     "http://localhost:5173",
     "https://app.luml.ai",
@@ -68,6 +68,7 @@ class AppService(FastAPI):
             allow_origins=list(ALLOWED_ORIGINS),
             allow_methods=["*"],
             allow_headers=["*"],
+            expose_headers=["Content-Range"],
         )
 
         self.include_router(router=auth_router)

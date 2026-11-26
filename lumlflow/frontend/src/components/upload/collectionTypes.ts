@@ -1,6 +1,6 @@
 import { UploadTypeEnum } from './upload.interface'
 
-export type ArtifactKind = 'model' | 'experiment'
+export type ArtifactKind = 'model' | 'experiment' | 'dataset'
 
 /**
  * The kinds one upload produces. This mirrors the daemon's `upload_artifact`:

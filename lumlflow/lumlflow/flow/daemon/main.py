@@ -61,13 +61,16 @@ class Daemon:
         self.directory = directory.resolve()
         self.instance_id = secrets.token_hex(16)
         self.streams = Streams()
-        self.hub = Hub(streams=self.streams)
+        self.hub = Hub(streams=self.streams, drop_leases=self._drop_flow_leases)
         self.api = Api(
             self.hub,
             directory=self.directory,
             stop=self.stop,
             attachments=self._attachments,
             leases=self._leases,
+            revoke_lease=self._revoke_lease,
+            file_sessions=self._file_sessions,
+            file_activity=self._file_activity,
             instance_id=self.instance_id,
         )
         self.watcher = Watcher(self.hub)
@@ -193,6 +196,7 @@ class Daemon:
         await self._stop_web()
         await self._stop_serving()
         await self._end_calls()
+        await self.api.file_watcher.stop()
         await self.watcher.stop()
         await self.hub.close()
         if self._record is not None:
@@ -292,6 +296,7 @@ class Daemon:
         # Dropped before the ends are committed: the watchers reading the
         # announcement must not see a lease this connection no longer holds.
         leased.clear()
+        self.api.file_watcher.expire()
         for flow, actor, _ in ended:
             self.api.forget_agent(actor)
             if flow:
@@ -299,7 +304,9 @@ class Daemon:
                     self.api.end_activity(flow, actor=actor)
         for flow, actor, _ in ended:
             with contextlib.suppress(FlowError, OSError):
-                await self.api.agent_end({"flow": flow, "actor": actor})
+                await self.api.agent_end(
+                    {"flow": flow, "actor": actor}, revoke_lease=False
+                )
             self._announce_agents(flow)
 
     async def _sweep_quiet(self) -> None:
@@ -328,6 +335,7 @@ class Daemon:
             if not quiet:
                 continue
             leased.difference_update(quiet)
+            self.api.file_watcher.expire()
             self._quiet.setdefault(writer, set()).update(quiet)
             for flow, actor, label in sorted(quiet, key=lambda lease: lease[1]):
                 self.api.forget_agent(actor)
@@ -341,7 +349,8 @@ class Daemon:
                             "flow": flow,
                             "actor": actor,
                             "intent": f"{label} went quiet",
-                        }
+                        },
+                        revoke_lease=False,
                     )
                 self._announce_agents(flow)
 
@@ -382,6 +391,47 @@ class Daemon:
     def _forget_calls(self, actor: str) -> None:
         for key in [key for key in self._last_call if key[1] == actor]:
             del self._last_call[key]
+
+    def _revoke_lease(self, flow: str, actor: str) -> None:
+        ended = set()
+        for connections in (self._client_leases, self._quiet):
+            for writer, leases in connections.items():
+                matching = {item for item in leases if item[:2] == (flow, actor)}
+                leases.difference_update(matching)
+                if (
+                    matching
+                    and connections is self._client_leases
+                    and not any(item[1] == actor for item in leases)
+                ):
+                    ended.add((writer, actor))
+        self._last_call.pop((flow, actor), None)
+        self.api.file_watcher.expire(ended)
+
+    def _drop_flow_leases(self, flow: str) -> None:
+        for leases in (*self._client_leases.values(), *self._quiet.values()):
+            for lease in tuple(leases):
+                if lease[0] == flow:
+                    leases.remove(lease)
+                    self._last_call.pop((flow, lease[1]), None)
+                    self.api.forget_agent(lease[1], flow=flow)
+                    self.api.end_activity(flow, actor=lease[1])
+        self.api.file_watcher.expire()
+        self._announce_agents(flow)
+
+    def _file_sessions(self) -> dict[object, tuple[str, str]]:
+        return {
+            writer: min((actor, label) for _, actor, label in leases)
+            for writer, leases in self._client_leases.items()
+            if leases
+        }
+
+    def _file_activity(self, writer: object, actor: str) -> None:
+        # A write the agent's harness reports is activity of its session, as
+        # a notebook call is: an agent editing only through its shell or edit
+        # tools does not go quiet and lose its locks.
+        for connection, leased in self._client_leases.items():
+            if connection is writer:
+                self._heard_from(leased, actor)
 
     def _leases(self) -> Leases:
         return {
@@ -502,11 +552,6 @@ class Daemon:
         if caller and str(message["method"]) not in _NOT_PRESENCE:
             if str(message["method"]) != "agent.end":
                 await self._revive(writer, leased, caller)
-            else:
-                quiet = self._quiet.get(writer, set())
-                quiet.difference_update(
-                    {lease for lease in quiet if lease[1] == caller}
-                )
             self._heard_from(leased, caller)
         activity = _activity(leased, str(message["method"]), params)
         announced = False
@@ -523,7 +568,9 @@ class Daemon:
                 writer,
                 request_id,
                 error=_error(
-                    FLOW_ERROR, str(failure), data={"kind": type(failure).__name__}
+                    FLOW_ERROR,
+                    str(failure),
+                    data={"kind": type(failure).__name__, **vars(failure)},
                 ),
             )
         except asyncio.CancelledError:
@@ -581,9 +628,13 @@ def serve_here(
     rotate_session_token: bool = False,
 ) -> int:
     daemon_log.configure()
+    daemon = Daemon(directory)
+    # Only this `lumlflow ui` lasts as long as the daemon, so only its folder is
+    # protected. An attached one exits at once, a spawned daemon has no `ui`.
+    daemon.hub.ui_directories.add(daemon.directory)
     try:
         return asyncio.run(
-            Daemon(directory).serve(
+            daemon.serve(
                 web_host=web_host,
                 web_port=web_port,
                 exact_web_port=True,
@@ -679,6 +730,9 @@ _SILENT = frozenset(
         "agent.end",
         "status",
         "workspace.list",
+        "workspace.file",
+        "file.inspect",
+        "file.read_text",
         "flows.open",
         "flow.open",
         "tree",
@@ -715,9 +769,6 @@ def _leased(leased: Leases, method: str, params: dict[str, Any], result: Any) ->
         flow = result.get("flow") or params.get("flow")
         label = str(result.get("label") or actor)
         leased.add((str(flow) if flow else None, actor, label))
-    elif method == "agent.end":
-        for lease in [held for held in leased if held[1] == actor]:
-            leased.discard(lease)
 
 
 def _reply(
@@ -734,7 +785,9 @@ def _reply(
         error if error is not None else result
     )
     if not writer.is_closing():
-        writer.write(json.dumps(message, ensure_ascii=False).encode("utf-8") + b"\n")
+        # ASCII escapes carry a file name that is not UTF-8 (a lone surrogate)
+        # through to the client and back, where raw UTF-8 cannot encode it.
+        writer.write(json.dumps(message).encode("ascii") + b"\n")
 
 
 def _reply_unaddressed(writer: asyncio.StreamWriter, error: dict[str, Any]) -> None:
@@ -742,8 +795,7 @@ def _reply_unaddressed(writer: asyncio.StreamWriter, error: dict[str, Any]) -> N
         writer.write(
             json.dumps(
                 {"jsonrpc": "2.0", "id": None, "error": error},
-                ensure_ascii=False,
-            ).encode("utf-8")
+            ).encode("ascii")
             + b"\n"
         )
 

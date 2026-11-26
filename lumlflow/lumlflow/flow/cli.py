@@ -831,6 +831,34 @@ def agent_end(
     _emit(result, as_json, [f"`{result['label']}` finished"])
 
 
+@agent_app.command("wrote", hidden=True)
+def agent_wrote() -> None:
+    """Claude Code's hook: report the file its edit tool wrote, or the start and
+    end of a Bash command, so the file viewer locks what the agent wrote. Silent
+    and never failing, the agent waits on it. Claude Code is this hook's
+    parent, as it is of its `lumlflow mcp` session."""
+    from lumlflow.flow.daemon import client
+
+    with contextlib.suppress(Exception):
+        event = json.load(sys.stdin)
+        tool_input = event.get("tool_input") or {}
+        params: dict[str, Any] = {"harness_pid": os.getppid()}
+        if event.get("tool_name") == "Bash":
+            pre = event.get("hook_event_name") == "PreToolUse"
+            # A failed command is an end too: it may have written before failing.
+            params["shell"] = "start" if pre else "end"
+            params["call"] = str(event.get("tool_use_id") or "")
+        elif path := tool_input.get("file_path") or tool_input.get("notebook_path"):
+            params["path"] = path
+        else:
+            return
+        daemon = client.connect(start=False)
+        try:
+            daemon.call("file.agent_wrote", params)
+        finally:
+            daemon.close()
+
+
 @agent_app.command(
     "exec",
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
@@ -877,7 +905,7 @@ def flow_delete(
         typer.confirm(
             f"delete `{name}` and everything it recorded?", abort=True, default=False
         )
-    result = _call("flow.delete", flow=name, as_json=as_json)
+    result = _call("flow.delete", {"close_open": True}, flow=name, as_json=as_json)
     _emit(result, as_json, [f"deleted `{result['deleted']}` ({result['path']})"])
 
 

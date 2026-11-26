@@ -264,3 +264,4 @@ export {
   metricStepRange,
   metricStepRanges,
 }
+export { MarkdownRendererKey } from './helpers/texts'

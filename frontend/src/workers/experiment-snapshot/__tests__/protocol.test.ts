@@ -56,7 +56,7 @@ describe('experiment snapshot worker protocol', () => {
     database.runCall.mockImplementation((_context: unknown, run: () => unknown) => run())
     vi.stubGlobal('self', scope)
     vi.resetModules()
-    await import('../index')
+    await import('../../../../../extras/js/experimentSnapshotWorker')
   })
 
   afterEach(() => vi.unstubAllGlobals())

@@ -302,12 +302,13 @@ def _detached() -> dict[str, Any]:
 
 
 def _raised(error: dict[str, Any]) -> FlowError:
-    kind = (error.get("data") or {}).get("kind")
+    data = dict(error.get("data") or {})
+    kind = data.pop("kind", None)
     message = str(error.get("message", "lumlflow refused the call"))
     raised = getattr(errors, str(kind), None) if kind else None
     if isinstance(raised, type) and issubclass(raised, FlowError):
         try:
-            return raised(message)
+            return raised(message, **data)
         except TypeError:
             return FlowError(message)
     return FlowError(message)

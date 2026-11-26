@@ -158,20 +158,13 @@ async def test_the_landing_page_lists_flows_beneath_the_requested_directory(
 
         assert api.hub.flows() == []
 
-    assert listed == {
-        "directory": str(requested),
-        "flows": [
-            {
-                "name": "sales",
-                "path": str(requested / "sales.flow"),
-                "relative_path": "sales.flow",
-            },
-        ],
-        "folders": [{"name": "nested", "path": str(requested / "nested")}],
-    }
+    assert listed["directory"] == str(requested)
+    assert [row["path"] for row in listed["flows"]] == [str(requested / "sales.flow")]
+    assert [row["path"] for row in listed["folders"]] == [str(requested / "nested")]
+    assert listed["files"] == []
 
 
-async def test_a_listing_names_flows_and_folders_but_skips_the_rest(
+async def test_a_listing_names_flows_folders_and_plain_files(
     tmp_path: Path,
 ) -> None:
     root = make_workspace(tmp_path / "project", flows=("churn",))
@@ -183,17 +176,11 @@ async def test_a_listing_names_flows_and_folders_but_skips_the_rest(
     async with daemon_api(root) as api:
         listed = await api.workspace_list({})
 
-    assert listed == {
-        "directory": str(root),
-        "flows": [
-            {
-                "name": "churn",
-                "path": str(root / "churn.flow"),
-                "relative_path": "churn.flow",
-            }
-        ],
-        "folders": [{"name": "data", "path": str(root / "data")}],
-    }
+    assert listed["total"] == 3
+    assert listed["next_offset"] is None
+    assert [row["name"] for row in listed["flows"]] == ["churn"]
+    assert [row["name"] for row in listed["folders"]] == ["data"]
+    assert [row["name"] for row in listed["files"]] == ["notes.md"]
 
 
 WHERE_CELL = """
@@ -2500,12 +2487,54 @@ async def test_deleting_a_flow_takes_its_store_with_it(tmp_path: Path):
 
     async with daemon_api(root) as api:
         await api.run({"flow": "churn", "target": "score"})
-        deleted = await api.flow_delete({"flow": "churn"})
+        deleted = await api.flow_delete({"flow": "churn", "close_open": True})
         left = await api.workspace_list({"directory": str(root)})
 
     assert deleted == {"deleted": "churn", "path": str(root / "churn.flow")}
     assert not (root / "churn.flow").exists()
     assert [flow["relative_path"] for flow in left["flows"]] == ["sales.flow"]
+
+
+async def test_confirmed_move_stops_active_and_queued_cells(tmp_path: Path):
+    root = make_workspace(tmp_path / "project")
+    notebook = root / "churn.flow"
+    dest = tmp_path / "dest"
+    dest.mkdir()
+    started = root / "started"
+    for slug in ("first", "second"):
+        marker = started if slug == "first" else root / "unexpected"
+        write_cell(
+            notebook,
+            slug,
+            f"""
+            class Slow:
+                produces = {{"value": "asset"}}
+
+                def materialize(self, ctx):
+                    import time
+                    from pathlib import Path
+                    Path({str(marker)!r}).touch()
+                    time.sleep(60)
+                    return {{"value": 1}}
+        """,
+        )
+
+    async with daemon_api(root) as api, asyncio.timeout(20):
+        first = asyncio.create_task(api.run({"flow": "churn", "target": "first"}))
+        while not started.exists():
+            await asyncio.sleep(0.01)
+        session = api.hub.session("churn")
+        second = asyncio.create_task(api.run({"flow": "churn", "target": "second"}))
+        while session.queue.in_flight < 2:
+            await asyncio.sleep(0.01)
+        await api.flow_move(
+            {"flow": str(notebook), "destination": str(dest), "close_open": True}
+        )
+        outcomes = await asyncio.gather(first, second)
+    assert all(result["abandoned"] for result in outcomes)
+    assert session.kernel.state == "stopped"
+    assert not (root / "unexpected").exists()
+    assert not notebook.exists() and (dest / notebook.name).is_dir()
 
 
 async def test_renaming_a_flow_moves_its_directory_and_keeps_its_store(
@@ -2516,7 +2545,9 @@ async def test_renaming_a_flow_moves_its_directory_and_keeps_its_store(
 
     async with daemon_api(root) as api:
         await api.run({"flow": "churn", "target": "score"})
-        renamed = await api.flow_rename({"flow": "churn", "name": "revenue"})
+        renamed = await api.flow_rename(
+            {"flow": "churn", "name": "revenue", "close_open": True}
+        )
         left = await api.workspace_list({"directory": str(root)})
         reopened = await api.flow_open({"flow": "revenue"})
 

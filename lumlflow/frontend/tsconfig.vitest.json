@@ -1,6 +1,6 @@
 {
   "extends": "./tsconfig.app.json",
-  "include": ["env.d.ts", "src/**/*", "src/**/*.vue", "tests/**/*"],
+  "include": ["env.d.ts", "src/**/*", "src/**/*.vue", "tests/**/*", "../../extras/js/tests/attachmentSelection.ts"],
   "exclude": [],
   "compilerOptions": {
     "composite": true,

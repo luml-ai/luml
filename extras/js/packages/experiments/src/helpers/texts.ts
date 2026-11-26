@@ -1,4 +1,8 @@
+import type { InjectionKey } from 'vue'
 import { dump } from 'js-yaml'
+
+export const MarkdownRendererKey: InjectionKey<(source: string) => string> =
+  Symbol('experiment-markdown')
 
 export function isYamlLike(text: string) {
   const trimmed = text.trim()

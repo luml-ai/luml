@@ -4,6 +4,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -820,6 +821,7 @@ def test_the_address_ui_prints_is_one_this_endpoint_takes(
     )
     monkeypatch.delenv("LUML_BACKEND_STORE_URI", raising=False)
     monkeypatch.setenv("BACKEND_STORE_URI", record.tracker_store)
+    monkeypatch.setattr(daemon_client, "attach", MagicMock())
     monkeypatch.setattr(daemon_client, "discover", lambda: record)
 
     result = CliRunner().invoke(app, ["ui", "--no-browser"])
