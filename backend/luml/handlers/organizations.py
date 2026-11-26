@@ -201,8 +201,6 @@ class OrganizationHandler:
         if existing_invite:
             raise OrganizationInviteAlreadyExistsError()
 
-        await self._check_org_members_limit(organization_id)
-
         db_created_invite = await self.__invites_repository.create_organization_invite(
             CreateOrganizationInvite(
                 **invite_.model_dump(),

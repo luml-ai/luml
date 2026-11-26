@@ -8,19 +8,19 @@
       <div class="item">
         <UiCircleProgress
           :progress="
-            ((organizationStore.organizationDetails.total_members || 0) /
-              organizationStore.organizationDetails.members_limit) *
-            100
+            (occupiedMemberSlots / organizationStore.organizationDetails.members_limit) * 100
           "
           class="progress"
         ></UiCircleProgress>
         <div class="item-content">
           <div class="item-values">
-            {{ organizationStore.organizationDetails?.members.length }}/{{
-              organizationStore.organizationDetails.members_limit
-            }}
+            {{ occupiedMemberSlots }}/{{ organizationStore.organizationDetails.members_limit }}
           </div>
           <div class="item-label">users limit per organization</div>
+          <div v-if="organizationStore.organizationDetails.invites.length" class="item-label">
+            Includes {{ organizationStore.organizationDetails.invites.length }} pending
+            {{ organizationStore.organizationDetails.invites.length === 1 ? 'invite' : 'invites' }}
+          </div>
         </div>
       </div>
       <div class="item">
@@ -84,9 +84,14 @@
 
 <script setup lang="ts">
 import { useOrganizationStore } from '@/stores/organization'
+import { computed } from 'vue'
 import UiCircleProgress from '../ui/UiCircleProgress.vue'
 
 const organizationStore = useOrganizationStore()
+const occupiedMemberSlots = computed(() => {
+  const details = organizationStore.organizationDetails
+  return details ? details.members.length + details.invites.length : 0
+})
 </script>
 
 <style scoped>

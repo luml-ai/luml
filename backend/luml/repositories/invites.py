@@ -11,6 +11,7 @@ from luml.infra.exceptions import (
 )
 from luml.models import OrganizationInviteOrm
 from luml.repositories.base import CrudMixin, RepositoryBase, violates
+from luml.repositories.limits import OrganizationResource, reserve_organization_slot
 from luml.schemas.organization import (
     CreateOrganizationInvite,
     OrganizationInvite,
@@ -24,6 +25,12 @@ class InviteRepository(RepositoryBase, CrudMixin):
         self, invite: CreateOrganizationInvite
     ) -> OrganizationInviteSimple:
         async with self._get_session() as session:
+            await reserve_organization_slot(
+                session,
+                invite.organization_id,
+                OrganizationResource.MEMBERS,
+                include_pending_invites=True,
+            )
             try:
                 db_invite = await self.create_model(
                     session, OrganizationInviteOrm, invite
