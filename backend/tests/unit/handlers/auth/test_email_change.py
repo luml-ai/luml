@@ -20,7 +20,7 @@ async def test_request_sends_bound_link_without_changing_email(
 ) -> None:
     mocks.user_repository.get_user.return_value = user
     mocks.user_repository.email_exists.return_value = False
-    mocks.email_change_requests.start.return_value = REQUEST_ID
+    mocks.user_repository.start_email_change.return_value = REQUEST_ID
     result = await mocks.handler.handle_change_email(
         user.email,
         ChangeEmailIn(
@@ -32,7 +32,9 @@ async def test_request_sends_bound_link_without_changing_email(
         "detail": "If this address can be used, we have sent a confirmation link to it"
     }
     mocks.user_repository.update_user.assert_not_awaited()
-    mocks.email_change_requests.start.assert_awaited_once_with(user.id)
+    mocks.user_repository.start_email_change.assert_awaited_once_with(
+        user.id, user.email_version
+    )
     sent = mocks.emails_handler.send_email_change_confirmation.await_args.args
     assert sent[0] == "new@example.com"
     token = sent[1].split("token=")[1]
@@ -61,7 +63,7 @@ async def test_taken_and_free_addresses_have_identical_responses(
     )
     assert free == taken
     mocks.emails_handler.send_email_change_confirmation.assert_awaited_once()
-    assert mocks.email_change_requests.start.await_count == 2
+    assert mocks.user_repository.start_email_change.await_count == 2
 
 
 @pytest.mark.parametrize("scenario", ["password", "same", "same-case", "sso"])
@@ -89,7 +91,24 @@ async def test_invalid_request_sends_no_mail(
             user.email, request, expected_identity=(user.id, user.email_version)
         )
     mocks.emails_handler.send_email_change_confirmation.assert_not_awaited()
-    mocks.email_change_requests.start.assert_not_awaited()
+    mocks.user_repository.start_email_change.assert_not_awaited()
+
+
+async def test_request_after_identity_change_sends_no_mail(
+    mocks: CollaboratorMocks[AuthHandler], user: User, passwords: Passwords
+) -> None:
+    mocks.user_repository.get_user.return_value = user
+    mocks.user_repository.start_email_change.return_value = None
+    with pytest.raises(AuthError):
+        await mocks.handler.handle_change_email(
+            user.email,
+            ChangeEmailIn(
+                new_email="new@example.com", current_password=passwords.password
+            ),
+            expected_identity=(user.id, user.email_version),
+        )
+    mocks.user_repository.email_exists.assert_not_awaited()
+    mocks.emails_handler.send_email_change_confirmation.assert_not_awaited()
 
 
 @pytest.mark.parametrize("email", ["bad", "", "a" * 255 + "@example.com"])
@@ -122,10 +141,8 @@ async def test_confirmation_passes_expected_state_and_sends_masked_notice(
         user, "new@example.com", REQUEST_ID
     )
     mocks.user_repository.get_user.return_value = user
-    mocks.email_change_requests.is_current.return_value = True
     mocks.user_repository.change_email.return_value = True
     change = await mocks.handler.handle_confirm_email_change(token)
-    mocks.email_change_requests.is_current.assert_awaited_once_with(user.id, REQUEST_ID)
     mocks.user_repository.change_email.assert_awaited_once_with(
         user.id,
         user.email,
@@ -134,6 +151,7 @@ async def test_confirmation_passes_expected_state_and_sends_masked_notice(
         token,
         ANY,
         user.email_version,
+        REQUEST_ID,
     )
     assert change == EmailChange(
         old_email=user.email, new_email="new@example.com", full_name=user.full_name
@@ -145,9 +163,7 @@ async def test_confirmation_passes_expected_state_and_sends_masked_notice(
     )
 
 
-@pytest.mark.parametrize(
-    "change", ["password", "email", "id", "sso", "superseded", "used"]
-)
+@pytest.mark.parametrize("change", ["password", "email", "id", "sso", "used"])
 async def test_confirmation_rejects_changed_state(
     mocks: CollaboratorMocks[AuthHandler], user: User, change: str
 ) -> None:
@@ -165,13 +181,10 @@ async def test_confirmation_rejects_changed_state(
     elif change == "sso":
         user.auth_method = AuthProvider.MICROSOFT
     mocks.user_repository.get_user.return_value = user
-    mocks.email_change_requests.is_current.return_value = change != "superseded"
     mocks.user_repository.change_email.return_value = change != "used"
     with pytest.raises(AuthError):
         await mocks.handler.handle_confirm_email_change(token)
     mocks.emails_handler.send_email_changed_notice.assert_not_awaited()
-    if change != "used":
-        mocks.user_repository.change_email.assert_not_awaited()
 
 
 @pytest.mark.parametrize("token", ["invalid", "expired", "wrong-purpose"])

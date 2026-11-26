@@ -5,16 +5,11 @@ from uuid import UUID
 
 import asyncpg
 import pytest
-from luml.handlers.auth import EMAIL_CHANGE_LINK_TTL, AuthHandler
 from luml.infra.auth_rate_limits import KEY_PREFIX, AuthRateLimiter
 from luml.models import OrganizationOrm
 from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.collections import CollectionRepository
-from luml.repositories.email_change_requests import (
-    KEY_PREFIX as EMAIL_CHANGE_KEY_PREFIX,
-    EmailChangeRequestRepository,
-)
 from luml.repositories.invites import InviteRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.satellites import SatelliteRepository
@@ -176,9 +171,8 @@ async def engine(
 async def redis_client() -> AsyncGenerator[Redis]:
     client = Redis.from_url(config.REDIS_URL)
     try:
-        for prefix in (KEY_PREFIX, EMAIL_CHANGE_KEY_PREFIX):
-            async for key in client.scan_iter(f"{prefix}*"):
-                await client.delete(key)
+        async for key in client.scan_iter(f"{KEY_PREFIX}*"):
+            await client.delete(key)
         yield client
     finally:
         await client.aclose()
@@ -191,15 +185,6 @@ def auth_rate_limiter(
     limiter = AuthRateLimiter(redis_client)
     monkeypatch.setattr("luml.infra.auth_rate_limits.limiter", limiter)
     return limiter
-
-
-@pytest.fixture(autouse=True)
-def email_change_requests(
-    redis_client: Redis, monkeypatch: pytest.MonkeyPatch
-) -> EmailChangeRequestRepository:
-    requests = EmailChangeRequestRepository(redis_client, EMAIL_CHANGE_LINK_TTL)
-    monkeypatch.setattr(AuthHandler, "_AuthHandler__email_change_requests", requests)
-    return requests
 
 
 @pytest.fixture
