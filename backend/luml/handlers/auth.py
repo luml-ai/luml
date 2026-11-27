@@ -365,15 +365,8 @@ class AuthHandler:
             raise AuthError("Invalid current password", 400)
         if user.email.lower() == request.new_email:
             raise AuthError("New email must differ from the current address", 400)
-        request_id = await self.__user_repository.start_email_change(
-            user.id, user.email_version
-        )
-        if request_id is None:
-            raise AuthError("Token has been revoked", 401)
         if not await self.__user_repository.email_exists(request.new_email):
-            token = self._generate_email_change_token(
-                user, request.new_email, request_id
-            )
+            token = self._generate_email_change_token(user, request.new_email)
             try:
                 await self.__emails_handler.send_email_change_confirmation(
                     request.new_email, config.CHANGE_EMAIL_URL + token, user.full_name
@@ -386,13 +379,10 @@ class AuthHandler:
             )
         }
 
-    def _generate_email_change_token(
-        self, user: User, new_email: EmailStr, request_id: UUID
-    ) -> str:
+    def _generate_email_change_token(self, user: User, new_email: EmailStr) -> str:
         return self._create_token(
             {
                 "type": "email_change",
-                "rid": str(request_id),
                 "uid": str(user.id),
                 "ev": str(user.email_version),
                 "sub": user.email,
@@ -410,22 +400,12 @@ class AuthHandler:
                 self.secret_key,
                 algorithms=[self.algorithm],
                 options={
-                    "require": [
-                        "exp",
-                        "uid",
-                        "ev",
-                        "sub",
-                        "new_email",
-                        "pwh",
-                        "jti",
-                        "rid",
-                    ]
+                    "require": ["exp", "uid", "ev", "sub", "new_email", "pwh", "jti"]
                 },
             )
             if payload.get("type") != "email_change":
                 raise ValueError
             user_id = UUID(payload["uid"])
-            request_id = UUID(payload["rid"])
             old_email = payload["sub"]
             new_email = payload["new_email"]
             if not isinstance(old_email, str) or not isinstance(new_email, str):
@@ -456,7 +436,6 @@ class AuthHandler:
             token,
             int(payload["exp"]),
             user.email_version,
-            request_id,
         ):
             raise AuthError(
                 "Email change link is expired, already used or invalid", 400

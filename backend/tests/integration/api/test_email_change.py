@@ -175,13 +175,6 @@ async def test_taken_address_responses_match_and_unverified_accounts_block_confi
     await UserRepository(engine).create_user(
         new_user.model_copy(update={"email": stored_email, "email_verified": False})
     )
-    confirmed = await client.post(
-        "/v1/auth/confirm-email-change", json={"token": token}
-    )
-    assert confirmed.status_code == 409
-    assert confirmed.json() == {"detail": "Address already in use"}
-    assert (await UserRepository(engine).get_user(new_user.email)) is not None
-    mail[1].assert_not_awaited()
     taken = await client.post(
         "/v1/auth/change-email",
         json={"new_email": NEW_EMAIL, "current_password": PASSWORD},
@@ -189,6 +182,13 @@ async def test_taken_address_responses_match_and_unverified_accounts_block_confi
     assert taken.status_code == response.status_code == 200
     assert taken.json() == response.json()
     mail[0].assert_awaited_once()
+    confirmed = await client.post(
+        "/v1/auth/confirm-email-change", json={"token": token}
+    )
+    assert confirmed.status_code == 409
+    assert confirmed.json() == {"detail": "Address already in use"}
+    assert (await UserRepository(engine).get_user(new_user.email)) is not None
+    mail[1].assert_not_awaited()
 
 
 async def test_replacement_account_cannot_use_old_identity_tokens(
@@ -245,51 +245,17 @@ async def test_simultaneous_confirmations_have_one_winner(
     new_user: CreateUser,
     mail: tuple[AsyncMock, AsyncMock],
 ) -> None:
-    token = await request_change(client, mail)
+    first = await request_change(client, mail)
+    second = await request_change(client, mail, "other@example.com")
     responses = await asyncio.gather(
         *(
             client.post("/v1/auth/confirm-email-change", json={"token": token})
-            for _ in range(2)
+            for token in [first, second]
         )
     )
     assert sorted(r.status_code for r in responses) == [200, 400]
     assert await UserRepository(engine).get_user(new_user.email) is None
     mail[1].assert_awaited_once()
-
-
-@pytest.mark.parametrize("second_address", ["free", "taken"])
-async def test_a_newer_request_voids_earlier_links(
-    client: AsyncClient,
-    engine: AsyncEngine,
-    new_user: CreateUser,
-    mail: tuple[AsyncMock, AsyncMock],
-    second_address: str,
-) -> None:
-    mistyped = await request_change(client, mail, "mistyped@example.com")
-    if second_address == "taken":
-        await UserRepository(engine).create_user(
-            new_user.model_copy(update={"email": NEW_EMAIL})
-        )
-        response = await client.post(
-            "/v1/auth/change-email",
-            json={"new_email": NEW_EMAIL, "current_password": PASSWORD},
-        )
-        assert response.status_code == 200
-        mail[0].assert_awaited_once()
-    else:
-        latest = await request_change(client, mail)
-    response = await client.post(
-        "/v1/auth/confirm-email-change", json={"token": mistyped}
-    )
-    assert response.status_code == 400
-    assert await UserRepository(engine).get_user("mistyped@example.com") is None
-    assert await UserRepository(engine).get_user(new_user.email) is not None
-    if second_address == "free":
-        response = await client.post(
-            "/v1/auth/confirm-email-change", json={"token": latest}
-        )
-        assert response.status_code == 200
-        assert await UserRepository(engine).get_user(NEW_EMAIL) is not None
 
 
 async def test_sso_request_is_rejected_and_auth_request_is_limited(
@@ -402,8 +368,8 @@ async def test_returning_to_old_email_does_not_revive_any_old_tokens(
     activation = handler._generate_email_confirmation_token(
         user.email, user.id, user.email_version
     )
-    sibling = await request_change(client, mail, "third@example.com")
     first = await request_change(client, mail)
+    sibling = await request_change(client, mail, "third@example.com")
     assert (
         await client.post("/v1/auth/confirm-email-change", json={"token": first})
     ).status_code == 200
