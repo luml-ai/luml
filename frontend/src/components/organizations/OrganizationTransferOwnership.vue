@@ -1,5 +1,13 @@
 <template>
-  <Button severity="secondary" variant="outlined" @click="open">Transfer ownership</Button>
+  <div v-if="pending">
+    <p>Ownership transfer requested for {{ pending.recipient_email }}.</p>
+    <p>
+      Sent {{ new Date(pending.created_at).toLocaleString() }}. Expires
+      {{ new Date(pending.expires_at).toLocaleString() }}.
+    </p>
+    <Button severity="secondary" :loading="loading" @click="cancel">Cancel transfer request</Button>
+  </div>
+  <Button v-else severity="secondary" variant="outlined" @click="open">Transfer ownership</Button>
   <Dialog
     v-model:visible="visible"
     modal
@@ -9,9 +17,10 @@
   >
     <div>
       <p v-if="candidates.length" class="text">
-        The selected member becomes the owner of
+        The selected member will receive a request to become the owner of
         <span class="name">{{ organizationStore.currentOrganization?.name }}</span
-        >. You stay in the organization as an admin.
+        >. You remain the owner until they accept, then stay as an admin. The request expires in 7
+        days.
       </p>
       <p v-else class="text">
         Invite a member to
@@ -36,17 +45,17 @@
         :disabled="!selectedMemberId"
         :loading="loading"
         @click="transferOwnership"
-        >Transfer</Button
+        >Send request</Button
       >
     </template>
   </Dialog>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch, onUnmounted } from 'vue'
 import { Button, Dialog, Select, useToast } from 'primevue'
 import { api } from '@/lib/api'
-import type { Member } from '@/lib/api/api.interfaces'
+import type { Member, OwnershipTransfer } from '@/lib/api/api.interfaces'
 import { OrganizationRoleEnum } from '@/components/organizations/organization.interfaces'
 import { useOrganizationStore } from '@/stores/organization'
 import { useUserStore } from '@/stores/user'
@@ -57,7 +66,39 @@ const organizationStore = useOrganizationStore()
 const userStore = useUserStore()
 const toast = useToast()
 
+const pending = ref<OwnershipTransfer | null>(null)
 const visible = ref(false)
+
+async function loadPending() {
+  const id = organizationStore.currentOrganization?.id
+  if (!id) return
+  try {
+    pending.value = await api.getPendingOwnershipTransfer(id)
+  } catch (e) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Could not load transfer request')))
+  }
+}
+watch(() => organizationStore.organizationDetails, loadPending, { immediate: true })
+const expiryTimer = window.setInterval(() => {
+  if (pending.value && new Date(pending.value.expires_at).getTime() <= Date.now())
+    pending.value = null
+}, 1000)
+onUnmounted(() => window.clearInterval(expiryTimer))
+
+async function cancel() {
+  const id = organizationStore.currentOrganization?.id
+  if (!id || !pending.value) return
+  loading.value = true
+  try {
+    await api.cancelOwnershipTransfer(id, pending.value.id)
+    pending.value = null
+  } catch (e) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Could not cancel transfer request')))
+    await loadPending()
+  } finally {
+    loading.value = false
+  }
+}
 const loading = ref(false)
 const selectedMemberId = ref<string | null>(null)
 
@@ -84,18 +125,19 @@ async function transferOwnership() {
   if (!organization || !selectedMemberId.value) return
   loading.value = true
   try {
-    const newOwner = await api.transferOrganizationOwnership(
-      organization.id,
-      selectedMemberId.value,
-    )
+    pending.value = await api.requestOrganizationOwnership(organization.id, selectedMemberId.value)
     visible.value = false
-    toast.add(
-      simpleSuccessToast(`${getMemberLabel(newOwner)} is now the owner of ${organization.name}.`),
-    )
-    await organizationStore.getAvailableOrganizations()
-    await organizationStore.getOrganizationDetails(organization.id)
+    if (pending.value.email_delivery_failed) {
+      toast.add(
+        simpleErrorToast(
+          'Request saved, but the email could not be delivered. The recipient can respond on the Invitations page.',
+        ),
+      )
+    }
+    toast.add(simpleSuccessToast(`Ownership transfer request sent for ${organization.name}.`))
   } catch (e: unknown) {
-    toast.add(simpleErrorToast(getErrorMessage(e, 'Could not transfer ownership')))
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Could not send transfer request')))
+    await loadPending()
   } finally {
     loading.value = false
   }

@@ -7,7 +7,7 @@ import DeleteAccountModal from './DeleteAccountModal.vue'
 const mocks = vi.hoisted(() => ({
   getOrganizations: vi.fn(),
   getOrganizationMembers: vi.fn(),
-  transferOrganizationOwnership: vi.fn(),
+  requestOrganizationOwnership: vi.fn(),
   deleteAccount: vi.fn(),
   getAvailableOrganizations: vi.fn(),
   push: vi.fn(),
@@ -18,7 +18,7 @@ vi.mock('@/lib/api', () => ({
   api: {
     getOrganizations: mocks.getOrganizations,
     getOrganizationMembers: mocks.getOrganizationMembers,
-    transferOrganizationOwnership: mocks.transferOrganizationOwnership,
+    requestOrganizationOwnership: mocks.requestOrganizationOwnership,
   },
 }))
 vi.mock('@/stores/user', () => ({
@@ -125,8 +125,8 @@ describe('DeleteAccountModal', () => {
     expect(mocks.getOrganizationMembers).not.toHaveBeenCalledWith('joined')
   })
 
-  it('transfers ownership to the selected member', async () => {
-    mocks.transferOrganizationOwnership.mockResolvedValue(
+  it('requests acceptance and warns that deletion still removes the organization', async () => {
+    mocks.requestOrganizationOwnership.mockResolvedValue(
       member('alice', OrganizationRoleEnum.owner),
     )
     const wrapper = mountModal()
@@ -143,8 +143,8 @@ describe('DeleteAccountModal', () => {
     await findButton(wrapper, 'Transfer').trigger('click')
     await flushPromises()
 
-    expect(mocks.transferOrganizationOwnership).toHaveBeenCalledWith('shared', 'member-alice')
-    expect(wrapper.findAll('li')[1].text()).toContain('Ownership transferred to alice')
+    expect(mocks.requestOrganizationOwnership).toHaveBeenCalledWith('shared', 'member-alice')
+    expect(wrapper.findAll('li')[1].text()).toContain('You remain the owner until it is accepted')
     expect(mocks.getAvailableOrganizations).toHaveBeenCalled()
   })
 

@@ -17,7 +17,8 @@
             <div>
               <div class="danger-zone-title">Transfer ownership</div>
               <p class="danger-zone-text">
-                Make another member the owner of this organization. You stay in it as an admin.
+                Request ownership transfer to another member. After they accept, you stay as an
+                admin.
               </p>
             </div>
             <OrganizationTransferOwnership></OrganizationTransferOwnership>

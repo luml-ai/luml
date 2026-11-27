@@ -1,7 +1,7 @@
-import type { CreateInvitePayload, Invitation } from '@/lib/api/api.interfaces'
+import type { CreateInvitePayload, Invitation, OwnershipTransfer } from '@/lib/api/api.interfaces'
 import { api } from '@/lib/api'
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useOrganizationStore } from './organization'
 
 export const useInvitationsStore = defineStore('invitations', () => {
@@ -11,7 +11,14 @@ export const useInvitationsStore = defineStore('invitations', () => {
   const isLoading = ref(false)
   const isLoaded = ref(false)
   const loadError = ref(false)
+  const ownershipTransfers = ref<OwnershipTransfer[]>([])
+  const ownershipTransfersLoadError = ref(false)
   let invitationsRequestId = 0
+  let ownershipTransfersRequestId = 0
+
+  const hasPendingInvitations = computed(
+    () => invitations.value.length > 0 || ownershipTransfers.value.length > 0,
+  )
 
   async function getInvitations() {
     const requestId = ++invitationsRequestId
@@ -32,6 +39,19 @@ export const useInvitationsStore = defineStore('invitations', () => {
         isLoading.value = false
         isLoaded.value = true
       }
+    }
+  }
+
+  async function getOwnershipTransfers() {
+    const requestId = ++ownershipTransfersRequestId
+    try {
+      const response = await api.getOwnershipTransfers()
+      if (requestId !== ownershipTransfersRequestId) return
+      ownershipTransfers.value = response
+      ownershipTransfersLoadError.value = false
+    } catch (error) {
+      if (requestId === ownershipTransfersRequestId) ownershipTransfersLoadError.value = true
+      throw error
     }
   }
 
@@ -63,6 +83,9 @@ export const useInvitationsStore = defineStore('invitations', () => {
     isLoading.value = false
     isLoaded.value = false
     loadError.value = false
+    ownershipTransfersRequestId++
+    ownershipTransfers.value = []
+    ownershipTransfersLoadError.value = false
   }
 
   return {
@@ -70,7 +93,11 @@ export const useInvitationsStore = defineStore('invitations', () => {
     isLoading,
     isLoaded,
     loadError,
+    ownershipTransfers,
+    ownershipTransfersLoadError,
+    hasPendingInvitations,
     getInvitations,
+    getOwnershipTransfers,
     acceptInvitation,
     rejectInvitation,
     createInvite,

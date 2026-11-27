@@ -248,3 +248,15 @@ export enum PermissionEnum {
   deploy = 'deploy',
   leave = 'leave',
 }
+
+export interface OwnershipTransfer {
+  email_delivery_failed?: boolean
+  id: string
+  organization_id: string
+  organization_name: string
+  recipient_email: string
+  sender_email: string
+  status: string
+  created_at: string
+  expires_at: string
+}

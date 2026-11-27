@@ -8,6 +8,7 @@ const apiMocks = vi.hoisted(() => ({
 }))
 const invitationsStore = vi.hoisted(() => ({
   getInvitations: vi.fn(),
+  getOwnershipTransfers: vi.fn(),
   reset: vi.fn(),
 }))
 const organizationStore = vi.hoisted(() => ({
@@ -31,6 +32,7 @@ describe('user store', () => {
     vi.clearAllMocks()
     apiMocks.getMe.mockResolvedValue(user)
     organizationStore.getAvailableOrganizations.mockResolvedValue(undefined)
+    invitationsStore.getOwnershipTransfers.mockResolvedValue(undefined)
   })
 
   it('loads invitations before organizations', async () => {
@@ -54,6 +56,38 @@ describe('user store', () => {
 
   it('loads organizations when invitations fail', async () => {
     invitationsStore.getInvitations.mockRejectedValue(new Error('unavailable'))
+    const store = useUserStore()
+
+    await store.loadUser()
+
+    await vi.waitFor(() =>
+      expect(organizationStore.getAvailableOrganizations).toHaveBeenCalledOnce(),
+    )
+  })
+
+  it('loads ownership transfers before organizations', async () => {
+    invitationsStore.getInvitations.mockResolvedValue(undefined)
+    let resolveTransfers = () => {}
+    invitationsStore.getOwnershipTransfers.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveTransfers = resolve
+      }),
+    )
+    const store = useUserStore()
+
+    await store.loadUser()
+    await vi.waitFor(() => expect(invitationsStore.getOwnershipTransfers).toHaveBeenCalledOnce())
+    expect(organizationStore.getAvailableOrganizations).not.toHaveBeenCalled()
+
+    resolveTransfers()
+    await vi.waitFor(() =>
+      expect(organizationStore.getAvailableOrganizations).toHaveBeenCalledOnce(),
+    )
+  })
+
+  it('loads organizations when ownership transfers fail', async () => {
+    invitationsStore.getInvitations.mockResolvedValue(undefined)
+    invitationsStore.getOwnershipTransfers.mockRejectedValue(new Error('unavailable'))
     const store = useUserStore()
 
     await store.loadUser()

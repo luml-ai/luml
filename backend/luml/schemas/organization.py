@@ -157,3 +157,21 @@ class OrganizationDetails(Organization):
     total_artifacts: int = 0
     members_by_role: dict[str, int] = Field(default_factory=dict)
     permissions: dict[str, Any] | None = None
+
+
+class OwnershipTransfer(BaseModel, BaseOrmConfig):
+    email_delivery_failed: bool = False
+    id: UUID
+    organization_id: UUID
+    organization_name: str
+    sender_id: UUID
+    sender_email: EmailStr
+    recipient_id: UUID | None
+    recipient_email: EmailStr
+    status: str
+    created_at: datetime
+    expires_at: datetime
+
+
+class OwnershipTransferCreate(BaseModel):
+    member_id: UUID

@@ -22,6 +22,7 @@ import type {
   CreateOrganizationResponse,
   OrganizationDetails,
   Member,
+  OwnershipTransfer,
   UpdateMemberPayload,
   BaseDetailResponse,
   CreateInvitePayload,
@@ -257,11 +258,49 @@ export class ApiClass {
     return responseData
   }
 
-  public async transferOrganizationOwnership(organizationId: string, memberId: string) {
-    const { data: responseData } = await this.api.post<Member>(
-      `/v1/organizations/${organizationId}/members/${memberId}/transfer-ownership`,
+  public async requestOrganizationOwnership(organizationId: string, memberId: string) {
+    const { data: responseData } = await this.api.post<OwnershipTransfer>(
+      `/v1/organizations/${organizationId}/ownership-transfers`,
+      { member_id: memberId },
     )
     return responseData
+  }
+
+  public async getPendingOwnershipTransfer(organizationId: string) {
+    const { data } = await this.api.get<OwnershipTransfer | null>(
+      `/v1/organizations/${organizationId}/ownership-transfers/pending`,
+    )
+    return data
+  }
+
+  public async cancelOwnershipTransfer(organizationId: string, transferId: string) {
+    await this.api.post(
+      `/v1/organizations/${organizationId}/ownership-transfers/${transferId}/cancel`,
+    )
+  }
+
+  public async getOwnershipTransfers() {
+    const { data } = await this.api.get<OwnershipTransfer[]>(
+      '/v1/users/me/invitations/ownership-transfers',
+    )
+    return data
+  }
+
+  public async respondToOwnershipTransfer(
+    transfer: OwnershipTransfer,
+    action: 'accept' | 'decline',
+  ) {
+    const { data } = await this.api.post<OwnershipTransfer>(
+      `/v1/users/me/invitations/ownership-transfers/${transfer.organization_id}/${transfer.id}/${action}`,
+    )
+    return data
+  }
+
+  public async readOwnershipTransferNotices(organizationId: string) {
+    const { data } = await this.api.post<OwnershipTransfer[]>(
+      `/v1/organizations/${organizationId}/ownership-transfer-notices/read`,
+    )
+    return data
   }
 
   public async updateOrganizationMember(

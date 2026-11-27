@@ -7,13 +7,24 @@ import { useOrganizationStore } from '@/stores/organization'
 import { useUserStore } from '@/stores/user'
 import OrganizationTransferOwnership from './OrganizationTransferOwnership.vue'
 
-const harness = vi.hoisted(() => ({ toastAdd: vi.fn(), transfer: vi.fn() }))
+const harness = vi.hoisted(() => ({
+  toastAdd: vi.fn(),
+  transfer: vi.fn(),
+  pending: vi.fn(),
+  cancel: vi.fn(),
+}))
 
 vi.mock('primevue', async (importOriginal) => ({
   ...(await importOriginal<typeof import('primevue')>()),
   useToast: () => ({ add: harness.toastAdd }),
 }))
-vi.mock('@/lib/api', () => ({ api: { transferOrganizationOwnership: harness.transfer } }))
+vi.mock('@/lib/api', () => ({
+  api: {
+    requestOrganizationOwnership: harness.transfer,
+    getPendingOwnershipTransfer: harness.pending,
+    cancelOwnershipTransfer: harness.cancel,
+  },
+}))
 
 function member(id: string, userId: string, role: OrganizationRoleEnum): Member {
   return {
@@ -51,6 +62,7 @@ beforeEach(() => {
   setActivePinia(createPinia())
   localStorage.clear()
   vi.resetAllMocks()
+  harness.pending.mockResolvedValue(null)
 })
 
 it('offers every member except the current owner', async () => {
@@ -76,12 +88,17 @@ it('asks to invite a member when nobody can take over', async () => {
   wrapper.unmount()
 })
 
-it('transfers ownership to the selected member and reloads the organization', async () => {
+it('requests acceptance while retaining the existing owner', async () => {
   const store = setup([
     member('m-me', 'me', OrganizationRoleEnum.owner),
     member('m-bob', 'bob', OrganizationRoleEnum.member),
   ])
-  harness.transfer.mockResolvedValue(member('m-bob', 'bob', OrganizationRoleEnum.owner))
+  harness.transfer.mockResolvedValue({
+    id: 'request',
+    recipient_email: 'bob@example.com',
+    created_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + 604800000).toISOString(),
+  })
   const wrapper = mountComponent()
 
   await wrapper.findComponent({ name: 'Select' }).vm.$emit('update:modelValue', 'm-bob')
@@ -89,8 +106,8 @@ it('transfers ownership to the selected member and reloads the organization', as
   await flushPromises()
 
   expect(harness.transfer).toHaveBeenCalledWith('organization-a', 'm-bob')
-  expect(store.getAvailableOrganizations).toHaveBeenCalledOnce()
-  expect(store.getOrganizationDetails).toHaveBeenCalledWith('organization-a')
+  expect(store.getAvailableOrganizations).not.toHaveBeenCalled()
+  expect(store.getOrganizationDetails).not.toHaveBeenCalled()
   expect(harness.toastAdd).toHaveBeenCalledWith(expect.objectContaining({ severity: 'success' }))
   wrapper.unmount()
 })
@@ -109,5 +126,24 @@ it('keeps the organization unchanged when the transfer fails', async () => {
 
   expect(store.getAvailableOrganizations).not.toHaveBeenCalled()
   expect(harness.toastAdd).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }))
+  wrapper.unmount()
+})
+
+it('shows pending recipient and dates and allows cancellation', async () => {
+  setup([member('m-me', 'me', OrganizationRoleEnum.owner)])
+  harness.pending.mockResolvedValue({
+    id: 'request',
+    recipient_email: 'bob@example.com',
+    created_at: '2026-01-01T00:00:00Z',
+    expires_at: '2099-01-08T00:00:00Z',
+  })
+  const wrapper = mountComponent()
+  await flushPromises()
+  expect(wrapper.text()).toContain('bob@example.com')
+  expect(wrapper.text()).toContain('Expires')
+  await wrapper.findAll('button')[0].trigger('click')
+  await flushPromises()
+  expect(harness.cancel).toHaveBeenCalledWith('organization-a', 'request')
+  expect(wrapper.text()).not.toContain('Ownership transfer requested for')
   wrapper.unmount()
 })

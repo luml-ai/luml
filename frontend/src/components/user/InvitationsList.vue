@@ -1,4 +1,5 @@
 <template>
+  <OwnershipTransferInvitations />
   <div v-if="!invitationsStore.isLoaded || invitationsStore.isLoading" class="status">
     <ProgressSpinner class="spinner" aria-label="Loading invitations" />
     <span>Loading invitations...</span>
@@ -52,11 +53,14 @@
       </div>
     </div>
   </div>
-  <div v-else class="placeholder">There are currently no invitations awaiting response.</div>
+  <div v-else-if="!invitationsStore.ownershipTransfers.length" class="placeholder">
+    There are currently no invitations awaiting response.
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import OwnershipTransferInvitations from './OwnershipTransferInvitations.vue'
 import { Trash2, Check } from 'lucide-vue-next'
 import { ProgressSpinner, useToast } from 'primevue'
 import { useInvitationsStore } from '@/stores/invitations'

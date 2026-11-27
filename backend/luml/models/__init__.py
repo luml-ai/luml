@@ -16,6 +16,7 @@ from luml.models.organization import (
     OrganizationMemberOrm,
     OrganizationOrm,
 )
+from luml.models.ownership_transfer import OwnershipTransferOrm
 from luml.models.relay import RelayOrm
 from luml.models.satellite import SatelliteOrm, SatelliteQueueOrm
 from luml.models.stats import StatsEmailSendOrm
@@ -29,6 +30,7 @@ __all__ = [
     "UserOrm",
     "TokenBlackListOrm",
     "OrganizationOrm",
+    "OwnershipTransferOrm",
     "OrganizationMemberOrm",
     "OrganizationInviteOrm",
     "OrbitOrm",
