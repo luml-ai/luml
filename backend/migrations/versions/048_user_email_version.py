@@ -1,7 +1,7 @@
 """user email version
 
-Revision ID: 046
-Revises: 045
+Revision ID: 048
+Revises: 047
 Create Date: 2026-11-23 11:15:14.727264
 
 """
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "046"
-down_revision: str | None = "045"
+revision: str = "048"
+down_revision: str | None = "047"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
