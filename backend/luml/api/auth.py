@@ -25,7 +25,6 @@ from luml.schemas.auth import ForgotPasswordIn, Token
 from luml.schemas.user import (
     ChangeEmailIn,
     ChangePasswordIn,
-    ConfirmEmailChangeIn,
     CreateUserIn,
     CurrentUserOut,
     DetailResponse,
@@ -237,18 +236,25 @@ async def change_email(
     )
 
 
-@auth_router.post("/confirm-email-change", response_model=DetailResponse)
+@auth_router.get("/confirm-email-change")
 async def confirm_email_change(
     request: Request,
-    response: Response,
-    data: ConfirmEmailChangeIn,
+    token: Annotated[str, Query(min_length=1, max_length=4096)],
     background_tasks: BackgroundTasks,
-) -> dict[str, str]:
+) -> RedirectResponse:
     await limit_auth_attempts(request)
-    change = await auth_handler.handle_confirm_email_change(data.token)
-    background_tasks.add_task(auth_handler.send_email_changed_notice, change)
+    try:
+        change = await auth_handler.handle_confirm_email_change(token)
+    except AuthError as error:
+        outcome = (
+            "in-use" if error.status_code == status.HTTP_409_CONFLICT else "invalid"
+        )
+        return RedirectResponse(f"{config.CHANGE_EMAIL_REDIRECT_URL}?status={outcome}")
+    if change is not None:
+        background_tasks.add_task(auth_handler.send_email_changed_notice, change)
+    response = RedirectResponse(f"{config.CHANGE_EMAIL_REDIRECT_URL}?status=changed")
     delete_auth_cookies(response)
-    return {"detail": "Email changed successfully. Sign in with your new address."}
+    return response
 
 
 @auth_router.patch("/users/me", response_model=DetailResponse)

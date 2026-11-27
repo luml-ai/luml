@@ -1,5 +1,6 @@
 from time import time
 from unittest.mock import ANY
+from uuid import uuid4
 
 import jwt
 import pytest
@@ -137,22 +138,43 @@ async def test_confirmation_passes_expected_state_and_sends_masked_notice(
 async def test_confirmation_rejects_changed_state(
     mocks: CollaboratorMocks[AuthHandler], user: User, change: str
 ) -> None:
+    original = user.email
     token = mocks.handler._generate_email_change_token(user, "new@example.com")
     if change == "password":
         user.hashed_password = "changed"
     elif change == "email":
         user.email = "another@example.com"
     elif change == "id":
-        from uuid import uuid4
-
         user.id = uuid4()
     elif change == "sso":
         user.auth_method = AuthProvider.MICROSOFT
-    mocks.user_repository.get_user.return_value = user
+    mocks.user_repository.get_user.side_effect = lambda email: (
+        user if email == original else None
+    )
     mocks.user_repository.change_email.return_value = change != "used"
     with pytest.raises(AuthError):
         await mocks.handler.handle_confirm_email_change(token)
     mocks.emails_handler.send_email_changed_notice.assert_not_awaited()
+
+
+@pytest.mark.parametrize("visit", ["again", "concurrently"])
+async def test_confirmation_of_an_applied_link_succeeds_without_a_change(
+    mocks: CollaboratorMocks[AuthHandler], user: User, visit: str
+) -> None:
+    token = mocks.handler._generate_email_change_token(user, "new@example.com")
+    changed = user.model_copy(
+        update={"email": "new@example.com", "email_version": uuid4()}
+    )
+    accounts = {"new@example.com": changed}
+    if visit == "concurrently":
+        accounts[user.email] = user
+    mocks.user_repository.get_user.side_effect = accounts.get
+    mocks.user_repository.change_email.return_value = False
+    assert await mocks.handler.handle_confirm_email_change(token) is None
+    if visit == "again":
+        mocks.user_repository.change_email.assert_not_awaited()
+    else:
+        mocks.user_repository.change_email.assert_awaited_once()
 
 
 @pytest.mark.parametrize("token", ["invalid", "expired", "wrong-purpose"])

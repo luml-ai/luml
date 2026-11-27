@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     CONFIRM_EMAIL_REDIRECT_URL: str
     CONFIRM_EMAIL_URL: str
     CHANGE_EMAIL_URL: str
+    CHANGE_EMAIL_REDIRECT_URL: str
     CHANGE_PASSWORD_URL: str
     APP_EMAIL_URL: str
 

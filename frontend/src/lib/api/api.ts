@@ -170,15 +170,6 @@ export class ApiClass {
     return responseData
   }
 
-  public async confirmEmailChange(token: string): Promise<BaseDetailResponse> {
-    const { data } = await this.api.post(
-      '/v1/auth/confirm-email-change',
-      { token },
-      { skipInterceptors: true },
-    )
-    return data
-  }
-
   public async updateUser(data: IUpdateUserRequest): Promise<IPostChangePasswordResponse> {
     const { data: responseData } = await this.api.patch('/v1/auth/users/me', data)
 

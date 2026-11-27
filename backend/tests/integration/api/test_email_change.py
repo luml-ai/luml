@@ -71,7 +71,17 @@ async def request_change(
     return parse_qs(urlparse(mail[0].await_args.args[1]).query)["token"][0]
 
 
-async def test_email_changes_only_on_explicit_confirmation_and_revokes_two_sessions(
+async def confirm(client: AsyncClient, token: str) -> str:
+    response = await client.get(
+        "/v1/auth/confirm-email-change", params={"token": token}
+    )
+    assert response.status_code == 307
+    location = urlparse(response.headers["location"])
+    assert location._replace(query="").geturl() == config.CHANGE_EMAIL_REDIRECT_URL
+    return parse_qs(location.query)["status"][0]
+
+
+async def test_email_changes_on_link_visit_and_revokes_two_sessions(
     client: AsyncClient,
     engine: AsyncEngine,
     new_user: CreateUser,
@@ -84,17 +94,13 @@ async def test_email_changes_only_on_explicit_confirmation_and_revokes_two_sessi
     assert response.status_code == 200
     sessions.append((client.cookies["access_token"], client.cookies["refresh_token"]))
     token = await request_change(client, mail, "  New@Example.com  ")
-    assert (
-        await client.get("/v1/auth/confirm-email-change", params={"token": token})
-    ).status_code == 405
     assert (await UserRepository(engine).get_user(new_user.email)) is not None
     assert (
         await client.post(
             "/v1/auth/signin", json={"email": new_user.email, "password": PASSWORD}
         )
     ).status_code == 200
-    response = await client.post("/v1/auth/confirm-email-change", json={"token": token})
-    assert response.status_code == 200
+    assert await confirm(client, token) == "changed"
     assert "access_token" not in client.cookies
     assert "refresh_token" not in client.cookies
     changed = await UserRepository(engine).get_user(NEW_EMAIL)
@@ -122,9 +128,8 @@ async def test_email_changes_only_on_explicit_confirmation_and_revokes_two_sessi
             "/v1/auth/signin", json={"email": new_user.email, "password": PASSWORD}
         )
     ).status_code != 200
-    assert (
-        await client.post("/v1/auth/confirm-email-change", json={"token": token})
-    ).status_code == 400
+    assert await confirm(client, token) == "changed"
+    mail[1].assert_awaited_once()
 
 
 @pytest.mark.parametrize("reason", ["password", "another-change", "expired"])
@@ -144,17 +149,14 @@ async def test_stale_confirmation_leaves_identity_unchanged(
         assert response.status_code == 200
     elif reason == "another-change":
         other = await request_change(client, mail, "other@example.com")
-        assert (
-            await client.post("/v1/auth/confirm-email-change", json={"token": other})
-        ).status_code == 200
+        assert await confirm(client, other) == "changed"
     else:
         handler = AuthHandler(config.AUTH_SECRET_KEY)
         import jwt
 
         payload = jwt.decode(token, config.AUTH_SECRET_KEY, algorithms=["HS256"])
         token = handler._create_token(payload, -1)
-    response = await client.post("/v1/auth/confirm-email-change", json={"token": token})
-    assert response.status_code == 400
+    assert await confirm(client, token) == "invalid"
     assert await UserRepository(engine).get_user(NEW_EMAIL) is None
 
 
@@ -182,11 +184,7 @@ async def test_taken_address_responses_match_and_unverified_accounts_block_confi
     assert taken.status_code == response.status_code == 200
     assert taken.json() == response.json()
     mail[0].assert_awaited_once()
-    confirmed = await client.post(
-        "/v1/auth/confirm-email-change", json={"token": token}
-    )
-    assert confirmed.status_code == 409
-    assert confirmed.json() == {"detail": "Address already in use"}
+    assert await confirm(client, token) == "in-use"
     assert (await UserRepository(engine).get_user(new_user.email)) is not None
     mail[1].assert_not_awaited()
 
@@ -208,9 +206,7 @@ async def test_replacement_account_cannot_use_old_identity_tokens(
         user.email, user.id, user.email_version
     )
     token = await request_change(client, mail)
-    assert (
-        await client.post("/v1/auth/confirm-email-change", json={"token": token})
-    ).status_code == 200
+    assert await confirm(client, token) == "changed"
     replacement = await UserRepository(engine).create_user(
         new_user.model_copy(update={"email_verified": False})
     )
@@ -247,14 +243,22 @@ async def test_simultaneous_confirmations_have_one_winner(
 ) -> None:
     first = await request_change(client, mail)
     second = await request_change(client, mail, "other@example.com")
-    responses = await asyncio.gather(
-        *(
-            client.post("/v1/auth/confirm-email-change", json={"token": token})
-            for token in [first, second]
-        )
-    )
-    assert sorted(r.status_code for r in responses) == [200, 400]
+    outcomes = await asyncio.gather(*(confirm(client, t) for t in [first, second]))
+    assert sorted(outcomes) == ["changed", "invalid"]
     assert await UserRepository(engine).get_user(new_user.email) is None
+    mail[1].assert_awaited_once()
+
+
+async def test_a_scanner_and_the_person_opening_one_link_both_see_success(
+    client: AsyncClient,
+    engine: AsyncEngine,
+    new_user: CreateUser,
+    mail: tuple[AsyncMock, AsyncMock],
+) -> None:
+    token = await request_change(client, mail)
+    outcomes = await asyncio.gather(*(confirm(client, token) for _ in range(2)))
+    assert outcomes == ["changed", "changed"]
+    assert await UserRepository(engine).get_user(NEW_EMAIL) is not None
     mail[1].assert_awaited_once()
 
 
@@ -327,9 +331,7 @@ async def test_api_key_members_and_invitations_keep_the_same_user(
     key = await APIKeyHandler().create_user_api_key(user.id)
     assert key.key is not None
     token = await request_change(client, mail)
-    assert (
-        await client.post("/v1/auth/confirm-email-change", json={"token": token})
-    ).status_code == 200
+    assert await confirm(client, token) == "changed"
     response = await client.get(
         "/v1/auth/api-keys/validate", headers={"Authorization": f"Bearer {key.key}"}
     )
@@ -370,18 +372,14 @@ async def test_returning_to_old_email_does_not_revive_any_old_tokens(
     )
     first = await request_change(client, mail)
     sibling = await request_change(client, mail, "third@example.com")
-    assert (
-        await client.post("/v1/auth/confirm-email-change", json={"token": first})
-    ).status_code == 200
+    assert await confirm(client, first) == "changed"
     assert (
         await client.post(
             "/v1/auth/signin", json={"email": NEW_EMAIL, "password": PASSWORD}
         )
     ).status_code == 200
     back = await request_change(client, mail, user.email)
-    assert (
-        await client.post("/v1/auth/confirm-email-change", json={"token": back})
-    ).status_code == 200
+    assert await confirm(client, back) == "changed"
     assert (
         await client.get(
             "/v1/auth/users/me", headers={"Authorization": f"Bearer {access}"}
@@ -392,9 +390,7 @@ async def test_returning_to_old_email_does_not_revive_any_old_tokens(
             "/v1/auth/refresh", headers={"Cookie": f"refresh_token={refresh}"}
         )
     ).status_code == 401
-    assert (
-        await client.post("/v1/auth/confirm-email-change", json={"token": sibling})
-    ).status_code == 400
+    assert await confirm(client, sibling) == "invalid"
     with pytest.raises(AuthError):
         await handler.handle_email_confirmation(activation)
     assert (

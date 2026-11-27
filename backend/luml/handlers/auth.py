@@ -393,7 +393,7 @@ class AuthHandler:
             86400,
         )
 
-    async def handle_confirm_email_change(self, token: str) -> EmailChange:
+    async def handle_confirm_email_change(self, token: str) -> EmailChange | None:
         try:
             payload = jwt.decode(
                 token,
@@ -408,7 +408,11 @@ class AuthHandler:
             user_id = UUID(payload["uid"])
             old_email = payload["sub"]
             new_email = payload["new_email"]
-            if not isinstance(old_email, str) or not isinstance(new_email, str):
+            if (
+                not isinstance(old_email, str)
+                or not isinstance(new_email, str)
+                or old_email == new_email
+            ):
                 raise ValueError
         except (InvalidTokenError, ValueError, TypeError, AttributeError) as error:
             raise AuthError(
@@ -423,8 +427,9 @@ class AuthHandler:
             or user.auth_method != AuthProvider.EMAIL
             or user.hashed_password is None
             or payload["pwh"] != self._password_fingerprint(user.hashed_password)
-            or old_email == new_email
         ):
+            if await self._email_change_applied(user_id, new_email):
+                return None
             raise AuthError(
                 "Email change link is expired, already used or invalid", 400
             )
@@ -437,12 +442,18 @@ class AuthHandler:
             int(payload["exp"]),
             user.email_version,
         ):
+            if await self._email_change_applied(user_id, new_email):
+                return None
             raise AuthError(
                 "Email change link is expired, already used or invalid", 400
             )
         return EmailChange(
             old_email=old_email, new_email=new_email, full_name=user.full_name
         )
+
+    async def _email_change_applied(self, user_id: UUID, new_email: str) -> bool:
+        user = await self.__user_repository.get_user(new_email)
+        return user is not None and user.id == user_id
 
     async def send_email_changed_notice(self, change: EmailChange) -> None:
         local, domain = change.new_email.rsplit("@", 1)
