@@ -44,31 +44,45 @@
       </div>
       <div class="input-wrapper">
         <d-float-label variant="on">
-          <d-input-text id="email" :model-value="getUserEmail" fluid readonly />
+          <d-icon-field>
+            <d-input-text id="email" :model-value="getUserEmail" fluid readonly />
+            <d-input-icon v-if="!isUserLoggedWithSSO">
+              <button
+                type="button"
+                class="field-action"
+                aria-label="Change email"
+                @click="$emit('showChangeEmail')"
+              >
+                <pencil-line :size="14" />
+              </button>
+            </d-input-icon>
+          </d-icon-field>
           <label class="label" for="email">Email</label>
         </d-float-label>
-        <button
-          v-if="!isUserLoggedWithSSO"
-          type="button"
-          class="link change-password-link"
-          @click="$emit('showChangeEmail')"
-        >
-          Change email
-        </button>
-        <small v-else>Email is managed by your sign-in provider.</small>
+        <small v-if="isUserLoggedWithSSO">Email is managed by your sign-in provider.</small>
+      </div>
+      <div v-if="!isUserLoggedWithSSO" class="input-wrapper">
+        <d-float-label variant="on">
+          <d-icon-field>
+            <d-input-text id="password" model-value="••••••••" fluid readonly />
+            <d-input-icon>
+              <button
+                type="button"
+                class="field-action"
+                aria-label="Change password"
+                @click="$emit('showChangePassword')"
+              >
+                <pencil-line :size="14" />
+              </button>
+            </d-input-icon>
+          </d-icon-field>
+          <label class="label" for="password">Password</label>
+        </d-float-label>
       </div>
     </div>
     <d-message v-if="formResponseError" severity="error" size="small" variant="simple">
       {{ formResponseError }}
     </d-message>
-    <button
-      v-if="!isUserLoggedWithSSO"
-      type="button"
-      class="link change-password-link"
-      @click="$emit('showChangePassword')"
-    >
-      Change password
-    </button>
     <div class="footer">
       <d-button
         label="Delete account"
@@ -85,6 +99,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import type { FormSubmitEvent } from '@primevue/forms'
+import { PencilLine } from 'lucide-vue-next'
 
 import { useInputIcon } from '@/hooks/useInputIcon'
 import { useUserStore } from '@/stores/user'
@@ -177,10 +192,13 @@ watch(
   margin-bottom: 12px;
 }
 
-.change-password-link {
-  align-self: flex-end;
-  padding: 10px 0;
-  font-size: 12px;
+.field-action {
+  display: flex;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
 }
 
 .footer {

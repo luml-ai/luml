@@ -52,15 +52,27 @@ describe('profile email', () => {
     state.sso = false
   })
 
-  it('is read-only and opens a separate change action without submitting the profile', async () => {
+  it.each([
+    ['Change email', '#email', 'showChangeEmail'],
+    ['Change password', '#password', 'showChangePassword'],
+  ] as const)(
+    'opens %s from the pencil in a read-only field without submitting the profile',
+    async (label, field, event) => {
+      wrapper = mountSettings()
+      expect(wrapper.get(field).attributes('readonly')).toBeDefined()
+      const change = wrapper.get(`button[aria-label="${label}"]`)
+      expect(change.attributes('type')).toBe('button')
+      await change.trigger('click')
+      expect(wrapper.emitted(event)).toHaveLength(1)
+      expect(state.updateUser).not.toHaveBeenCalled()
+    },
+  )
+
+  it('shows the password masked, never as a password input', () => {
     wrapper = mountSettings()
-    expect(wrapper.get('#email').attributes('readonly')).toBeDefined()
-    const change = wrapper.findAll('button').find((button) => button.text() === 'Change email')
-    if (!change) throw new Error('Change email action is missing')
-    expect(change.attributes('type')).toBe('button')
-    await change.trigger('click')
-    expect(wrapper.emitted('showChangeEmail')).toHaveLength(1)
-    expect(state.updateUser).not.toHaveBeenCalled()
+    const password = wrapper.get<HTMLInputElement>('#password')
+    expect(password.attributes('type')).not.toBe('password')
+    expect(password.element.value).toBe('••••••••')
   })
 
   it('submits only the changed full name', async () => {
@@ -76,7 +88,9 @@ describe('profile email', () => {
     state.sso = true
     wrapper = mountSettings()
     expect(wrapper.text()).toContain('Email is managed by your sign-in provider.')
-    expect(wrapper.text()).not.toContain('Change email')
+    expect(wrapper.find('button[aria-label="Change email"]').exists()).toBe(false)
+    expect(wrapper.find('button[aria-label="Change password"]').exists()).toBe(false)
+    expect(wrapper.find('#password').exists()).toBe(false)
     expect(wrapper.get('#email').attributes('readonly')).toBeDefined()
   })
 })
