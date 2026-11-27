@@ -6,6 +6,10 @@
     <div v-else class="organization-page">
       <OrganizationInfo class="info"></OrganizationInfo>
       <OrganizationLimits class="limits"></OrganizationLimits>
+      <ExtensionOutlet
+        name="organization-page-summary"
+        :organization-id="organizationStore.currentOrganization.id"
+      ></ExtensionOutlet>
       <OrganizationTabs></OrganizationTabs>
       <div class="views">
         <RouterView></RouterView>
@@ -54,6 +58,7 @@ import OrganizationDelete from '@/components/organizations/OrganizationDelete.vu
 import OrganizationTransferOwnership from '@/components/organizations/OrganizationTransferOwnership.vue'
 import { PermissionEnum } from '@/lib/api/api.interfaces'
 import UiPageLoader from '@/components/ui/UiPageLoader.vue'
+import ExtensionOutlet from '@/extensions/ExtensionOutlet.vue'
 import type { ApiError } from '@/helpers/helpers'
 
 const route = useRoute()
