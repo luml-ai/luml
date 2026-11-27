@@ -1,5 +1,5 @@
 from enum import Enum
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
@@ -22,6 +22,7 @@ class _UserBase(BaseModel):
     auth_method: AuthProvider
     photo: str | None = Field(default=None, max_length=2048)
     hashed_password: str | None = None
+    email_version: UUID = Field(default_factory=uuid4)
 
 
 class CreateUser(_UserBase): ...
@@ -43,6 +44,7 @@ class UserOut(BaseModel, BaseOrmConfig):
 class CurrentUserOut(UserOut):
     auth_method: AuthProvider
     hashed_password: str | None = Field(default=None, exclude=True)
+    email_version: UUID = Field(default_factory=uuid4, exclude=True)
 
 
 class CreateUserIn(BaseModel):
@@ -104,6 +106,24 @@ class DetailResponse(BaseModel):
 class ChangePasswordIn(BaseModel):
     current_password: str = Field(min_length=8, max_length=128)
     new_password: str = Field(min_length=8, max_length=128)
+
+
+class ChangeEmailIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    new_email: EmailStr = Field(max_length=254)
+    current_password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("new_email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        return value.lower().strip()
+
+
+class EmailChange(BaseModel):
+    old_email: EmailStr
+    new_email: EmailStr
+    full_name: str | None = None
 
 
 class UpdateUserIn(BaseModel):

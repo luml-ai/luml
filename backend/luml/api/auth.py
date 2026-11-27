@@ -2,6 +2,7 @@ from typing import Annotated
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Body,
     Depends,
     HTTPException,
@@ -22,6 +23,7 @@ from luml.infra.dependencies import UserAuthentication
 from luml.infra.exceptions import AuthError, RefreshTokenReusedError
 from luml.schemas.auth import ForgotPasswordIn, Token
 from luml.schemas.user import (
+    ChangeEmailIn,
     ChangePasswordIn,
     CreateUserIn,
     CurrentUserOut,
@@ -185,7 +187,11 @@ async def get_current_user_info(request: Request) -> CurrentUserOut:
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Session refresh required"
         )
     is_user_authenticated(request)
-    return await auth_handler.handle_get_current_user(request.user.email)
+    return await auth_handler.handle_get_current_user(
+        request.user.email,
+        user_id=str(request.user.id),
+        email_version=str(request.user.email_version),
+    )
 
 
 @auth_router.delete("/users/me", response_model=DetailResponse)
@@ -193,7 +199,10 @@ async def delete_account(
     request: Request,
     _: Annotated[None, Depends(is_user_authenticated)],
 ) -> dict[str, str]:
-    await auth_handler.handle_delete_account(request.user.email)
+    await auth_handler.handle_delete_account(
+        request.user.email,
+        expected_identity=(request.user.id, request.user.email_version),
+    )
     return {"detail": "Account deleted successfully"}
 
 
@@ -204,9 +213,48 @@ async def change_password(
     passwords: ChangePasswordIn,
     _: Annotated[None, Depends(is_user_authenticated)],
 ) -> dict[str, str]:
-    tokens = await auth_handler.handle_change_password(request.user.email, passwords)
+    tokens = await auth_handler.handle_change_password(
+        request.user.email,
+        passwords,
+        expected_identity=(request.user.id, request.user.email_version),
+    )
     set_auth_cookies(response, tokens)
     return {"detail": "Password changed successfully"}
+
+
+@auth_router.post("/change-email", response_model=DetailResponse)
+async def change_email(
+    request: Request,
+    data: ChangeEmailIn,
+    _: Annotated[None, Depends(is_user_authenticated)],
+) -> dict[str, str]:
+    await limit_auth_attempts(request, request.user.email)
+    return await auth_handler.handle_change_email(
+        request.user.email,
+        data,
+        expected_identity=(request.user.id, request.user.email_version),
+    )
+
+
+@auth_router.get("/confirm-email-change")
+async def confirm_email_change(
+    request: Request,
+    token: Annotated[str, Query(min_length=1, max_length=4096)],
+    background_tasks: BackgroundTasks,
+) -> RedirectResponse:
+    await limit_auth_attempts(request)
+    try:
+        change = await auth_handler.handle_confirm_email_change(token)
+    except AuthError as error:
+        outcome = (
+            "in-use" if error.status_code == status.HTTP_409_CONFLICT else "invalid"
+        )
+        return RedirectResponse(f"{config.CHANGE_EMAIL_REDIRECT_URL}?status={outcome}")
+    if change is not None:
+        background_tasks.add_task(auth_handler.send_email_changed_notice, change)
+    response = RedirectResponse(f"{config.CHANGE_EMAIL_REDIRECT_URL}?status=changed")
+    delete_auth_cookies(response)
+    return response
 
 
 @auth_router.patch("/users/me", response_model=DetailResponse)
@@ -217,7 +265,13 @@ async def update_user_profile(
 ) -> dict[str, str]:
     return {
         "detail": "User profile updated successfully"
-        if (await auth_handler.update_user(request.user.email, update_user))
+        if (
+            await auth_handler.update_user(
+                request.user.email,
+                update_user,
+                expected_identity=(request.user.id, request.user.email_version),
+            )
+        )
         else "No changes made to the user profile"
     }
 

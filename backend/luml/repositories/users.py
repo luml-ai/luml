@@ -1,5 +1,5 @@
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import EmailStr
 from sqlalchemy import case, delete, func, or_, select, update
@@ -9,6 +9,7 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from luml.infra.exceptions import (
     AccountDeleteError,
+    AuthError,
     DatabaseConstraintError,
     NotFoundError,
     OrganizationDeleteError,
@@ -46,6 +47,7 @@ from luml.schemas.organization import (
     UpdateOrganizationMember,
 )
 from luml.schemas.user import (
+    AuthProvider,
     CreateUser,
     CurrentUserOut,
     UpdateUser,
@@ -97,6 +99,15 @@ class UserRepository(RepositoryBase, CrudMixin):
             )
             return db_user.to_user() if db_user else None
 
+    async def email_exists(self, email: EmailStr) -> bool:
+        async with self._get_session() as session:
+            return (
+                await session.scalar(
+                    select(UserOrm.id).where(func.lower(UserOrm.email) == email.lower())
+                )
+                is not None
+            )
+
     async def get_current_user(self, email: EmailStr) -> CurrentUserOut | None:
         async with self._get_session() as session:
             db_user = await self.get_model_where(
@@ -109,10 +120,17 @@ class UserRepository(RepositoryBase, CrudMixin):
             db_user = await self.get_model(session, UserOrm, user_id)
             return db_user.to_public_user() if db_user else None
 
-    async def delete_user(self, email: EmailStr) -> None:
+    async def delete_user(
+        self, email: EmailStr, *, expected_identity: tuple[UUID, UUID]
+    ) -> None:
+        expected_user_id, email_version = expected_identity
         async with self._get_session() as session, session.begin():
             user_id = await session.scalar(
-                select(UserOrm.id).where(UserOrm.email == email)
+                select(UserOrm.id).where(
+                    UserOrm.email == email,
+                    UserOrm.id == expected_user_id,
+                    UserOrm.email_version == email_version,
+                )
             )
             if user_id is None:
                 return
@@ -128,9 +146,19 @@ class UserRepository(RepositoryBase, CrudMixin):
                     .with_for_update()
                 )
             )
-            await session.scalar(
-                select(UserOrm.id).where(UserOrm.id == user_id).with_for_update()
-            )
+            if (
+                await session.scalar(
+                    select(UserOrm.id)
+                    .where(
+                        UserOrm.id == user_id,
+                        UserOrm.email == email,
+                        UserOrm.email_version == email_version,
+                    )
+                    .with_for_update()
+                )
+                is None
+            ):
+                return
             current_ids = set(await session.scalars(organization_ids))
             if not current_ids.issubset({org.id for org in organizations}):
                 raise AccountDeleteError(
@@ -166,6 +194,15 @@ class UserRepository(RepositoryBase, CrudMixin):
 
     async def delete_signup(self, user_id: UUID) -> None:
         async with self._get_session() as session, session.begin():
+            if (
+                await session.scalar(
+                    select(UserOrm.id)
+                    .where(UserOrm.id == user_id, UserOrm.email_verified.is_(False))
+                    .with_for_update()
+                )
+                is None
+            ):
+                return
             owned_organizations = select(OrganizationMemberOrm.organization_id).where(
                 OrganizationMemberOrm.user_id == user_id,
                 OrganizationMemberOrm.role == OrgRole.OWNER,
@@ -180,12 +217,18 @@ class UserRepository(RepositoryBase, CrudMixin):
     async def update_user(
         self,
         update_user: UpdateUser,
+        *,
+        expected_identity: tuple[UUID, UUID] | None = None,
     ) -> bool:
         async with self._get_session() as session:
             changed = False
-            result = await session.execute(
-                select(UserOrm).filter(UserOrm.email == update_user.email)
-            )
+            query = select(UserOrm).filter(UserOrm.email == update_user.email)
+            if expected_identity is not None:
+                user_id, email_version = expected_identity
+                query = query.where(
+                    UserOrm.id == user_id, UserOrm.email_version == email_version
+                )
+            result = await session.execute(query.with_for_update())
 
             if not (db_user := result.scalars().first()):
                 return False
@@ -206,6 +249,7 @@ class UserRepository(RepositoryBase, CrudMixin):
         hashed_password: str,
         *,
         reset_token: tuple[str, int] | None = None,
+        expected_identity: tuple[UUID, UUID] | None = None,
     ) -> bool:
         async with self._get_session() as session, session.begin():
             if reset_token is not None:
@@ -218,13 +262,64 @@ class UserRepository(RepositoryBase, CrudMixin):
                 )
                 if consumed is None:
                     return False
+            query = update(UserOrm).where(UserOrm.email == email)
+            if expected_identity is not None:
+                user_id, email_version = expected_identity
+                query = query.where(
+                    UserOrm.id == user_id, UserOrm.email_version == email_version
+                )
             user_id = await session.scalar(
-                update(UserOrm)
-                .where(UserOrm.email == email)
-                .values(hashed_password=hashed_password)
-                .returning(UserOrm.id)
+                query.values(hashed_password=hashed_password).returning(UserOrm.id)
             )
             return user_id is not None
+
+    async def change_email(
+        self,
+        user_id: UUID,
+        old_email: EmailStr,
+        new_email: EmailStr,
+        hashed_password: str,
+        token: str,
+        expire_at: int,
+        email_version: UUID,
+    ) -> bool:
+        try:
+            async with self._get_session() as session, session.begin():
+                user = await session.scalar(
+                    select(UserOrm).where(UserOrm.id == user_id).with_for_update()
+                )
+                if (
+                    user is None
+                    or user.email != old_email
+                    or user.email_version != email_version
+                    or user.hashed_password != hashed_password
+                    or user.auth_method != AuthProvider.EMAIL
+                    or user.disabled
+                ):
+                    return False
+                if await session.scalar(
+                    select(UserOrm.id).where(
+                        func.lower(UserOrm.email) == new_email.lower()
+                    )
+                ):
+                    raise AuthError("Address already in use", 409)
+                consumed = await session.scalar(
+                    insert(TokenBlackListOrm)
+                    .values(token=token, expire_at=expire_at)
+                    .on_conflict_do_nothing(constraint="uq_token_black_list_token")
+                    .returning(TokenBlackListOrm.id)
+                )
+                if consumed is None:
+                    return False
+                user.email = new_email
+                user.email_verified = True
+                user.email_version = uuid4()
+                await session.flush()
+                return True
+        except IntegrityError as error:
+            if not violates(error, "users_email_key"):
+                raise
+            raise AuthError("Address already in use", 409) from error
 
     async def create_organization(
         self,

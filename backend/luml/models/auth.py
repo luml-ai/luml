@@ -11,11 +11,13 @@ class AuthUser(BaseUser):
         email: EmailStr,
         full_name: str | None = None,
         disabled: bool | None = None,
+        email_version: UUID | None = None,
     ) -> None:
         self.id = user_id
         self.email = email
         self.full_name = full_name
         self.disabled = disabled
+        self.email_version = email_version
 
     @property
     def is_authenticated(self) -> bool:

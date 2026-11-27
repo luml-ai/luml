@@ -45,6 +45,31 @@ class EmailHandler:
 
         await asyncio.to_thread(self._email_client.send, message)
 
+    async def send_email_change_confirmation(
+        self, email: EmailStr, confirmation_link: str, name: str | None
+    ) -> None:
+        message = Mail(from_email=self.sender_email, to_emails=str(email))
+        message.template_id = config.TEMPLATE_ID_EMAIL_CHANGE_CONFIRMATION
+        message.dynamic_template_data = {
+            "name": name or "",
+            "confirm_email_change_link": confirmation_link,
+        }
+        await asyncio.to_thread(self._email_client.send, message)
+
+    async def send_email_changed_notice(
+        self, email: EmailStr, masked_email: str, name: str | None
+    ) -> None:
+        message = Mail(from_email=self.sender_email, to_emails=str(email))
+        message.template_id = config.TEMPLATE_ID_EMAIL_CHANGED_NOTICE
+        message.dynamic_template_data = {
+            "name": name or "",
+            "new_email": masked_email,
+            "message": (
+                "Your account email has changed. If this was not you, contact support."
+            ),
+        }
+        await asyncio.to_thread(self._email_client.send, message)
+
     async def send_organization_invite_email(
         self, email: EmailStr, sender: str, organization: str, link: str
     ) -> None:

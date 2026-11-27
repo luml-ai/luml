@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import AsyncIterator
 from unittest.mock import patch
+from uuid import uuid7
 
 import pytest
 from httpx2 import ASGITransport, AsyncClient
@@ -20,6 +21,7 @@ NEW_PASSWORD = "replacement-password"
 async def client(
     engine: AsyncEngine, new_user: CreateUser, monkeypatch: pytest.MonkeyPatch
 ) -> AsyncIterator[AsyncClient]:
+    new_user.id = uuid7()
     new_user.hashed_password = AuthHandler._get_password_hash(PASSWORD)
     new_user.email_verified = True
     await UserRepository(engine).create_user(new_user)
@@ -57,7 +59,12 @@ class TestSessionRecovery:
         if access_cookie == "expired":
             expired = AuthHandler(
                 secret_key=config.AUTH_SECRET_KEY, access_token_expire=-1
-            )._create_tokens(new_user.email, new_user.hashed_password)
+            )._create_tokens(
+                new_user.email,
+                new_user.hashed_password,
+                new_user.id,
+                new_user.email_version,
+            )
             client.cookies.set(
                 "access_token", expired.access_token, domain="testserver.local"
             )
@@ -130,13 +137,18 @@ class TestPasswordSecurity:
             access_token_expire=3600,
             refresh_token_expire=7200,
         )
-        other_sessions = handler._create_tokens(new_user.email)
+        other_sessions = handler._create_tokens(
+            new_user.email,
+            new_user.hashed_password,
+            new_user.id,
+            new_user.email_version,
+        )
         if reset:
             response = await client.post(
                 "/v1/auth/reset-password",
                 json={
                     "reset_token": handler._generate_password_reset_token(
-                        new_user.email
+                        new_user.email, new_user.id, new_user.email_version
                     ),
                     "new_password": NEW_PASSWORD,
                 },
@@ -177,7 +189,9 @@ class TestPasswordSecurity:
     ) -> None:
         token = AuthHandler(
             secret_key=config.AUTH_SECRET_KEY
-        )._generate_password_reset_token(new_user.email)
+        )._generate_password_reset_token(
+            new_user.email, new_user.id, new_user.email_version
+        )
         response = await client.post(
             "/v1/auth/reset-password",
             json={"reset_token": token, "new_password": NEW_PASSWORD},
@@ -195,7 +209,9 @@ class TestPasswordSecurity:
     ) -> None:
         token = AuthHandler(
             secret_key=config.AUTH_SECRET_KEY
-        )._generate_password_reset_token(new_user.email)
+        )._generate_password_reset_token(
+            new_user.email, new_user.id, new_user.email_version
+        )
         responses = await asyncio.gather(
             *(
                 client.post(
@@ -241,7 +257,9 @@ class TestPasswordSecurity:
     ) -> None:
         token = AuthHandler(
             secret_key=config.AUTH_SECRET_KEY
-        )._generate_password_reset_token(new_user.email)
+        )._generate_password_reset_token(
+            new_user.email, new_user.id, new_user.email_version
+        )
         payload = {"reset_token": token, "new_password": NEW_PASSWORD}
         with (
             patch(

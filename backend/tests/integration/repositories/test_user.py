@@ -2,7 +2,7 @@ import uuid
 from dataclasses import dataclass
 
 import pytest
-from luml.models import OrganizationOrm
+from luml.models import OrganizationOrm, UserOrm
 from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.tracks import TrackEntryRepository, TrackRepository
 from luml.repositories.users import UserRepository
@@ -16,7 +16,7 @@ from luml.schemas.user import (
     UpdateUser,
     User,
 )
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from tests.support.seeds import CollectionFixtureData
@@ -108,6 +108,33 @@ class TestUserRepository:
         assert remaining == {other_org.id}
         assert await repository.get_user(other.email) is not None
 
+    async def test_delete_signup_keeps_an_activated_account(
+        self, repository: UserRepository
+    ) -> None:
+        signup = CreateUser(
+            email=f"test_{uuid.uuid4()}@example.com",
+            full_name="Signup User",
+            disabled=False,
+            email_verified=False,
+            auth_method=AuthProvider.EMAIL,
+            photo=None,
+            hashed_password="hashed_password",
+        )
+        user = await repository.create_user(signup)
+        organization = (await repository.get_user_organizations(user.id))[0]
+        await repository.update_user(
+            UpdateUser(email=signup.email, email_verified=True)
+        )
+
+        await repository.delete_signup(user.id)
+
+        kept = await repository.get_user(signup.email)
+        assert kept is not None
+        assert kept.email_verified
+        assert [org.id for org in await repository.get_user_organizations(user.id)] == [
+            organization.id
+        ]
+
     async def test_get_user_returns_user(
         self, repository: UserRepository, seeded_user: UserFixtureData
     ) -> None:
@@ -135,7 +162,10 @@ class TestUserRepository:
     async def test_delete_user_removes_user(
         self, repository: UserRepository, seeded_user: UserFixtureData
     ) -> None:
-        await repository.delete_user(seeded_user.user.email)
+        await repository.delete_user(
+            seeded_user.user.email,
+            expected_identity=(seeded_user.user.id, seeded_user.user.email_version),
+        )
         fetch_deleted_user = await repository.get_user(seeded_user.user.email)
 
         assert fetch_deleted_user is None
@@ -183,7 +213,9 @@ class TestUserRepository:
             )
         )
 
-        await repository.delete_user(author.email)
+        await repository.delete_user(
+            author.email, expected_identity=(author.id, author.email_version)
+        )
 
         assert await repository.get_user(author.email) is None
         persisted_entry = await entry_repository.get_entry(entry.id)
@@ -212,3 +244,53 @@ class TestUserRepository:
         )
 
         assert updated_user is False
+
+
+@pytest.mark.parametrize("operation", ["profile", "password", "delete"])
+@pytest.mark.parametrize(
+    "reassigned", [True, False], ids=["reassigned-email", "changed-version"]
+)
+async def test_account_mutations_preserve_identity(
+    repository: UserRepository,
+    engine: AsyncEngine,
+    new_user: CreateUser,
+    operation: str,
+    reassigned: bool,
+) -> None:
+    original = await repository.create_user(new_user)
+    identity = (original.id, original.email_version)
+    async with AsyncSession(engine) as session, session.begin():
+        await session.execute(
+            update(UserOrm)
+            .where(UserOrm.id == original.id)
+            .values(
+                email="changed@example.com" if reassigned else original.email,
+                email_version=uuid.uuid4(),
+            )
+        )
+    if reassigned:
+        await repository.create_user(new_user)
+    before = await repository.get_user(original.email)
+    assert before is not None
+    organizations = await repository.get_user_organizations(before.id)
+
+    if operation == "profile":
+        assert not await repository.update_user(
+            UpdateUser(email=original.email, full_name="Changed"),
+            expected_identity=identity,
+        )
+    elif operation == "password":
+        assert not await repository.update_password(
+            original.email, "new-hash", expected_identity=identity
+        )
+    else:
+        await repository.delete_user(original.email, expected_identity=identity)
+
+    assert await repository.get_user(original.email) == before
+    assert await repository.get_user_organizations(before.id) == organizations
+    if reassigned:
+        changed = await repository.get_user("changed@example.com")
+        assert changed is not None
+        assert changed.id == original.id
+        assert changed.full_name == original.full_name
+        assert changed.hashed_password == original.hashed_password

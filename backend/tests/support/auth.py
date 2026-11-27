@@ -11,7 +11,7 @@ CALLER_EMAIL = "caller@example.com"
 
 SIGNED_IN_USER: Principal = (
     AuthCredentials(["authenticated", "jwt"]),
-    AuthUser(user_id=USER_ID, email=CALLER_EMAIL),
+    AuthUser(user_id=USER_ID, email=CALLER_EMAIL, email_version=USER_ID),
 )
 
 API_KEY_USER: Principal = (

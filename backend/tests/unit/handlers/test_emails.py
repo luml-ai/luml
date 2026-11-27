@@ -24,6 +24,28 @@ from luml.settings import config
             {"name": "Recipient", "reset_password_link": "https://example.com/reset"},
         ),
         (
+            "send_email_change_confirmation",
+            ("recipient@example.com", "https://example.com/change", "Recipient"),
+            "TEMPLATE_ID_EMAIL_CHANGE_CONFIRMATION",
+            {
+                "name": "Recipient",
+                "confirm_email_change_link": "https://example.com/change",
+            },
+        ),
+        (
+            "send_email_changed_notice",
+            ("recipient@example.com", "n***@example.com", None),
+            "TEMPLATE_ID_EMAIL_CHANGED_NOTICE",
+            {
+                "name": "",
+                "new_email": "n***@example.com",
+                "message": (
+                    "Your account email has changed. "
+                    "If this was not you, contact support."
+                ),
+            },
+        ),
+        (
             "send_organization_invite_email",
             ("recipient@example.com", "Sender", "Organization", "https://example.com"),
             "TEMPLATE_ID_ORGANIZATION_INVITE_EMAIL",
@@ -44,7 +66,14 @@ from luml.settings import config
             },
         ),
     ],
-    ids=["activation", "password_reset", "organization_invite", "orbit_member"],
+    ids=[
+        "activation",
+        "password_reset",
+        "email_change",
+        "email_notice",
+        "organization_invite",
+        "orbit_member",
+    ],
 )
 def email_case(
     request: pytest.FixtureRequest,

@@ -42,6 +42,11 @@ export interface IPostChangePasswordRequest {
   new_password: string
 }
 
+export interface IChangeEmailRequest {
+  new_email: string
+  current_password: string
+}
+
 export interface IPostChangePasswordResponse {
   detail: string
 }
@@ -68,10 +73,6 @@ export type TPostLogoutResponse = {
 
 export interface IUpdateUserRequest {
   full_name?: string
-  current_password?: string
-  new_password?: string
-  photo?: File
-  email?: string
 }
 
 export interface IPostForgotPasswordRequest {

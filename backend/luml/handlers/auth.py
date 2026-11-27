@@ -1,9 +1,10 @@
 import hashlib
 import hmac
+import logging
 import secrets
 from time import time
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx2
 import jwt
@@ -31,10 +32,12 @@ from luml.repositories.users import UserRepository
 from luml.schemas.auth import OAuthLogin, Token
 from luml.schemas.user import (
     AuthProvider,
+    ChangeEmailIn,
     ChangePasswordIn,
     CreateUser,
     CreateUserIn,
     CurrentUserOut,
+    EmailChange,
     SignInResponse,
     SignInUser,
     UpdateUser,
@@ -42,6 +45,8 @@ from luml.schemas.user import (
     User,
 )
 from luml.settings import config
+
+logger = logging.getLogger(__name__)
 
 
 class AuthHandler:
@@ -87,15 +92,36 @@ class AuthHandler:
     def _get_password_reset_link(token: str) -> str:
         return config.CHANGE_PASSWORD_URL + token
 
-    def _generate_email_confirmation_token(self, email: EmailStr) -> str:
+    def _generate_email_confirmation_token(
+        self,
+        email: EmailStr,
+        user_id: UUID | None = None,
+        email_version: UUID | None = None,
+    ) -> str:
         return self._create_token(
-            data={"sub": email, "type": "email_confirmation"},
+            data={
+                "sub": email,
+                "uid": str(user_id),
+                "ev": str(email_version),
+                "type": "email_confirmation",
+            },
             expires_delta=86400,  # 24 hours
         )
 
-    def _generate_password_reset_token(self, email: EmailStr) -> str:
+    def _generate_password_reset_token(
+        self,
+        email: EmailStr,
+        user_id: UUID | None = None,
+        email_version: UUID | None = None,
+    ) -> str:
         return self._create_token(
-            data={"sub": email, "type": "password_reset", "jti": str(uuid4())},
+            data={
+                "sub": email,
+                "uid": str(user_id),
+                "ev": str(email_version),
+                "type": "password_reset",
+                "jti": str(uuid4()),
+            },
             expires_delta=3600,  # 1 hour
         )
 
@@ -111,12 +137,18 @@ class AuthHandler:
         ).hexdigest()[:32]
 
     def _create_tokens(
-        self, user_email: EmailStr, hashed_password: str | None = None
+        self,
+        user_email: EmailStr,
+        hashed_password: str | None = None,
+        user_id: UUID | None = None,
+        email_version: UUID | None = None,
     ) -> Token:
         fingerprint = self._password_fingerprint(hashed_password)
         access_token = self._create_token(
             data={
                 "sub": user_email,
+                "uid": str(user_id),
+                "ev": str(email_version),
                 "type": "access",
                 "pwh": fingerprint,
                 "jti": str(uuid4()),
@@ -126,6 +158,8 @@ class AuthHandler:
         refresh_token = self._create_token(
             data={
                 "sub": user_email,
+                "uid": str(user_id),
+                "ev": str(email_version),
                 "type": "refresh",
                 "pwh": fingerprint,
                 "jti": str(uuid4()),
@@ -138,7 +172,7 @@ class AuthHandler:
             token_type="bearer",
         )
 
-    def _verify_token(self, token: str) -> tuple[EmailStr, str | None]:
+    def _verify_token(self, token: str) -> tuple[EmailStr, str | None, str, str]:
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
             if payload.get("type") != "access":
@@ -149,7 +183,13 @@ class AuthHandler:
             fingerprint = payload.get("pwh")
             if fingerprint is not None and not isinstance(fingerprint, str):
                 raise AuthError("Invalid token", 401)
-            return email, fingerprint
+            user_id = payload.get("uid")
+            if not isinstance(user_id, str) or user_id == "None":
+                raise AuthError("Invalid token", 401)
+            email_version = payload.get("ev")
+            if not isinstance(email_version, str) or email_version == "None":
+                raise AuthError("Invalid token", 401)
+            return email, fingerprint, user_id, email_version
         except InvalidTokenError as err:
             raise AuthError("Invalid token", 401) from err
 
@@ -168,42 +208,55 @@ class AuthHandler:
         return user
 
     async def handle_signup(self, create_user_in: CreateUserIn) -> dict[str, str]:
-        if await self.__user_repository.get_user(create_user_in.email):
-            return {"detail": "Please confirm your email address"}
+        existing_user = await self.__user_repository.get_user(create_user_in.email)
+        if existing_user:
+            if (
+                existing_user.email_verified
+                or existing_user.auth_method != AuthProvider.EMAIL
+                or existing_user.hashed_password is None
+                or not self._verify_password(
+                    create_user_in.password, existing_user.hashed_password
+                )
+            ):
+                return {"detail": "Please confirm your email address"}
+            user = existing_user
+        else:
+            hashed_password = self._get_password_hash(create_user_in.password)
 
-        hashed_password = self._get_password_hash(create_user_in.password)
+            create_user = CreateUser(
+                email=create_user_in.email,
+                full_name=create_user_in.full_name,
+                photo=create_user_in.photo,
+                hashed_password=hashed_password,
+                auth_method=AuthProvider.EMAIL,
+            )
 
-        create_user = CreateUser(
-            email=create_user_in.email,
-            full_name=create_user_in.full_name,
-            photo=create_user_in.photo,
-            hashed_password=hashed_password,
-            auth_method=AuthProvider.EMAIL,
+            try:
+                user = await self.__user_repository.create_user(create_user=create_user)
+            except IntegrityError as error:
+                if not violates(error, "users_email_key"):
+                    raise
+                return {"detail": "Please confirm your email address"}
+
+        confirmation_token = self._generate_email_confirmation_token(
+            user.email, user.id, user.email_version
         )
-
-        try:
-            user = await self.__user_repository.create_user(create_user=create_user)
-        except IntegrityError as error:
-            if not violates(error, "users_email_key"):
-                raise
-            return {"detail": "Please confirm your email address"}
-
-        confirmation_token = self._generate_email_confirmation_token(user.email)
         confirmation_link = self._get_email_confirmation_link(confirmation_token)
         try:
             await self.__emails_handler.send_activation_email(
                 user.email, confirmation_link, user.full_name
             )
         except Exception as error:
-            await self.__user_repository.delete_signup(user.id)
-            raise EmailDeliveryError(
-                "Error sending confirmation email. User is not created."
-            ) from error
+            if existing_user is None:
+                await self.__user_repository.delete_signup(user.id)
+            raise EmailDeliveryError("Error sending confirmation email.") from error
         return {"detail": "Please confirm your email address"}
 
     async def handle_signin(self, user: SignInUser) -> SignInResponse:
         db_user = await self._authenticate_user(user.email, user.password)
-        tokens = self._create_tokens(db_user.email, db_user.hashed_password)
+        tokens = self._create_tokens(
+            db_user.email, db_user.hashed_password, db_user.id, db_user.email_version
+        )
         return SignInResponse(token=tokens, user_id=db_user.id)
 
     async def handle_refresh_token(self, refresh_token: str) -> Token:
@@ -221,7 +274,12 @@ class AuthHandler:
 
             service_user = await self.__user_repository.get_user(email)
             if service_user is None:
-                raise AuthError("User not found", 404)
+                raise AuthError("User not found", 401)
+
+            if payload.get("uid") != str(service_user.id) or payload.get("ev") != str(
+                service_user.email_version
+            ):
+                raise AuthError("Token has been revoked", 401)
 
             fingerprint = payload.get("pwh")
             if fingerprint is not None and fingerprint != self._password_fingerprint(
@@ -236,7 +294,12 @@ class AuthHandler:
             ):
                 raise RefreshTokenReusedError
 
-            return self._create_tokens(service_user.email, service_user.hashed_password)
+            return self._create_tokens(
+                service_user.email,
+                service_user.hashed_password,
+                service_user.id,
+                service_user.email_version,
+            )
 
         except InvalidTokenError as err:
             raise AuthError("Invalid refresh token", 400) from err
@@ -245,35 +308,175 @@ class AuthHandler:
         self,
         email: EmailStr,
         update_user: UpdateUserIn,
+        *,
+        expected_identity: tuple[UUID, UUID],
     ) -> bool:
-        if not await self.__user_repository.get_user(email):
+        user = await self.__user_repository.get_user(email)
+        if user is None:
             raise AuthError("User not found", 404)
+        if (user.id, user.email_version) != expected_identity:
+            raise AuthError("Token has been revoked", 401)
         update_user = UpdateUser(
             **update_user.model_dump(exclude_unset=True), email=email
         )
-        return await self.__user_repository.update_user(update_user)
+        return await self.__user_repository.update_user(
+            update_user, expected_identity=expected_identity
+        )
 
     async def handle_change_password(
-        self, email: EmailStr, passwords: ChangePasswordIn
+        self,
+        email: EmailStr,
+        passwords: ChangePasswordIn,
+        *,
+        expected_identity: tuple[UUID, UUID],
     ) -> Token:
         user = await self.__user_repository.get_user(email)
         if user is None:
             raise AuthError("User not found", 404)
+        if (user.id, user.email_version) != expected_identity:
+            raise AuthError("Token has been revoked", 401)
         if user.auth_method != AuthProvider.EMAIL or user.hashed_password is None:
             raise AuthError("Invalid auth method", 400)
         if not self._verify_password(passwords.current_password, user.hashed_password):
             raise AuthError("Invalid current password", 400)
 
         hashed_password = self._get_password_hash(passwords.new_password)
-        if not await self.__user_repository.update_password(email, hashed_password):
+        if not await self.__user_repository.update_password(
+            email, hashed_password, expected_identity=expected_identity
+        ):
             raise AuthError("User not found", 404)
-        return self._create_tokens(email, hashed_password)
+        return self._create_tokens(email, hashed_password, user.id, user.email_version)
 
-    async def handle_delete_account(self, email: EmailStr) -> None:
-        await self.__user_repository.delete_user(email)
+    async def handle_change_email(
+        self,
+        email: EmailStr,
+        request: ChangeEmailIn,
+        *,
+        expected_identity: tuple[UUID, UUID],
+    ) -> dict[str, str]:
+        user = await self.__user_repository.get_user(email)
+        if user is None:
+            raise AuthError("User not found", 404)
+        if (user.id, user.email_version) != expected_identity:
+            raise AuthError("Token has been revoked", 401)
+        if user.auth_method != AuthProvider.EMAIL or user.hashed_password is None:
+            raise AuthError("Email is managed by your sign-in provider", 400)
+        if not self._verify_password(request.current_password, user.hashed_password):
+            raise AuthError("Invalid current password", 400)
+        if user.email.lower() == request.new_email:
+            raise AuthError("New email must differ from the current address", 400)
+        if not await self.__user_repository.email_exists(request.new_email):
+            token = self._generate_email_change_token(user, request.new_email)
+            try:
+                await self.__emails_handler.send_email_change_confirmation(
+                    request.new_email, config.CHANGE_EMAIL_URL + token, user.full_name
+                )
+            except Exception as error:
+                raise EmailDeliveryError() from error
+        return {
+            "detail": (
+                "If this address can be used, we have sent a confirmation link to it"
+            )
+        }
+
+    def _generate_email_change_token(self, user: User, new_email: EmailStr) -> str:
+        return self._create_token(
+            {
+                "type": "email_change",
+                "uid": str(user.id),
+                "ev": str(user.email_version),
+                "sub": user.email,
+                "new_email": new_email,
+                "pwh": self._password_fingerprint(user.hashed_password),
+                "jti": str(uuid4()),
+            },
+            86400,
+        )
+
+    async def handle_confirm_email_change(self, token: str) -> EmailChange | None:
+        try:
+            payload = jwt.decode(
+                token,
+                self.secret_key,
+                algorithms=[self.algorithm],
+                options={
+                    "require": ["exp", "uid", "ev", "sub", "new_email", "pwh", "jti"]
+                },
+            )
+            if payload.get("type") != "email_change":
+                raise ValueError
+            user_id = UUID(payload["uid"])
+            old_email = payload["sub"]
+            new_email = payload["new_email"]
+            if (
+                not isinstance(old_email, str)
+                or not isinstance(new_email, str)
+                or old_email == new_email
+            ):
+                raise ValueError
+        except (InvalidTokenError, ValueError, TypeError, AttributeError) as error:
+            raise AuthError(
+                "Email change link is expired, already used or invalid", 400
+            ) from error
+        user = await self.__user_repository.get_user(old_email)
+        if (
+            user is None
+            or user.id != user_id
+            or payload["ev"] != str(user.email_version)
+            or user.email != old_email
+            or user.auth_method != AuthProvider.EMAIL
+            or user.hashed_password is None
+            or payload["pwh"] != self._password_fingerprint(user.hashed_password)
+        ):
+            if await self._email_change_applied(user_id, new_email):
+                return None
+            raise AuthError(
+                "Email change link is expired, already used or invalid", 400
+            )
+        if not await self.__user_repository.change_email(
+            user_id,
+            old_email,
+            new_email,
+            user.hashed_password,
+            token,
+            int(payload["exp"]),
+            user.email_version,
+        ):
+            if await self._email_change_applied(user_id, new_email):
+                return None
+            raise AuthError(
+                "Email change link is expired, already used or invalid", 400
+            )
+        return EmailChange(
+            old_email=old_email, new_email=new_email, full_name=user.full_name
+        )
+
+    async def _email_change_applied(self, user_id: UUID, new_email: str) -> bool:
+        user = await self.__user_repository.get_user(new_email)
+        return user is not None and user.id == user_id
+
+    async def send_email_changed_notice(self, change: EmailChange) -> None:
+        local, domain = change.new_email.rsplit("@", 1)
+        try:
+            await self.__emails_handler.send_email_changed_notice(
+                change.old_email, f"{local[0]}***@{domain}", change.full_name
+            )
+        except Exception:
+            logger.exception("Email change notice could not be delivered")
+
+    async def handle_delete_account(
+        self, email: EmailStr, *, expected_identity: tuple[UUID, UUID]
+    ) -> None:
+        await self.__user_repository.delete_user(
+            email, expected_identity=expected_identity
+        )
 
     async def handle_get_current_user(
-        self, email: EmailStr, password_fingerprint: str | None = None
+        self,
+        email: EmailStr,
+        password_fingerprint: str | None = None,
+        user_id: str | None = None,
+        email_version: str | None = None,
     ) -> CurrentUserOut:
         user = await self.__user_repository.get_current_user(email)
         if user is None:
@@ -282,6 +485,12 @@ class AuthHandler:
             password_fingerprint is not None
             and password_fingerprint != self._password_fingerprint(user.hashed_password)
         ):
+            raise AuthError("Token has been revoked", 401)
+
+        if email_version is not None and str(user.email_version) != email_version:
+            raise AuthError("Token has been revoked", 401)
+
+        if user_id is not None and str(user.id) != user_id:
             raise AuthError("Token has been revoked", 401)
 
         if user.disabled:
@@ -407,14 +616,18 @@ class AuthHandler:
             )
 
         return OAuthLogin(
-            token=self._create_tokens(user.email, user.hashed_password),
+            token=self._create_tokens(
+                user.email, user.hashed_password, user.id, user.email_version
+            ),
             user_id=user.id,
         )
 
     async def send_password_reset_email(self, email: EmailStr) -> None:
         if not (service_user := await self.__user_repository.get_user(email)):
             return
-        token = self._generate_password_reset_token(service_user.email)
+        token = self._generate_password_reset_token(
+            service_user.email, service_user.id, service_user.email_version
+        )
         link = self._get_password_reset_link(token)
         try:
             await self.__emails_handler.send_password_reset_email(
@@ -437,11 +650,17 @@ class AuthHandler:
         if (service_user := await self.__user_repository.get_user(email)) is None:
             raise AuthError("User not found", 404)
 
+        if payload.get("uid") != str(service_user.id) or payload.get("ev") != str(
+            service_user.email_version
+        ):
+            raise AuthError("Invalid token", 400)
+
         if service_user.email_verified:
             return
 
         await self.__user_repository.update_user(
-            UpdateUser(email=email, email_verified=True)
+            UpdateUser(email=email, email_verified=True),
+            expected_identity=(service_user.id, service_user.email_version),
         )
 
     async def handle_reset_password(self, token: str, new_password: str) -> None:
@@ -456,13 +675,19 @@ class AuthHandler:
             if email is None:
                 raise AuthError("Invalid token", 400)
 
-            if (await self.__user_repository.get_user(email)) is None:
+            service_user = await self.__user_repository.get_user(email)
+            if service_user is None:
                 raise AuthError("User not found", 404)
+            if payload.get("uid") != str(service_user.id) or payload.get("ev") != str(
+                service_user.email_version
+            ):
+                raise AuthError("Invalid token", 400)
 
             if not await self.__user_repository.update_password(
                 email,
                 self._get_password_hash(new_password),
                 reset_token=(token, int(exp)),
+                expected_identity=(service_user.id, service_user.email_version),
             ):
                 raise AuthError("Token has been revoked", 400)
         except InvalidTokenError as err:

@@ -51,7 +51,13 @@ export const resetPasswordResolver: Resolver = zodResolver(
 export const userSettingResolver: Resolver = zodResolver(
   z.object({
     username: z.string().min(3, { message: 'Name must be more 3 characters' }),
-    email: z.string().email({ message: 'Email is incorrect' }),
+  }),
+)
+
+export const userChangeEmailResolver: Resolver = zodResolver(
+  z.object({
+    new_email: z.string().trim().email({ message: 'Email is incorrect' }).max(254),
+    current_password: passwordSchema,
   }),
 )
 

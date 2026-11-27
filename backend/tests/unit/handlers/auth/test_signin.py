@@ -1,5 +1,6 @@
 from unittest.mock import AsyncMock, Mock
 
+import jwt
 import pytest
 from luml.handlers.auth import AuthHandler
 from luml.infra.exceptions import AuthError, EmailDeliveryError
@@ -160,7 +161,14 @@ class TestAuthSignIn:
         assert actual == {"detail": "Please confirm your email address"}
         get_password_hash.assert_called_once_with(new_user_in.password)
         mocks.user_repository.get_user.assert_awaited_once_with(new_user.email)
-        mocks.user_repository.create_user.assert_awaited_once_with(create_user=new_user)
+        mocks.user_repository.create_user.assert_awaited_once()
+        assert mocks.user_repository.create_user.await_args is not None
+        actual_create = mocks.user_repository.create_user.await_args.kwargs[
+            "create_user"
+        ]
+        assert actual_create.model_dump(
+            exclude={"email_version"}
+        ) == new_user.model_dump(exclude={"email_version"})
         assert [name for name, _, _ in calls.mock_calls] == [
             "create_user",
             "send_activation_email",
@@ -190,7 +198,14 @@ class TestAuthSignIn:
         with pytest.raises(EmailDeliveryError):
             await mocks.handler.handle_signup(new_user_in)
 
-        mocks.user_repository.create_user.assert_awaited_once_with(create_user=new_user)
+        mocks.user_repository.create_user.assert_awaited_once()
+        assert mocks.user_repository.create_user.await_args is not None
+        actual_create = mocks.user_repository.create_user.await_args.kwargs[
+            "create_user"
+        ]
+        assert actual_create.model_dump(
+            exclude={"email_version"}
+        ) == new_user.model_dump(exclude={"email_version"})
         mocks.user_repository.delete_signup.assert_awaited_once_with(user.id)
 
     async def test_handle_signup_does_not_send_email_when_commit_fails(
@@ -214,13 +229,17 @@ class TestAuthSignIn:
         mocks.emails_handler.send_activation_email.assert_not_called()
         mocks.user_repository.delete_signup.assert_not_awaited()
 
+    @pytest.mark.parametrize("auth_method", list(AuthProvider))
     async def test_handle_signup_returns_uniform_response_when_email_already_registered(
         self,
         mocks: CollaboratorMocks[AuthHandler],
         new_user_in: CreateUserIn,
         new_user: CreateUser,
         passwords: Passwords,
+        auth_method: AuthProvider,
     ) -> None:
+        new_user.email_verified = auth_method == AuthProvider.EMAIL
+        new_user.auth_method = auth_method
         create_user = CreateUser(
             **new_user_in.model_dump(exclude={"password"}),
             hashed_password=passwords.hashed_password,
@@ -234,6 +253,75 @@ class TestAuthSignIn:
         mocks.user_repository.get_user.assert_awaited_once_with(create_user.email)
         mocks.user_repository.create_user.assert_not_awaited()
         mocks.emails_handler.send_activation_email.assert_not_called()
+
+    async def test_handle_signup_resends_bound_confirmation_for_pending_account(
+        self,
+        mocks: CollaboratorMocks[AuthHandler],
+        new_user_in: CreateUserIn,
+        user: User,
+    ) -> None:
+        user.email_verified = False
+        mocks.user_repository.get_user.return_value = user
+        new_user_in.full_name = "Different Name"
+        original_user = user.model_copy(deep=True)
+
+        result = await mocks.handler.handle_signup(new_user_in)
+
+        assert result == {"detail": "Please confirm your email address"}
+        mocks.emails_handler.send_activation_email.assert_awaited_once()
+        args = mocks.emails_handler.send_activation_email.await_args
+        assert args is not None
+        email, link, full_name = args.args
+        assert (email, full_name) == (user.email, user.full_name)
+        payload = jwt.decode(
+            link.removeprefix(mocks.handler._get_email_confirmation_link("")),
+            mocks.handler.secret_key,
+            algorithms=[mocks.handler.algorithm],
+        )
+        assert payload["type"] == "email_confirmation"
+        assert payload["uid"] == str(user.id)
+        assert payload["ev"] == str(user.email_version)
+        assert user == original_user
+        mocks.user_repository.create_user.assert_not_awaited()
+        mocks.user_repository.update_user.assert_not_awaited()
+        mocks.user_repository.delete_signup.assert_not_awaited()
+
+    async def test_handle_signup_does_not_resend_for_wrong_pending_password(
+        self,
+        mocks: CollaboratorMocks[AuthHandler],
+        new_user_in: CreateUserIn,
+        user: User,
+    ) -> None:
+        user.email_verified = False
+        mocks.user_repository.get_user.return_value = user
+        new_user_in.password = "different-password"
+
+        result = await mocks.handler.handle_signup(new_user_in)
+
+        assert result == {"detail": "Please confirm your email address"}
+        mocks.emails_handler.send_activation_email.assert_not_awaited()
+        mocks.user_repository.create_user.assert_not_awaited()
+        mocks.user_repository.update_user.assert_not_awaited()
+        mocks.user_repository.delete_signup.assert_not_awaited()
+
+    async def test_handle_signup_keeps_pending_account_when_resend_fails(
+        self,
+        mocks: CollaboratorMocks[AuthHandler],
+        new_user_in: CreateUserIn,
+        user: User,
+    ) -> None:
+        user.email_verified = False
+        mocks.user_repository.get_user.return_value = user
+        mocks.emails_handler.send_activation_email.side_effect = RuntimeError(
+            "email delivery failed"
+        )
+
+        with pytest.raises(EmailDeliveryError):
+            await mocks.handler.handle_signup(new_user_in)
+
+        mocks.user_repository.create_user.assert_not_awaited()
+        mocks.user_repository.update_user.assert_not_awaited()
+        mocks.user_repository.delete_signup.assert_not_awaited()
 
     async def test_handle_signup_returns_uniform_response_on_duplicate_email_race(
         self,
@@ -290,7 +378,9 @@ class TestAuthSignIn:
         authenticate_user.assert_awaited_once_with(
             sign_in_user.email, sign_in_user.password
         )
-        create_tokens.assert_called_once_with(new_user_in.email, user.hashed_password)
+        create_tokens.assert_called_once_with(
+            new_user_in.email, user.hashed_password, user.id, user.email_version
+        )
 
     async def test_update_user_updates_profile(
         self, mocks: CollaboratorMocks[AuthHandler], user: User
@@ -300,34 +390,44 @@ class TestAuthSignIn:
         mocks.user_repository.get_user.return_value = user
         mocks.user_repository.update_user.return_value = True
 
-        result = await mocks.handler.update_user(email, update_payload)
+        result = await mocks.handler.update_user(
+            email, update_payload, expected_identity=(user.id, user.email_version)
+        )
 
         assert result is True
         mocks.user_repository.get_user.assert_awaited_once_with(email)
         expected_update = UpdateUser(full_name="Updated Name", email=email)
-        mocks.user_repository.update_user.assert_awaited_once_with(expected_update)
+        mocks.user_repository.update_user.assert_awaited_once_with(
+            expected_update, expected_identity=(user.id, user.email_version)
+        )
 
     async def test_update_user_raises_when_user_not_found(
-        self, mocks: CollaboratorMocks[AuthHandler]
+        self, mocks: CollaboratorMocks[AuthHandler], user: User
     ) -> None:
         email = "test@example.com"
         update_payload = UpdateUserIn(full_name="Updated Name")
         mocks.user_repository.get_user.return_value = None
 
         with pytest.raises(AuthError, match="User not found") as exc:
-            await mocks.handler.update_user(email, update_payload)
+            await mocks.handler.update_user(
+                email, update_payload, expected_identity=(user.id, user.email_version)
+            )
 
         assert exc.value.status_code == 404
         mocks.user_repository.get_user.assert_awaited_once_with(email)
 
     async def test_handle_delete_account_deletes_user(
-        self, mocks: CollaboratorMocks[AuthHandler]
+        self, mocks: CollaboratorMocks[AuthHandler], user: User
     ) -> None:
         email = "test@example.com"
 
-        await mocks.handler.handle_delete_account(email)
+        await mocks.handler.handle_delete_account(
+            email, expected_identity=(user.id, user.email_version)
+        )
 
-        mocks.user_repository.delete_user.assert_awaited_once_with(email)
+        mocks.user_repository.delete_user.assert_awaited_once_with(
+            email, expected_identity=(user.id, user.email_version)
+        )
 
     async def test_handle_get_current_user_returns_user(
         self,

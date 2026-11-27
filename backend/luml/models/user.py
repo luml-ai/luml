@@ -2,7 +2,7 @@ import uuid
 from typing import TYPE_CHECKING
 
 from pydantic import EmailStr, HttpUrl
-from sqlalchemy import UUID, Boolean, Integer, String, case
+from sqlalchemy import UUID, Boolean, Integer, String, case, text
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from luml.models.base import Base, TimestampMixin
@@ -22,6 +22,12 @@ class UserOrm(TimestampMixin, Base):
     auth_method: Mapped[str] = mapped_column(String, nullable=False)
     photo: Mapped[HttpUrl | None] = mapped_column(String, nullable=True)
     hashed_password: Mapped[str | None] = mapped_column(String, nullable=True)
+    email_version: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+        nullable=False,
+    )
     hashed_api_key: Mapped[str] = mapped_column(String, nullable=True)
     organizations_limit: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default="5"

@@ -62,6 +62,7 @@
     </template>
     <user-settings
       @show-change-password="onShowChangePassword"
+      @show-change-email="onShowChangeEmail"
       @close="isSettingsPopupVisible = !isSettingsPopupVisible"
     />
   </d-dialog>
@@ -70,6 +71,14 @@
       <h2 style="font-weight: 600; font-size: 20px">CHANGE PASSWORD</h2>
     </template>
     <user-change-password @success="onChangePasswordSuccess" />
+  </d-dialog>
+  <d-dialog
+    v-model:visible="isChangeEmailPopupVisible"
+    modal
+    header="Change email"
+    :style="{ width: '37rem' }"
+  >
+    <UserChangeEmail />
   </d-dialog>
   <ApiKeyModal v-model:show="isApiKeyVisible" />
 </template>
@@ -81,6 +90,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import UserSettings from './UserSettings.vue'
 import UserChangePassword from './UserChangePassword.vue'
+import UserChangeEmail from './UserChangeEmail.vue'
 import { ChevronDown } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from 'primevue/usetoast'
@@ -150,6 +160,7 @@ watch(isApiKeyVisible, (isVisible) => {
 
 const isSettingsPopupVisible = ref(false)
 const isChangePasswordPopupVisible = ref(false)
+const isChangeEmailPopupVisible = ref(false)
 
 const toggleMenu = () => {
   isDialogVisible.value = !isDialogVisible.value
@@ -157,6 +168,11 @@ const toggleMenu = () => {
 
 const onButtonLogoutClick = async () => {
   await authStore.logout()
+}
+
+const onShowChangeEmail = () => {
+  isSettingsPopupVisible.value = false
+  isChangeEmailPopupVisible.value = true
 }
 
 const onShowChangePassword = () => {
